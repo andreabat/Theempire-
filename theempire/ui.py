@@ -8,8 +8,8 @@ import random
 from collections import Counter, deque
 from pathlib import Path
 
-from theempire.ai import AI
-from theempire.game import CHEM_RANGE, Game, Unit
+from theempire.commands import describe
+from theempire.game import CHEM_RANGE, Unit
 from theempire.scenarios import SCENARIOS
 from theempire.units import (CHEMICAL, PRODUCTION_NAMES, UNIT_TYPES, WARHEAD,
                              production_cost)
@@ -59,6 +59,8 @@ spazio            salta l'unità per questo turno
 s                 sentinella (si sveglia se arriva il nemico)
 f                 fortifica (+25% difesa, resta di guardia)
 A                 automatica: l'unità viene guidata dall'IA
+O                 diplomazia: proponi o accetta una tregua
+T                 chat con gli altri giocatori (partite online)
 P                 produzione automatica in tutte le città (on/off)
 g                 vai a... (sposta il cursore, Invio per confermare)
 v                 sveglia le unità sotto il cursore (anche il carico)
@@ -80,16 +82,17 @@ alla mezzanotte: a 0 minuti la guerra nucleare totale distrugge tutti."""
 
 
 class UI:
-    def __init__(self, scr, game: Game, save_path: Path = SAVE_PATH):
+    def __init__(self, scr, session):
         self.scr = scr
-        self.g = game
-        self.save_path = save_path
-        self.w = game.world
-        self.viewer = self._first_human()
+        self.session = session
+        self.w = session.game.world
+        self.viewer = session.faction if session.online else self._first_human()
         self.cursor = self._home_cell()
         self.view_x = 0
         self.view_y = 0
-        self.active: Unit | None = None
+        self.active_id: int | None = None
+        self.turn_key: tuple[int, int] | None = None
+        self.over_shown = False
         self.skipped: set[int] = set()
         self.mode = "normal"          # normal | goto | nuke | chem | overview
         self.status = ""
@@ -101,6 +104,25 @@ class UI:
         self.scr.keypad(True)
         curses.mousemask(curses.ALL_MOUSE_EVENTS)
         curses.mouseinterval(0)
+
+    @property
+    def g(self):
+        return self.session.game
+
+    @property
+    def active(self) -> Unit | None:
+        if self.active_id is None:
+            return None
+        u = self.g.units.get(self.active_id)
+        return u if u is not None and u.owner == self.viewer else None
+
+    @active.setter
+    def active(self, u: Unit | None) -> None:
+        self.active_id = u.id if u is not None else None
+
+    def my_turn(self) -> bool:
+        g = self.g
+        return not g.over and g.current == self.viewer and self.session.started
 
     # ----------------------------------------------------------- colours
     def _init_colors(self) -> None:
@@ -324,7 +346,11 @@ class UI:
         level = "alert" if minutes <= 3 else "fallout" if minutes <= 6 else "good"
         self.put(0, max(len(title) + 1, w - len(clock) - 1), clock, self.color(level) | curses.A_REVERSE | curses.A_BOLD)
         if g.current != self.viewer and not g.over:
-            self.put(0, len(title), f" ⌛ {g.faction.name} ", curses.A_REVERSE)
+            self.put(0, len(title), f" ⌛ tocca a {g.faction.name} ", curses.A_REVERSE)
+        left = self.session.seconds_left()
+        if left is not None and not g.over:
+            self.put(0, max(len(title) + 1, w - len(clock) - 12), f" ⏱ {left // 60}:{left % 60:02d} ",
+                     self.color("alert" if left < 30 else "panel") | curses.A_REVERSE | curses.A_BOLD)
 
     def draw_sidebar(self) -> None:
         g = self.g
@@ -347,10 +373,15 @@ class UI:
             self.put(row, x, "Produzione automatica (P)", self.color("dim"))
             row += 1
         others = [f for f in g.factions if f.idx != self.viewer]
+        names = self.session.player_names()
         for f in others:
             state = f"{len(g.cities_of(f.idx)):3d} città" if f.alive else "  sconfitto"
-            self.put(row, x, f"{f.name[:22]:22s}{state}", self.color(f.color))
+            mark = "≈" if g.truce_left(self.viewer, f.idx) else " "
+            self.put(row, x, f"{f.name[:21]:21s}{mark}{state}", self.color(f.color))
             row += 1
+            if f.idx in names:
+                self.put(row, x, f"  giocatore: {names[f.idx]}"[:SIDEBAR - 1], self.color("dim"))
+                row += 1
         self.put(row, x, f"{'Neutrali':22s}{len(g.cities_of(None)):3d} città", self.color("neutral"))
         row += 1
         self.put(row, x, "─" * (SIDEBAR - 1), self.color("dim"))
@@ -448,7 +479,7 @@ class UI:
         top = h - LOG_ROWS - 1
         self.put(top, 0, "─" * mw, self.color("dim"))
         events = [e for e in self.g.events if e.audience is None or self.viewer in e.audience]
-        colors = {"info": "panel", "combat": "orange", "alert": "alert", "wmd": "wmd"}
+        colors = {"info": "panel", "combat": "orange", "alert": "alert", "wmd": "wmd", "chat": "cyan"}
         for k, e in enumerate(events[-(LOG_ROWS - 1):]):
             self.put(top + 1 + k, 0, f"[{e.turn:3d}] {e.text}"[:mw].ljust(mw),
                      self.color(colors.get(e.level, "panel")) | (curses.A_BOLD if e.level in ("wmd", "alert") else 0))
@@ -535,11 +566,80 @@ class UI:
         if key < 0 or key > 255:
             return
         ch = chr(key).upper()
-        if ch in keys:
-            city.production = ch
+        if ch in keys and self.do({"op": "produce", "city": city.id, "key": ch}) == "ok":
             self.status = f"{city.name} ora produce {PRODUCTION_NAMES[ch]}."
 
+    def diplomacy_menu(self) -> None:
+        g = self.g
+        others = [f for f in g.factions if f.idx != self.viewer and f.alive]
+        offers = g.proposals_to(self.viewer)
+        lines = []
+        for k, f in enumerate(others, 1):
+            left = g.truce_left(self.viewer, f.idx)
+            if left:
+                state = f"tregua ({left} turni)"
+            elif f.idx in offers:
+                state = "TI PROPONE UNA TREGUA"
+            elif [self.viewer, f.idx] in g.proposals:
+                state = "proposta inviata"
+            else:
+                state = "in guerra"
+            lines.append(f"{k}  {f.name:24s} {state}")
+        lines += ["", "Numero: proponi una tregua o rispondi a una proposta.",
+                  "Durante la tregua le due fazioni non possono attaccarsi."]
+        key = self.dialog("Diplomazia", lines, "numero o Esc")
+        if not ord("1") <= key < ord("1") + len(others):
+            return
+        f = others[key - ord("1")]
+        if f.idx in offers:
+            answer = self.dialog("Tregua", [f"{f.name} propone una tregua.", "Accetti?"], "s / n")
+            result = self.do({"op": "truce_answer", "target": f.idx,
+                              "accept": answer in (ord("s"), ord("S"))})
+        elif not g.truce_left(self.viewer, f.idx):
+            result = self.do({"op": "truce", "target": f.idx})
+        else:
+            return
+        self.status = describe(result) or self.status
+
+    def chat(self) -> None:
+        text = self.ask("Messaggio", ["Scrivi un messaggio per tutti i giocatori."], "> ", 120)
+        if text:
+            self.do({"op": "chat", "text": text})
+
     # ----------------------------------------------------------- orders
+    def do(self, cmd: dict) -> str:
+        """Send one command through the session (local game or server)."""
+        result = self.session.do(self.viewer, cmd, progress=self._progress)
+        if result == "disconnected":
+            self.status = "Connessione con il server perduta."
+        self.sync()
+        return result
+
+    def _progress(self, who: str) -> None:
+        self.status = f"⌛ {who} sta muovendo..."
+        self.draw()
+
+    def sync(self) -> None:
+        """React to a new game state: a new turn, or the end of the game."""
+        g = self.g
+        if g.over:
+            if not self.over_shown:
+                self.over_shown = True
+                self.game_over()
+            return
+        key = (g.turn, g.current)
+        if key == self.turn_key:
+            return
+        self.turn_key = key
+        if not self.session.online and g.faction.human:
+            self.viewer = g.current
+        if self.my_turn():
+            self.start_human_turn()
+        else:
+            self.active = None
+            if self.session.started:
+                self.status = f"⌛ Tocca a {g.faction.name}: aspetta il tuo turno."
+
     def needing_orders(self) -> list[Unit]:
         g = self.g
         out = []
@@ -554,9 +654,11 @@ class UI:
         return out
 
     def select_next(self) -> None:
+        if not self.my_turn():
+            return
         pending = self.needing_orders()
         if self.active is not None:
-            pending = [u for u in pending if u is not self.active] or pending
+            pending = [u for u in pending if u.id != self.active_id] or pending
         if pending:
             self.select(pending[0])
         else:
@@ -570,7 +672,7 @@ class UI:
 
     def after_action(self) -> None:
         a = self.active
-        if a is None or a.id not in self.g.units or a.moves <= 0 or a.order is not None:
+        if a is None or a.moves <= 0 or a.order is not None:
             self.select_next()
         else:
             self.cursor = a.cell
@@ -578,55 +680,43 @@ class UI:
 
     def move_active(self, dx: int, dy: int) -> None:
         a = self.active
-        if a is None or a.id not in self.g.units:
+        if a is None:
             self.status = "Nessuna unità selezionata (n per la prossima)."
             return
         target = self.w.step_dir(a.cell, dx, dy)
         if target is None:
             return
-        result = self.g.move(a, target)
-        msg = {"illegal": "Movimento impossibile.", "nomoves": "Unità senza mosse.",
-               "captured": "Città conquistata!", "lost": "Unità perduta.",
-               "crashed": "L'aereo è precipitato.", "blocked": "Contatto con il nemico!"}
-        self.status = msg.get(result, "")
+        self.status = describe(self.do({"op": "move", "unit": a.id, "cell": target}))
         self.after_action()
+
+    def order(self, order: str | None, **extra) -> str:
+        a = self.active
+        if a is None:
+            return "illegal"
+        result = self.do({"op": "order", "unit": a.id, "order": order, **extra})
+        self.after_action()
+        return result
 
     def start_human_turn(self) -> None:
         g = self.g
-        self.viewer = g.current
         self.skipped.clear()
         self.active = None
-        if sum(1 for f in g.factions if f.human and f.alive) > 1:
+        if not self.session.online and sum(1 for f in g.factions if f.human and f.alive) > 1:
             self.scr.erase()
             self.scr.refresh()
             self.dialog("Passaggio di consegne", [f"Tocca a: {g.faction.name}",
                                                   "Gli altri giocatori distolgano lo sguardo."])
-        for u in list(g.units_of(self.viewer)):
-            if u.order == "goto" and u.id in g.units:
-                g.follow_goto(u)
-        AI(g, self.viewer).assist()
-        if g.over:
-            self.game_over()
-            return
         self.select_next()
         if self.active is None:
             self.cursor = self._home_cell()
             self.center()
         self.status = f"Turno {g.turn}: ai tuoi ordini."
+        if self.session.online:
+            curses.beep()
 
     def end_human_turn(self) -> None:
-        g = self.g
         self.active = None
-        g.end_turn()
-        while not g.over and not g.faction.human:
-            self.status = f"⌛ {g.faction.name} sta muovendo..."
-            self.draw()
-            AI(g, g.current).play()
-            g.end_turn()
-        if g.over:
-            self.game_over()
-            return
-        self.start_human_turn()
+        self.do({"op": "end_turn"})
 
     def game_over(self) -> None:
         g = self.g
@@ -640,7 +730,10 @@ class UI:
             title = "MEZZANOTTE"
         else:
             fac = g.factions[winner]
-            human_won = fac.human
+            if self.session.online:
+                human_won = winner == self.viewer
+            else:
+                human_won = fac.human
             why = {"conquest": "ha sconfitto tutti i rivali",
                    "domination": "domina il mondo",
                    "turns": "vince ai punti allo scadere"}[reason]
@@ -654,6 +747,8 @@ class UI:
         self.quit = True
 
     # ----------------------------------------------------------- input
+    VIEW_KEYS = {ord("m"), ord("r"), ord("?"), ord("Q"), ord("T"), ord("n"), 9}
+
     def handle(self, key: int) -> None:
         g = self.g
         self.status = ""
@@ -686,7 +781,14 @@ class UI:
             return
         if key in CURSOR_KEYS:
             self.move_cursor(*CURSOR_KEYS[key])
-        elif key in DIRECTIONS:
+            return
+        if not self.my_turn() and key not in self.VIEW_KEYS and key != -1:
+            if not self.session.started:
+                self.status = "In attesa che arrivino tutti i giocatori..."
+            elif not g.over:
+                self.status = f"Attendi il tuo turno: ora tocca a {g.faction.name}."
+            return
+        if key in DIRECTIONS:
             self.move_active(*DIRECTIONS[key])
         elif key in (ord("n"), 9):
             self.select_next()
@@ -697,39 +799,31 @@ class UI:
         elif key in (10, 13, curses.KEY_ENTER):
             self.select_at_cursor()
         elif key == ord("s") and self.active:
-            self.active.order = "sentry"
-            self.after_action()
+            self.order("sentry")
         elif key == ord("f") and self.active:
             if self.active.type.domain == "land":
-                self.active.order = "fortify"
-                self.after_action()
+                self.order("fortify")
             else:
                 self.status = "Solo le unità di terra possono fortificarsi."
         elif key == ord("A") and self.active:
-            self.active.order = "auto"
+            self.order("auto")
             self.status = "Unità affidata all'IA (Invio sull'unità per riprenderla)."
-            self.after_action()
         elif key == ord("P"):
-            fac = g.factions[self.viewer]
-            fac.auto_production = not fac.auto_production
-            self.status = "Produzione automatica " + ("attivata." if fac.auto_production else "disattivata.")
+            on = not g.factions[self.viewer].auto_production
+            self.do({"op": "auto_production", "on": on})
+            self.status = "Produzione automatica " + ("attivata." if on else "disattivata.")
         elif key == ord("g") and self.active:
             self.mode = "goto"
         elif key == ord("v"):
-            woke = 0
-            for u in g.units_at(self.cursor):
-                for v in [u] + [g.units[c] for c in u.cargo if c in g.units]:
-                    if v.owner == self.viewer and v.order is not None:
-                        v.order, v.target = None, None
-                        woke += 1
+            woke = self.do({"op": "wake", "cell": self.cursor})
             self.status = f"{woke} unità sveglie."
             self.skipped.clear()
         elif key == ord("l") and self.active:
-            n = g.load(self.active)
-            self.status = f"Caricate {n} unità." if n else "Niente da caricare (serve una nave in città)."
+            n = self.do({"op": "load", "unit": self.active.id})
+            self.status = f"Caricate {n} unità." if n not in ("0", "illegal") else "Niente da caricare (serve una nave in città)."
         elif key == ord("u") and self.active:
-            n = g.unload(self.active)
-            self.status = f"Scaricate {n} unità." if n else "Si scarica solo in città."
+            n = self.do({"op": "unload", "unit": self.active.id})
+            self.status = f"Scaricate {n} unità." if n not in ("0", "illegal") else "Si scarica solo in città."
         elif key == ord("p"):
             city = g.city(self.cursor)
             if city is not None and city.owner == self.viewer:
@@ -738,9 +832,16 @@ class UI:
                 self.status = "Metti il cursore su una tua città."
         elif key == ord("D") and self.active:
             if self.dialog("Congedo", [f"Congedare {self.active.type.name}?"], "s per confermare") in (ord("s"), ord("S")):
-                g.kill(self.active)
+                self.do({"op": "disband", "unit": self.active.id})
                 self.active = None
                 self.select_next()
+        elif key == ord("O"):
+            self.diplomacy_menu()
+        elif key == ord("T"):
+            if self.session.online:
+                self.chat()
+            else:
+                self.status = "La chat serve nelle partite online."
         elif key == ord("m"):
             self.mode = "overview"
         elif key == ord("r"):
@@ -760,8 +861,11 @@ class UI:
         elif key == ord("S"):
             self.save()
         elif key == ord("Q"):
-            if self.dialog("Uscire?", ["La partita verrà salvata."], "s per uscire") in (ord("s"), ord("S")):
-                self.save()
+            note = "Il server tiene la partita: potrai rientrare." if self.session.online \
+                else "La partita verrà salvata."
+            if self.dialog("Uscire?", [note], "s per uscire") in (ord("s"), ord("S")):
+                if not self.session.online:
+                    self.save()
                 self.quit = True
         elif key == ord("?"):
             self.dialog("Comandi", HELP.splitlines())
@@ -782,29 +886,25 @@ class UI:
             if city is not None and city.owner == self.viewer:
                 self.production_menu(city)
             return
-        if self.active in mine:
-            k = (mine.index(self.active) + 1) % len(mine)
-        else:
-            k = 0
+        ids = [u.id for u in mine]
+        k = (ids.index(self.active_id) + 1) % len(ids) if self.active_id in ids else 0
         u = mine[k]
-        if u.order in ("sentry", "fortify", "auto"):
-            u.order = None
         self.skipped.discard(u.id)
         self.select(u)
+        if u.order in ("sentry", "fortify", "auto"):
+            self.do({"op": "order", "unit": u.id, "order": None})
 
     def confirm_target(self) -> None:
         g = self.g
         mode, self.mode = self.mode, "normal"
         if mode == "goto":
             a = self.active
-            if a is not None and a.id in g.units:
-                if g.path(a, self.cursor) is None:
-                    self.status = "Destinazione irraggiungibile."
-                    self.cursor = a.cell
-                    return
-                a.order, a.target = "goto", self.cursor
-                g.follow_goto(a)
-                self.after_action()
+            if a is not None:
+                result = self.order("goto", target=self.cursor)
+                if result != "ok":
+                    self.status = describe(result)
+                    if self.active is not None:
+                        self.cursor = self.active.cell
             return
         city = g.city(self.cursor)
         place = city.name if city else "la casella selezionata"
@@ -815,24 +915,22 @@ class UI:
             if self.dialog("☣ Armi chimiche", [f"Colpire {place} con gas nervino?",
                                                "Orologio dell'Apocalisse: -1 minuto."],
                            "s per confermare") in (ord("s"), ord("S")):
-                g.chemical_strike(self.viewer, self.cursor)
+                self.status = describe(self.do({"op": "chem", "cell": self.cursor}))
         else:
+            if city is not None and city.owner == self.viewer:
+                self.status = "Non puoi colpire una tua città."
+                return
             code = f"{random.randint(0, 9999):04d}"
             lines = [f"Bersaglio: {place}",
                      f"Testate disponibili: {g.factions[self.viewer].warheads}",
                      f"Orologio dell'Apocalisse: {g.doomsday} minuti (-2/-3 dopo il lancio)",
                      "Il nemico potrebbe rispondere con tutto il suo arsenale.", "",
                      f"CODICE DI AUTORIZZAZIONE: {code}"]
-            if city is not None and city.owner == self.viewer:
-                self.status = "Non puoi colpire una tua città."
-                return
             if self.ask("☢ AUTORIZZAZIONE AL LANCIO", lines, "Digita il codice (Invio):", 4) == code:
-                g.nuclear_strike(self.viewer, self.cursor)
+                self.status = describe(self.do({"op": "nuke", "cell": self.cursor}))
             else:
                 self.status = "Codice errato: lancio annullato."
-        if g.over:
-            self.game_over()
-        elif self.active is not None:
+        if self.active is not None:
             self.after_action()
 
     def mouse(self) -> None:
@@ -854,38 +952,67 @@ class UI:
         if y >= self.w.height:
             return
         self.cursor = self.w.idx(self.view_x + mx, y)
-        if self.mode == "normal" and state & (curses.BUTTON1_DOUBLE_CLICKED | curses.BUTTON3_CLICKED):
+        if self.mode == "normal" and self.my_turn() and \
+                state & (curses.BUTTON1_DOUBLE_CLICKED | curses.BUTTON3_CLICKED):
             self.select_at_cursor()
 
     def save(self) -> None:
-        self.save_path.parent.mkdir(parents=True, exist_ok=True)
-        self.g.save_file(self.save_path)
-        self.status = f"Partita salvata in {self.save_path}"
+        result = self.session.do(self.viewer, {"op": "save"})
+        if self.session.online:
+            self.status = "Partita salvata sul server." if result == "saved" else \
+                "Il server non salva questa partita."
+        else:
+            self.status = f"Partita salvata in {self.session.save_path}"
 
     # ----------------------------------------------------------- loop
     def run(self) -> None:
-        g = self.g
-        if not g.faction.human:
-            self.end_human_turn_ai_first()
+        if self.session.online:
+            self.scr.timeout(300)
+            if not self.lobby():
+                return
         else:
-            self.start_human_turn()
+            self.session.start(self._progress)
+        self.sync()
         self.center()
         while not self.quit:
             self.draw()
             key = self.scr.getch()
-            self.handle(key)
+            if self.session.poll():
+                self.sync()
+            if self.session.closed and not self.quit:
+                self.dialog("Connessione persa", [self.session.error or "Il server non risponde.",
+                                                  "Rilancia con --join per rientrare."])
+                return
+            if key != -1:
+                self.handle(key)
 
-    def end_human_turn_ai_first(self) -> None:
-        g = self.g
-        while not g.over and not g.faction.human:
-            self.status = f"⌛ {g.faction.name} sta muovendo..."
-            self.draw()
-            AI(g, g.current).play()
-            g.end_turn()
-        if g.over:
-            self.game_over()
-        else:
-            self.start_human_turn()
+    def lobby(self) -> bool:
+        """Wait for every seat to be taken. False if the player quits."""
+        while not self.session.started:
+            self.session.poll()
+            if self.session.closed:
+                return False
+            self.scr.erase()
+            h, w = self.scr.getmaxyx()
+            g = self.g
+            lines = [f"THE EMPIRE · partita online · {g.scenario.name}", "",
+                     f"Server: {self.session.address}",
+                     f"Tu giochi con: {g.factions[self.viewer].name}", "",
+                     "Posti:"]
+            for seat in self.session.lobby:
+                who = seat["name"] if seat["taken"] else "— libero —"
+                state = "" if not seat["taken"] else (" ●" if seat["online"] else " (offline)")
+                lines.append(f"  {g.factions[seat['faction']].name:24s} {who}{state}")
+            ai = [f.name for f in g.factions if not f.human]
+            if ai:
+                lines += ["", "Guidati dall'IA: " + ", ".join(ai)]
+            lines += ["", "In attesa degli altri giocatori...  (Q per uscire)"]
+            for k, line in enumerate(lines):
+                self.put(2 + k, 4, line, curses.A_BOLD if k == 0 else 0)
+            self.scr.refresh()
+            if self.scr.getch() in (ord("Q"), ord("q")):
+                return False
+        return True
 
 
 def defcon(minutes: int) -> int:

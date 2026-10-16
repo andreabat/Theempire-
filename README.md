@@ -32,6 +32,48 @@ python3 -m theempire --autoplay 100 --seed 1   # IA contro IA, senza interfaccia
 
 Per installarlo come comando: `pip install .` e poi `theempire`.
 
+## Multiplayer online
+
+Una partita online ha un **server** che tiene la partita e guida le fazioni
+dell'IA, e fino a un **giocatore per fazione** che si collega da un altro
+terminale o da un altro computer. Le fazioni indicate con `--faction` sono i
+posti per i giocatori umani; le altre le gioca l'IA. Senza `--faction`, tutte
+le fazioni sono posti umani.
+
+```bash
+# chi ospita: server su porta 7777, posti per NATO e Patto, 3 minuti a turno
+python3 -m theempire --serve --scenario coldwar --faction nato --faction pact \
+        --password segreta --turn-time 180
+
+# chi ospita e gioca dallo stesso terminale (server in background)
+python3 -m theempire --serve --scenario ww3 --faction west --faction east --play west
+
+# gli altri giocatori
+python3 -m theempire --join 192.168.1.20 --name Bruno --password segreta
+python3 -m theempire --join mioserver.example.org:7777 --faction east
+```
+
+- La partita comincia quando tutti i posti sono occupati. Fino ad allora
+  compare la lobby con i nomi dei giocatori.
+- I turni restano a fazioni alterne: mentre tocca agli altri puoi guardare
+  la mappa, la panoramica e il registro, e scrivere in **chat** (`T`). Quando
+  tocca a te il terminale emette un beep.
+- **Nebbia di guerra vera.** Il server manda a ogni giocatore solo le unità
+  nemiche che le sue forze vedono, e solo i suoi messaggi. Il generatore
+  casuale dei combattimenti resta sul server. Il server controlla ogni
+  comando, quindi non si può muovere un'unità altrui né agire fuori turno.
+- Con `--turn-time` il server chiude da solo il turno di chi supera il
+  tempo. Il conto alla rovescia compare in alto.
+- **Rientro.** Se cadi, rilancia lo stesso `--join`: il client ha salvato in
+  `~/.theempire/online.json` un gettone che ti restituisce il tuo posto.
+- Il server salva da sé a ogni turno in `~/.theempire/server-<porta>.json`.
+  Si riprende con `--serve --load <file>`: i posti restano agli stessi
+  giocatori. `S` da un client chiede un salvataggio immediato.
+- **Su internet** chi ospita deve aprire la porta TCP (7777 o quella scelta)
+  sul router/firewall, o usare una VPN come Tailscale o ZeroTier. Il traffico
+  non è cifrato: per partite tra sconosciuti usate una VPN o un tunnel SSH
+  (`ssh -L 7777:localhost:7777 host`) e mettete sempre una password.
+
 ## Scenari
 
 | Scenario | Fazioni | Idea |
@@ -115,9 +157,26 @@ Guerra Fredda) e sta in alto a destra, insieme al livello DEFCON.
   schermo, come nel manuale di Theatre Europe.
 - Chi viene colpito di solito **risponde** (distruzione mutua assicurata):
   le IA reagiscono quasi sempre, e colpiscono la tua città più grande.
+- Le IA sono attori razionali: non fanno mai il lancio che porterebbe
+  l'orologio a mezzanotte, a meno di essere ormai spacciate (3 città o
+  meno). Tu invece puoi farlo.
 - Dopo 6 turni senza armi di distruzione di massa la tensione cala e
   l'orologio recupera un minuto.
 - **A mezzanotte la partita finisce e perdono tutti.**
+
+### Diplomazia: le tregue
+Con `O` proponi una **tregua di 15 turni** a un'altra fazione. Durante la
+tregua le due fazioni non possono attaccarsi, entrare nelle caselle
+dell'altra né colpirla con armi chimiche o nucleari (nel pannello compare
+`≈`). Allo scadere si torna in guerra.
+
+- L'IA accetta volentieri quando sta perdendo o quando l'orologio è sotto i
+  5 minuti. Un'IA aggressiva che sta vincendo rifiuta quasi sempre, e
+  nessuno firma con chi lo ha appena colpito con l'atomica.
+- Le IA in difficoltà propongono a loro volta tregue alla fazione più forte.
+- Dopo un rifiuto puoi riproporre la stessa tregua solo dopo 5 turni.
+- Strategia: una tregua sul fronte secondario ti libera le truppe per quello
+  principale, ma dura poco. Usala per una spallata, non per sempre.
 
 ### Vittoria
 - **Dominio**: controlla il 50% delle città del mondo (55% nella Guerra Fredda).
@@ -141,6 +200,8 @@ Guerra Fredda) e sta in alto a destra, insieme al livello DEFCON.
 | `p`, `P` | produzione della città, produzione automatica in tutte le città |
 | `m` | panoramica del mondo (un punto Braille = una casella; clic per saltare) |
 | `N`, `C` | attacco nucleare / chimico sulla casella del cursore |
+| `O` | diplomazia: proponi una tregua o rispondi a una proposta |
+| `T` | chat (partite online) |
 | `E` | fine turno |
 | `S`, `Q`, `?` | salva, esci (salvando), aiuto |
 
@@ -185,7 +246,7 @@ cinese.
 
 **In generale**
 - Attento a vincere troppo in fretta: quando una fazione si avvicina al
-  dominio (85% della soglia), le IA si sentono perse e diventano molto più
+  dominio (92% della soglia), le IA si sentono perse e diventano molto più
   propense al primo colpo nucleare. A volte conviene fermarsi, consolidare
   e abbattere prima i loro arsenali conquistando le grandi città.
 - La fanteria tiene, i corazzati prendono, i bombardieri ammorbidiscono.
@@ -208,9 +269,10 @@ all'alternativa, così si può cambiare strada.
 2. **Griglia contro province.** Una griglia regolare (360×72) mantiene la
    geografia vera e la regola "un'unità per casella" di Empire. Alternativa:
    province/regioni stile Risiko, più leggibili ma meno tattiche.
-3. **Neutrali passivi.** I paesi neutrali difendono le città con la milizia
-   ma non hanno eserciti. Alternativa: neutrali armati che si alleano con
-   chi viene attaccato, o diplomazia (alleanze, armistizi, embarghi).
+3. **Neutrali passivi, diplomazia minima.** I paesi neutrali difendono le
+   città con la milizia ma non hanno eserciti. Tra le fazioni ci sono solo
+   tregue a tempo. Alternative: neutrali armati che si alleano con chi viene
+   attaccato, alleanze vere, embarghi.
 4. **Niente rifornimenti di linea.** C'è solo un tetto logistico globale.
    Alternativa: rifornimento per catena di città (unità isolate più deboli),
    come nei wargame.
@@ -219,9 +281,14 @@ all'alternativa, così si può cambiare strada.
    iniziali. I numeri sono in `theempire/scenarios.py`.
 6. **Un turno = una settimana.** Il calendario serve solo all'atmosfera.
 
-Possibili sviluppi: diplomazia e armistizio, eventi casuali (colpi di stato,
-crisi petrolifere), tecnologie (scudo antimissile, stealth), partite in
-rete, salvataggi multipli, editor di scenari.
+7. **Online con turni alterni.** Il server è l'unico arbitro e ogni
+   giocatore muove nel suo turno. Alternativa: turni simultanei (tutti danno
+   ordini insieme, il server li risolve), più veloci ma con regole di
+   conflitto molto più complicate.
+
+Possibili sviluppi: alleanze, eventi casuali (colpi di stato, crisi
+petrolifere), tecnologie (scudo antimissile, stealth), turni simultanei
+online, client web, editor di scenari.
 
 ## Struttura del codice
 
@@ -231,8 +298,10 @@ theempire/
   units.py      tipi di unità e costi
   scenarios.py  fazioni, paesi, testate, dottrine
   game.py       regole: movimento, combattimento, produzione, armi DM, vittoria, salvataggi
-  ai.py         avversari (campi di distanza condivisi, sbarchi, raid aerei, escalation)
-  ui.py         interfaccia curses: mappa Braille, pannello, registro, menu
+  ai.py         avversari (campi di distanza condivisi, sbarchi, raid aerei, escalation, tregue)
+  commands.py   i comandi del giocatore, validati: unica via per cambiare la partita
+  net.py        multiplayer: server autoritativo, client, protocollo JSON su TCP
+  ui.py         interfaccia curses: mappa Braille, pannello, registro, lobby, menu
   cli.py        riga di comando
   assets/world.json   mappa generata da Natural Earth
 tools/build_world.py  rigenera la mappa (richiede numpy e Pillow)

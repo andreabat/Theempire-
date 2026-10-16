@@ -26,6 +26,8 @@ from theempire.units import UNIT_TYPES, WARHEAD
 FIRST_STRIKE = {"aggressive": 0.25, "balanced": 0.12, "restrained": 0.05}
 RETALIATE = {"aggressive": 0.95, "balanced": 0.8, "restrained": 0.65}
 CHEMICAL_USE = {"aggressive": 0.06, "balanced": 0.03, "restrained": 0.0}
+FAR_BY_LAND = 30
+TRUCE_OFFER = {"aggressive": 0.03, "balanced": 0.06, "restrained": 0.1}
 ATTACK_ODDS = {"aggressive": 0.45, "balanced": 0.5, "restrained": 0.55}
 
 
@@ -45,6 +47,7 @@ class AI:
         self.escalation()
         if g.over:
             return
+        self.diplomacy()
         self.production()
         units = sorted(g.units_of(self.f), key=lambda u: "FBTSDRCAI".find(u.kind))
         for u in units:
@@ -91,7 +94,7 @@ class AI:
 
     # --------------------------------------------------------------- fields
     def _hostile_city_cells(self) -> list[int]:
-        return [c.cell for c in self.g.cities if c.owner != self.f]
+        return [c.cell for c in self.g.cities if self.g.hostile(self.f, c.owner)]
 
     def _fields(self) -> None:
         g, w = self.g, self.w
@@ -107,7 +110,7 @@ class AI:
         self.landing = landing
         sea_ok = self._sea_passable
         self.landing_field = w.bfs(landing, sea_ok)
-        enemy_ports = [n for c in g.cities if c.owner is not None and c.owner != self.f
+        enemy_ports = [n for c in g.cities if c.owner is not None and g.hostile(self.f, c.owner)
                        for n in w.neighbors[c.cell] if not land[n]]
         self.enemy_coast_field = w.bfs(enemy_ports, sea_ok)
         self.home_sea_field = w.bfs(my_ports, sea_ok)
@@ -124,10 +127,10 @@ class AI:
     def _garrisons(self) -> None:
         """Keep a minimum garrison fortified in every city."""
         g, w = self.g, self.w
-        enemy_cities = [c.cell for c in g.cities if c.owner is not None and c.owner != self.f]
+        enemy_cities = [c.cell for c in g.cities if c.owner is not None and g.hostile(self.f, c.owner)]
         vis = g.visible(self.f)
         enemy_units = [u.cell for u in g.units.values()
-                       if u.owner != self.f and u.carrier is None and u.cell in vis]
+                       if g.hostile(self.f, u.owner) and u.carrier is None and u.cell in vis]
         for c in g.cities_of(self.f):
             threatened = any(w.dist(c.cell, e) <= 8 for e in enemy_cities) or \
                 any(w.dist(c.cell, e) <= 4 for e in enemy_units)
@@ -153,7 +156,7 @@ class AI:
             if u.kind in "TC":
                 counts[u.kind] += 1
         ports = sum(1 for c in g.cities_of(self.f) if g.is_port(c.cell))
-        stranded = sum(1 for u in mine if u.type.domain == "land" and u.cell not in self.land_field)
+        stranded = sum(1 for u in mine if u.type.domain == "land" and self._needs_ship(u))
         total = max(1, len(mine))
         for c in g.cities_of(self.f):
             if c.progress >= g.production_rate(c) and g.can_build(c, c.production):
@@ -197,29 +200,37 @@ class AI:
         g, fac = self.g, self.fac
         doctrine = fac.doctrine
         # Retaliation (MAD): answer every strike received since last turn.
+        # A rational actor never makes the launch that ends the world,
+        # unless it is about to be wiped out anyway.
+        doomed = len(g.cities_of(self.f)) <= 3
         attackers = list(dict.fromkeys(fac.nuked_by))
         fac.nuked_by.clear()
         for enemy in attackers:
             p = RETALIATE.get(doctrine, 0.8)
-            if g.doomsday <= 3 and doctrine == "restrained":
+            if g.doomsday <= 5 and doctrine != "aggressive":
                 p /= 2
-            if fac.warheads > 0 and g.factions[enemy].alive and g.rng.random() < p:
-                target = self._best_city(enemy)
-                if target is not None:
-                    g.nuclear_strike(self.f, target)
-                    if g.over:
-                        return
+            if fac.warheads <= 0 or not g.factions[enemy].alive or g.rng.random() >= p:
+                continue
+            target = self._best_city(enemy)
+            if target is not None and g.doomsday - 3 <= 0 and not doomed:
+                target = self._best_tactical_target(owner=enemy, minimum=1)
+                if g.doomsday - 2 <= 0:
+                    target = None
+            if target is not None:
+                g.nuclear_strike(self.f, target)
+                if g.over:
+                    return
         if fac.warheads <= 0 and fac.chemicals <= 0:
             return
         # Desperation: heavy losses, the capital gone, or a rival about to
         # win by domination.
-        threshold = 0.85 * g.scenario.victory_share * len(g.cities)
+        threshold = 0.92 * g.scenario.victory_share * len(g.cities)
         rival_winning = any(len(g.cities_of(o.idx)) >= threshold
                             for o in g.factions if o.idx != self.f and o.alive)
         losing = rival_winning or len(g.cities_of(self.f)) < 0.6 * max(1, fac.start_cities) or not any(
             c.capital for c in g.cities_of(self.f))
-        floor = 2 if doctrine == "aggressive" else 4
-        if fac.warheads > 0 and losing and g.turn >= 5 and g.doomsday > floor \
+        floor = 3 if doctrine == "aggressive" else 5
+        if fac.warheads > 0 and losing and g.turn >= 5 and g.doomsday - 2 > floor \
                 and g.rng.random() < FIRST_STRIKE.get(doctrine, 0.1):
             cell = self._best_tactical_target()
             if cell is not None:
@@ -230,17 +241,34 @@ class AI:
             if cell is not None:
                 g.chemical_strike(self.f, cell)
 
+    def diplomacy(self) -> None:
+        """Answer truce offers; offer one when the war is going badly."""
+        g = self.g
+        for proposer in g.proposals_to(self.f):
+            g.answer_truce(self.f, proposer, accepts_truce(g, self.f, proposer))
+        mine = len(g.cities_of(self.f))
+        rivals = [o for o in g.factions if o.alive and o.idx != self.f and g.hostile(self.f, o.idx)]
+        if len(rivals) < 2 and mine >= 0.6 * max(1, self.fac.start_cities):
+            return  # alone against one rival and holding: fight on
+        if not rivals or g.rng.random() >= TRUCE_OFFER.get(self.fac.doctrine, 0.05):
+            return
+        strongest = max(rivals, key=lambda o: len(g.cities_of(o.idx)))
+        if len(g.cities_of(strongest.idx)) > mine:
+            g.propose_truce(self.f, strongest.idx)
+
     def _best_city(self, enemy: int) -> int | None:
         cities = self.g.cities_of(enemy)
         if not cities:
             return None
         return max(cities, key=lambda c: (c.size + 2 * c.capital, -c.id)).cell
 
-    def _best_tactical_target(self, minimum: int = 3, chemical: bool = False) -> int | None:
+    def _best_tactical_target(self, minimum: int = 3, chemical: bool = False,
+                              owner: int | None = None) -> int | None:
         """The visible enemy concentration close to our cities, never our own."""
         g, w = self.g, self.w
         vis = g.visible(self.f)
-        enemies = [u for u in g.units.values() if u.owner != self.f and u.carrier is None
+        enemies = [u for u in g.units.values() if g.hostile(self.f, u.owner) and u.carrier is None
+                   and (owner is None or u.owner == owner)
                    and u.cell in vis and g.sees(self.f, u)]
         if not enemies:
             return None
@@ -256,6 +284,8 @@ class AI:
                 continue
             if chemical and not g.can_chemical(self.f, u.cell):
                 continue
+            if any(o.owner != self.f and not g.hostile(self.f, o.owner) for c in cells for o in g.units_at(c)):
+                continue  # never hit a truce partner
             hit = [o for c in cells for o in g.units_at(c) if o.owner != self.f]
             if len(hit) < minimum:
                 continue
@@ -318,7 +348,7 @@ class AI:
                 if g.move(u, target) in ("captured", "lost"):
                     return
                 continue
-            if u.cell in self.land_field:
+            if u.cell in self.land_field and not self._needs_ship(u):
                 if self.land_field[u.cell] == 1 and self._siege(u):
                     return
                 if not self._step_down(u, self.land_field):
@@ -336,6 +366,14 @@ class AI:
                 return
             if not self._step_down(u, self.port_field, allow_board=True):
                 return
+
+    def _needs_ship(self, u: Unit) -> bool:
+        """No target on this continent, or the nearest one is so far by land
+        that a port close by is the quicker way to the war."""
+        d = self.land_field.get(u.cell)
+        if d is None:
+            return True
+        return d > FAR_BY_LAND and self.port_field.get(u.cell, 99) <= 6
 
     def _siege(self, u: Unit) -> bool:
         """Wear down a city's militia even at poor odds: damage persists."""
@@ -435,7 +473,7 @@ class AI:
         g, w = self.g, self.w
         best = None
         for o in g.units.values():
-            if o.owner == self.f or o.carrier is not None or o.type.domain != "sea":
+            if not g.hostile(self.f, o.owner) or o.carrier is not None or o.type.domain != "sea":
                 continue
             d = w.dist(u.cell, o.cell)
             if d <= radius and g.sees(self.f, o) and g.city(o.cell) is None:
@@ -490,7 +528,7 @@ class AI:
         reach = u.fuel
         vis = g.visible(self.f)
         for o in g.units.values():
-            if o.owner == self.f or o.carrier is not None or o.kind == "S" or o.cell not in vis:
+            if not g.hostile(self.f, o.owner) or o.carrier is not None or o.kind == "S" or o.cell not in vis:
                 continue
             d = w.dist(u.cell, o.cell)
             if d > reach or d + min(w.dist(o.cell, b) for b in bases) > reach - 1:
@@ -527,6 +565,23 @@ def win_probability_for(g: Game, u: Unit, cell: int, defender: Unit) -> float:
     from theempire.game import win_probability
     return win_probability(g.attack_value(u, cell, defender), u.hp,
                            g.defense_value(u, defender), defender.hp)
+
+
+def accepts_truce(g: Game, f: int, proposer: int) -> bool:
+    """Would the AI faction ``f`` accept a truce offered by ``proposer``?"""
+    fac = g.factions[f]
+    if proposer in fac.nuked_by:
+        return False
+    mine = len(g.cities_of(f))
+    theirs = len(g.cities_of(proposer))
+    p = 0.15
+    if mine < 0.8 * theirs:
+        p = 0.7
+    elif fac.doctrine == "aggressive" and mine > 1.2 * theirs:
+        p = 0.03
+    if g.doomsday <= 4:
+        p += 0.3
+    return g.rng.random() < p
 
 
 def run_ai_turns(g: Game) -> None:

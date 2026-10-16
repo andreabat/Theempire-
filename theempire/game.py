@@ -33,6 +33,7 @@ SUPPORT_BONUS = 0.15                # per friendly land unit next to the target
 SUPPORT_MAX = 4
 SUPPLY_FACTOR = 2.0                 # unit cap = factor x base production + 20
 CLOCK_RECOVERY_TURNS = 6
+TRUCE_TURNS = 15
 
 
 @dataclass
@@ -121,6 +122,10 @@ class Game:
         self.fallout: dict[int, int] = {}
         self.events: list[Event] = []
         self.over: tuple[int | None, str] | None = None
+        self.truces: dict[str, int] = {}     # "a-b" -> last turn of the truce
+        self.proposals: list[list[int]] = []  # [from, to] truce offers pending
+        self.offered: dict[str, int] = {}    # "from>to" -> turn of the last offer
+        self.prepared: list[int] | None = None  # [turn, faction] of the last prepared human turn
         self.units: dict[int, Unit] = {}
         self.at: dict[int, list[int]] = {}
         self.next_id = 1
@@ -332,10 +337,14 @@ class Game:
         t = u.type
         city = self.city(cell)
         others = self.units_at(cell)
+        if city is not None and city.owner != u.owner and not self.hostile(u.owner, city.owner):
+            return None  # a city of a truce partner
         hostile_city = city is not None and city.owner != u.owner
-        enemies = [o for o in others if o.owner != u.owner]
+        enemies = [o for o in others if self.hostile(u.owner, o.owner)]
         if enemies or hostile_city:
             return "attack" if self.can_attack(u, cell) else None
+        if any(o.owner != u.owner for o in others):
+            return None  # units of a truce partner
         if city is not None:  # own city
             if t.domain == "sea" and not self.is_port(cell):
                 return None
@@ -354,7 +363,7 @@ class Game:
         if t.attack <= 0:
             return False
         city = self.city(cell)
-        targets = [o for o in self.units_at(cell) if o.owner != u.owner]
+        targets = [o for o in self.units_at(cell) if self.hostile(u.owner, o.owner)]
         if not targets and city is None:
             return False
         if t.key == "S":
@@ -374,7 +383,8 @@ class Game:
             return "nomoves"
         action = self.classify(u, cell)
         if action is None:
-            hidden = [o for o in self.units_at(cell) if o.owner != u.owner and not self.sees(u.owner, o)]
+            hidden = [o for o in self.units_at(cell)
+                      if self.hostile(u.owner, o.owner) and not self.sees(u.owner, o)]
             if hidden:
                 self.log(f"{u.type.name}: contatto con un'unità nascosta!", [u.owner], "combat")
                 u.moves = 0
@@ -424,7 +434,7 @@ class Game:
     def _wake_sentries(self, mover: Unit) -> None:
         """Enemy units on sentry duty wake up when ``mover`` comes close."""
         for o in self.units.values():
-            if o.owner != mover.owner and o.order == "sentry" and o.carrier is None \
+            if self.hostile(o.owner, mover.owner) and o.order == "sentry" and o.carrier is None \
                     and self.world.dist(o.cell, mover.cell) <= 2 and self.sees(o.owner, mover):
                 o.order = None
 
@@ -541,7 +551,7 @@ class Game:
 
     # ----------------------------------------------------------------- combat
     def defender_at(self, attacker: Unit, cell: int) -> Unit | None:
-        enemies = [o for o in self.units_at(cell) if o.owner != attacker.owner]
+        enemies = [o for o in self.units_at(cell) if self.hostile(attacker.owner, o.owner)]
         if not enemies:
             return None
         return max(enemies, key=lambda o: self.defense_value(attacker, o) * o.hp)
@@ -699,6 +709,10 @@ class Game:
         if victim is None:
             owners = [o.owner for o in self.units_at(cell) if o.owner != f]
             victim = owners[0] if owners else None
+        if victim is not None and victim != f and not self.hostile(f, victim):
+            fac.warheads += 1
+            fac.used_wmd -= 1
+            return "truce"
         place = city.name if city else _coords(w, cell)
         if victim is not None and victim != f and self.rng.random() < self.factions[victim].abm:
             self.doomsday -= 1
@@ -741,6 +755,9 @@ class Game:
     def chemical_strike(self, f: int, cell: int) -> str:
         if not self.can_chemical(f, cell) or self.over:
             return "illegal"
+        city = self.city(cell)
+        if city is not None and city.owner is not None and not self.hostile(f, city.owner):
+            return "truce"
         fac = self.factions[f]
         fac.chemicals -= 1
         fac.used_wmd += 1
@@ -765,6 +782,68 @@ class Game:
                  f"Orologio dell'Apocalisse: {max(0, self.doomsday)} min.", None, "wmd")
         self._check_clock()
         return "hit"
+
+    # -------------------------------------------------------------- diplomacy
+    @staticmethod
+    def _pair(a: int, b: int) -> str:
+        return f"{min(a, b)}-{max(a, b)}"
+
+    def truce_left(self, a: int, b: int) -> int:
+        end = self.truces.get(self._pair(a, b))
+        return max(0, end - self.turn + 1) if end is not None else 0
+
+    def hostile(self, a: int | None, b: int | None) -> bool:
+        """At war? Neutrals are always fair game; truce partners are not."""
+        if a == b:
+            return False
+        if a is None or b is None:
+            return True
+        return self.truce_left(a, b) == 0
+
+    def proposals_to(self, f: int) -> list[int]:
+        return [a for a, b in self.proposals if b == f]
+
+    def propose_truce(self, f: int, target: int) -> str:
+        if not self.factions[target].alive or self.truce_left(f, target):
+            return "illegal"
+        if [f, target] in self.proposals:
+            return "pending"
+        if [target, f] in self.proposals:
+            return self.answer_truce(f, target, True)
+        key = f"{f}>{target}"
+        if self.turn - self.offered.get(key, -99) < 5:
+            return "cooldown"
+        self.offered[key] = self.turn
+        if self.factions[target].human:
+            self.proposals.append([f, target])
+            self.log(f"{self.factions[f].name} propone una tregua di {TRUCE_TURNS} turni.",
+                     [f, target], "alert")
+            return "pending"
+        from theempire.ai import accepts_truce
+        if accepts_truce(self, target, f):
+            self._make_truce(f, target)
+            return "accepted"
+        self.log(f"{self.factions[target].name} respinge la proposta di tregua di "
+                 f"{self.factions[f].name}.", [f, target])
+        return "refused"
+
+    def answer_truce(self, f: int, proposer: int, accept: bool) -> str:
+        if [proposer, f] not in self.proposals:
+            return "illegal"
+        self.proposals.remove([proposer, f])
+        if accept:
+            self._make_truce(f, proposer)
+            return "accepted"
+        self.log(f"{self.factions[f].name} respinge la tregua proposta da "
+                 f"{self.factions[proposer].name}.", [f, proposer])
+        return "refused"
+
+    def _make_truce(self, a: int, b: int) -> None:
+        self.truces[self._pair(a, b)] = self.turn + TRUCE_TURNS
+        self.proposals = [p for p in self.proposals if set(p) != {a, b}]
+        self.log(f"Tregua di {TRUCE_TURNS} turni tra {self.factions[a].name} e "
+                 f"{self.factions[b].name}.", None, "alert")
+        self._dirty()
 
     def _check_clock(self) -> None:
         if self.doomsday <= 0 and not self.over:
@@ -875,6 +954,12 @@ class Game:
             self.doomsday += 1
             self.quiet_turns = 0
             self.log(f"La tensione cala: Orologio dell'Apocalisse a {self.doomsday} minuti.")
+        for pair, end in list(self.truces.items()):
+            if end < self.turn:
+                del self.truces[pair]
+                a, b = (int(x) for x in pair.split("-"))
+                self.log(f"La tregua tra {self.factions[a].name} e {self.factions[b].name} "
+                         "è scaduta: si torna a combattere.", None, "alert")
         self._check_victory()
         if not self.over and self.turn > self.scenario.max_turns:
             best = max((f for f in self.factions if f.alive), key=self.score)
@@ -921,6 +1006,8 @@ class Game:
             "doomsday": self.doomsday, "quiet_turns": self.quiet_turns,
             "fallout": [[k, v] for k, v in self.fallout.items()],
             "over": list(self.over) if self.over else None,
+            "truces": self.truces, "proposals": self.proposals, "prepared": self.prepared,
+            "offered": self.offered,
             "next_id": self.next_id,
             "rng": [state[0], list(state[1]), state[2]],
             "factions": [asdict(f) for f in self.factions],
@@ -936,6 +1023,10 @@ class Game:
         g.doomsday, g.quiet_turns = d["doomsday"], d["quiet_turns"]
         g.fallout = {int(k): v for k, v in d["fallout"]}
         g.over = tuple(d["over"]) if d["over"] else None
+        g.truces = dict(d.get("truces", {}))
+        g.proposals = [list(p) for p in d.get("proposals", [])]
+        g.prepared = d.get("prepared")
+        g.offered = dict(d.get("offered", {}))
         g.next_id = d["next_id"]
         r = d["rng"]
         g.rng.setstate((r[0], tuple(r[1]), r[2]))

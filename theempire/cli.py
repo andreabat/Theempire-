@@ -12,6 +12,7 @@ from pathlib import Path
 from theempire import __version__
 from theempire.ai import AI
 from theempire.game import DIFFICULTY, Game
+from theempire.net import DEFAULT_PORT
 from theempire.scenarios import SCENARIOS
 
 
@@ -32,6 +33,19 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--autoplay", type=int, metavar="TURNI",
                    help="partita IA contro IA senza interfaccia, per TURNI turni")
     p.add_argument("--list", action="store_true", help="elenca scenari e fazioni")
+    online = p.add_argument_group("partita online")
+    online.add_argument("--serve", type=int, nargs="?", const=DEFAULT_PORT, metavar="PORTA",
+                        help=f"ospita una partita online (porta predefinita {DEFAULT_PORT}); "
+                             "le fazioni date con --faction sono i posti per i giocatori, "
+                             "le altre le guida l'IA")
+    online.add_argument("--bind", default="0.0.0.0", help="indirizzo su cui ascoltare (server)")
+    online.add_argument("--play", metavar="FAZIONE",
+                        help="con --serve: gioca anche tu, da questo terminale, con FAZIONE")
+    online.add_argument("--join", metavar="HOST[:PORTA]", help="entra in una partita online")
+    online.add_argument("--name", default="", help="il tuo nome nella partita online")
+    online.add_argument("--password", default="", help="password della partita online")
+    online.add_argument("--turn-time", type=int, default=0, metavar="SECONDI",
+                        help="tempo massimo per turno di ogni giocatore (server)")
     p.add_argument("--version", action="version", version=f"theempire {__version__}")
     return p.parse_args(argv)
 
@@ -63,6 +77,80 @@ def autoplay(args: argparse.Namespace) -> int:
     return 0
 
 
+def _address(text: str) -> tuple[str, int]:
+    host, _, port = text.rpartition(":") if ":" in text else (text, "", "")
+    return (host or "127.0.0.1"), int(port) if port else DEFAULT_PORT
+
+
+def serve(args: argparse.Namespace) -> int:
+    import getpass
+    import threading
+
+    from theempire.net import GameServer, RemoteSession
+    save = args.save if args.save != Path.home() / ".theempire" / "save.json" else \
+        Path.home() / ".theempire" / f"server-{args.serve}.json"
+    if args.load:
+        game = Game.load_file(args.load)
+    else:
+        scenario = args.scenario or "ww3"
+        humans = tuple(args.faction) or tuple(f.key for f in SCENARIOS[scenario].factions)
+        game = Game(scenario, humans=humans, difficulty=args.difficulty, seed=args.seed)
+    log_lines: list[str] = []
+
+    def log(line: str) -> None:
+        stamp = time.strftime("%H:%M:%S")
+        if args.play:
+            log_lines.append(f"{stamp} {line}")
+        else:
+            print(f"{stamp} {line}", flush=True)
+
+    server = GameServer(game, args.bind, args.serve, args.password, save, args.turn_time, log)
+    try:
+        server.listen()
+    except OSError as exc:
+        print(f"Impossibile aprire la porta {args.serve}: {exc}", file=sys.stderr)
+        return 1
+    if not args.play:
+        try:
+            server.serve_forever()
+        except KeyboardInterrupt:
+            server.save()
+            server.stop()
+            print("\nServer fermato, partita salvata in", save)
+        return 0
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    name = args.name or getpass.getuser()
+    session = RemoteSession("127.0.0.1", server.port, name, args.play, args.password)
+    _play_online(session)
+    server.save()
+    server.stop()
+    return 0
+
+
+def _play_online(session) -> None:
+    from theempire.ui import UI
+    locale.setlocale(locale.LC_ALL, "")
+    try:
+        curses.wrapper(lambda scr: UI(scr, session).run())
+    finally:
+        session.close()
+
+
+def join(args: argparse.Namespace) -> int:
+    import getpass
+
+    from theempire.net import RemoteSession
+    host, port = _address(args.join)
+    try:
+        session = RemoteSession(host, port, args.name or getpass.getuser(),
+                                args.faction[0] if args.faction else None, args.password)
+    except (OSError, ConnectionError) as exc:
+        print(f"Impossibile entrare nella partita su {host}:{port}: {exc}", file=sys.stderr)
+        return 1
+    _play_online(session)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     if args.list:
@@ -70,6 +158,16 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.autoplay:
         return autoplay(args)
+    if args.serve is not None:
+        if args.play and args.play not in [f.key for f in SCENARIOS[args.scenario or "ww3"].factions] \
+                and not args.load:
+            print(f"Fazione sconosciuta: {args.play}", file=sys.stderr)
+            return 2
+        if args.play and args.faction and args.play not in args.faction:
+            args.faction.append(args.play)
+        return serve(args)
+    if args.join:
+        return join(args)
     locale.setlocale(locale.LC_ALL, "")
     if args.scenario and args.faction:
         valid = {f.key for f in SCENARIOS[args.scenario].factions}
@@ -80,6 +178,7 @@ def main(argv: list[str] | None = None) -> int:
             return 2
 
     def run(scr) -> None:
+        from theempire.net import LocalSession
         from theempire.ui import UI, setup_menu
         if args.load:
             game = Game.load_file(args.load)
@@ -97,7 +196,7 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 game = Game(choice["scenario"], humans=choice["humans"],
                             difficulty=choice["difficulty"], seed=args.seed)
-        UI(scr, game, args.save).run()
+        UI(scr, LocalSession(game, args.save)).run()
 
     curses.wrapper(run)
     return 0
