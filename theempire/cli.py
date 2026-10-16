@@ -33,6 +33,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--autoplay", type=int, metavar="TURNI",
                    help="partita IA contro IA senza interfaccia, per TURNI turni")
     p.add_argument("--list", action="store_true", help="elenca scenari e fazioni")
+    p.add_argument("--audio", choices=["all", "sfx", "off"],
+                   help="musica ed effetti, solo effetti, o niente (predefinito: l'ultima scelta, tasto M)")
+    p.add_argument("--muto", dest="audio", action="store_const", const="off", help="niente audio")
     online = p.add_argument_group("partita online")
     online.add_argument("--serve", type=int, nargs="?", const=DEFAULT_PORT, metavar="PORTA",
                         help=f"ospita una partita online (porta predefinita {DEFAULT_PORT}); "
@@ -121,18 +124,25 @@ def serve(args: argparse.Namespace) -> int:
     threading.Thread(target=server.serve_forever, daemon=True).start()
     name = args.name or getpass.getuser()
     session = RemoteSession("127.0.0.1", server.port, name, args.play, args.password)
-    _play_online(session)
+    _play_online(session, args)
     server.save()
     server.stop()
     return 0
 
 
-def _play_online(session) -> None:
+def _audio(args: argparse.Namespace):
+    from theempire.audio import Audio
+    return Audio(mode=args.audio, bell=curses.beep)
+
+
+def _play_online(session, args: argparse.Namespace) -> None:
     from theempire.ui import UI
     locale.setlocale(locale.LC_ALL, "")
+    audio = _audio(args)
     try:
-        curses.wrapper(lambda scr: UI(scr, session).run())
+        curses.wrapper(lambda scr: UI(scr, session, audio).run())
     finally:
+        audio.close()
         session.close()
 
 
@@ -147,7 +157,7 @@ def join(args: argparse.Namespace) -> int:
     except (OSError, ConnectionError) as exc:
         print(f"Impossibile entrare nella partita su {host}:{port}: {exc}", file=sys.stderr)
         return 1
-    _play_online(session)
+    _play_online(session, args)
     return 0
 
 
@@ -177,9 +187,12 @@ def main(argv: list[str] | None = None) -> int:
                   f"(valide: {', '.join(sorted(valid))})", file=sys.stderr)
             return 2
 
+    audio = _audio(args)
+
     def run(scr) -> None:
         from theempire.net import LocalSession
         from theempire.ui import UI, setup_menu
+        audio.music("menu")
         if args.load:
             game = Game.load_file(args.load)
         elif args.scenario:
@@ -196,9 +209,12 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 game = Game(choice["scenario"], humans=choice["humans"],
                             difficulty=choice["difficulty"], seed=args.seed)
-        UI(scr, LocalSession(game, args.save)).run()
+        UI(scr, LocalSession(game, args.save), audio).run()
 
-    curses.wrapper(run)
+    try:
+        curses.wrapper(run)
+    finally:
+        audio.close()
     return 0
 
 

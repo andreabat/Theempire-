@@ -104,7 +104,10 @@ class Event:
     turn: int
     text: str
     audience: list[int] | None = None   # None = everybody
-    level: str = "info"                 # info | combat | alert | wmd
+    level: str = "info"                 # info | combat | alert | wmd | chat
+    sound: str = ""                     # effect the interface may play
+    actor: int | None = None            # faction that caused it
+    seq: int = 0                        # increasing id, to spot new events
 
 
 class Game:
@@ -121,6 +124,7 @@ class Game:
         self.quiet_turns = 0
         self.fallout: dict[int, int] = {}
         self.events: list[Event] = []
+        self.event_seq = 0
         self.over: tuple[int | None, str] | None = None
         self.truces: dict[str, int] = {}     # "a-b" -> last turn of the truce
         self.proposals: list[list[int]] = []  # [from, to] truce offers pending
@@ -199,8 +203,10 @@ class Game:
         return "A" if c.size >= 2 else "I"
 
     # ---------------------------------------------------------------- queries
-    def log(self, text: str, audience: list[int] | None = None, level: str = "info") -> None:
-        self.events.append(Event(self.turn, text, audience, level))
+    def log(self, text: str, audience: list[int] | None = None, level: str = "info",
+            sound: str = "", actor: int | None = None) -> None:
+        self.event_seq += 1
+        self.events.append(Event(self.turn, text, audience, level, sound, actor, self.event_seq))
         if len(self.events) > 400:
             del self.events[:100]
 
@@ -386,7 +392,7 @@ class Game:
             hidden = [o for o in self.units_at(cell)
                       if self.hostile(u.owner, o.owner) and not self.sees(u.owner, o)]
             if hidden:
-                self.log(f"{u.type.name}: contatto con un'unità nascosta!", [u.owner], "combat")
+                self.log(f"{u.type.name}: contatto con un'unità nascosta!", [u.owner], "combat", "alert", u.owner)
                 u.moves = 0
                 self._dirty()
                 return "blocked"
@@ -428,7 +434,7 @@ class Game:
             return
         if u.fuel <= 0:
             self.log(f"Un {u.type.name.lower()} è rimasto senza carburante ed è precipitato.",
-                     [u.owner], "combat")
+                     [u.owner], "combat", "crash", u.owner)
             self.kill(u)
 
     def _wake_sentries(self, mover: Unit) -> None:
@@ -631,7 +637,7 @@ class Game:
                 self.factions[u.owner].kills += 1
                 self.log(f"{self.factions[u.owner].name}: {u.type.name} distrugge "
                          f"{d.type.name}{where} ({self.faction_name(d.owner)}).",
-                         [u.owner, d.owner], "combat")
+                         [u.owner, d.owner], "combat", "battle", u.owner)
                 self.kill(d)
                 result = "won"
             else:
@@ -639,7 +645,7 @@ class Game:
                 self.factions[d.owner].kills += 1
                 self.log(f"{self.factions[u.owner].name}: {u.type.name} distrutto attaccando "
                          f"{d.type.name}{where} ({self.faction_name(d.owner)}).",
-                         [u.owner, d.owner], "combat")
+                         [u.owner, d.owner], "combat", "battle", u.owner)
                 self.kill(u)
                 return "lost"
         elif city is not None:
@@ -649,7 +655,8 @@ class Game:
                 city.militia = max(1, mhp)
                 self.log(f"{u.type.name} ({self.factions[u.owner].name}) respinto dalla "
                          f"milizia di {city.name}.",
-                         [u.owner] + ([defender_owner] if defender_owner is not None else []), "combat")
+                         [u.owner] + ([defender_owner] if defender_owner is not None else []), "combat",
+                         "battle", u.owner)
                 self.kill(u)
                 return "lost"
             u.hp = ahp
@@ -680,7 +687,8 @@ class Game:
         audience = None
         tag = "CAPITALE " if city.capital else ""
         self.log(f"{self.factions[u.owner].name} conquista {tag}{city.name} "
-                 f"(prima: {self.faction_name(old)}).", audience, "alert" if city.capital or old is not None else "info")
+                 f"(prima: {self.faction_name(old)}).", audience,
+                 "alert" if city.capital or old is not None else "info", "capture", u.owner)
         if old is not None and not self.cities_of(old):
             self.eliminate(old)
         self._dirty()
@@ -693,7 +701,8 @@ class Game:
         for u in self.units_of(f):
             if u.id in self.units:
                 self.kill(u)
-        self.log(f"{fac.name} ha perso l'ultima città ed è fuori dalla guerra.", None, "alert")
+        self.log(f"{fac.name} ha perso l'ultima città ed è fuori dalla guerra.", None, "alert",
+                 "fall", f)
 
     # -------------------------------------------------------------------- WMD
     def nuclear_strike(self, f: int, cell: int) -> str:
@@ -717,7 +726,8 @@ class Game:
         if victim is not None and victim != f and self.rng.random() < self.factions[victim].abm:
             self.doomsday -= 1
             self.log(f"☢ {fac.name} lancia un missile nucleare su {place}: intercettato "
-                     f"dalla difesa antimissile di {self.factions[victim].name}!", None, "wmd")
+                     f"dalla difesa antimissile di {self.factions[victim].name}!", None, "wmd",
+                     "intercept", f)
             self.factions[victim].nuked_by.append(f)
             self._check_clock()
             return "intercepted"
@@ -738,7 +748,8 @@ class Game:
                     hit.size -= 1
         self.doomsday -= 3 if city else 2
         self.log(f"☢ {fac.name} colpisce {place} con un'arma nucleare: {killed} unità "
-                 f"annientate. Orologio dell'Apocalisse: {max(0, self.doomsday)} min.", None, "wmd")
+                 f"annientate. Orologio dell'Apocalisse: {max(0, self.doomsday)} min.", None, "wmd",
+                 "nuke", f)
         if victim is not None and victim != f:
             self.factions[victim].nuked_by.append(f)
         self._dirty()
@@ -779,7 +790,8 @@ class Game:
         city = self.city(cell)
         place = city.name if city else _coords(self.world, cell)
         self.log(f"☣ {fac.name} usa armi chimiche su {place}: {hurt} unità colpite. "
-                 f"Orologio dell'Apocalisse: {max(0, self.doomsday)} min.", None, "wmd")
+                 f"Orologio dell'Apocalisse: {max(0, self.doomsday)} min.", None, "wmd",
+                 "gas", f)
         self._check_clock()
         return "hit"
 
@@ -817,7 +829,7 @@ class Game:
         if self.factions[target].human:
             self.proposals.append([f, target])
             self.log(f"{self.factions[f].name} propone una tregua di {TRUCE_TURNS} turni.",
-                     [f, target], "alert")
+                     [f, target], "alert", "truce", f)
             return "pending"
         from theempire.ai import accepts_truce
         if accepts_truce(self, target, f):
@@ -842,7 +854,7 @@ class Game:
         self.truces[self._pair(a, b)] = self.turn + TRUCE_TURNS
         self.proposals = [p for p in self.proposals if set(p) != {a, b}]
         self.log(f"Tregua di {TRUCE_TURNS} turni tra {self.factions[a].name} e "
-                 f"{self.factions[b].name}.", None, "alert")
+                 f"{self.factions[b].name}.", None, "alert", "truce")
         self._dirty()
 
     def _check_clock(self) -> None:
@@ -920,7 +932,7 @@ class Game:
             if self.fallout.get(u.cell) and t.domain == "land" and city is None:
                 u.hp -= 1
                 if u.hp <= 0:
-                    self.log(f"{t.name} ucciso dalle radiazioni.", [f], "combat")
+                    self.log(f"{t.name} ucciso dalle radiazioni.", [f], "combat", "loss", f)
                     self.kill(u)
         self._dirty()
 
@@ -959,7 +971,7 @@ class Game:
                 del self.truces[pair]
                 a, b = (int(x) for x in pair.split("-"))
                 self.log(f"La tregua tra {self.factions[a].name} e {self.factions[b].name} "
-                         "è scaduta: si torna a combattere.", None, "alert")
+                         "è scaduta: si torna a combattere.", None, "alert", "alert")
         self._check_victory()
         if not self.over and self.turn > self.scenario.max_turns:
             best = max((f for f in self.factions if f.alive), key=self.score)
@@ -1010,6 +1022,7 @@ class Game:
             "offered": self.offered,
             "next_id": self.next_id,
             "rng": [state[0], list(state[1]), state[2]],
+            "event_seq": self.event_seq,
             "factions": [asdict(f) for f in self.factions],
             "cities": [asdict(c) for c in self.cities],
             "units": [asdict(u) for u in self.units.values()],
@@ -1039,6 +1052,7 @@ class Game:
             if u.carrier is None:
                 g.at.setdefault(u.cell, []).append(u.id)
         g.events = [Event(**e) for e in d["events"]]
+        g.event_seq = d.get("event_seq", len(g.events))
         return g
 
     def save_file(self, path: Path) -> None:

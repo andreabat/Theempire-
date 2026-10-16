@@ -8,6 +8,7 @@ import random
 from collections import Counter, deque
 from pathlib import Path
 
+from theempire.audio import MODE_NAMES, Audio
 from theempire.commands import describe
 from theempire.game import CHEM_RANGE, Unit
 from theempire.scenarios import SCENARIOS
@@ -69,6 +70,7 @@ p                 produzione della città sotto il cursore
 D                 congeda l'unità attiva
 m                 mappa del mondo (panoramica)
 r                 centra la vista sul cursore
+M                 audio: musica ed effetti → solo effetti → muto
 N                 ☢ attacco nucleare sulla casella del cursore
 C                 ☣ attacco chimico (entro 4 caselle dalle tue forze)
 E                 fine turno
@@ -82,9 +84,11 @@ alla mezzanotte: a 0 minuti la guerra nucleare totale distrugge tutti."""
 
 
 class UI:
-    def __init__(self, scr, session):
+    def __init__(self, scr, session, audio: Audio | None = None):
         self.scr = scr
         self.session = session
+        self.audio = audio or Audio(mode="off")
+        self.last_seq = max((e.seq for e in session.game.events), default=0)
         self.w = session.game.world
         self.viewer = session.faction if session.online else self._first_human()
         self.cursor = self._home_cell()
@@ -224,7 +228,34 @@ class UI:
             pass
 
     # ----------------------------------------------------------- drawing
+    # ----------------------------------------------------------- sound
+    def sounds(self) -> None:
+        """Play the most important effect among the events this player has
+        just learned about, and pick the music for the moment."""
+        g = self.g
+        fresh = [e for e in g.events if e.seq > self.last_seq
+                 and (e.audience is None or self.viewer in e.audience)]
+        if g.events:
+            self.last_seq = max(self.last_seq, max(e.seq for e in g.events))
+        name = pick_sound(g, self.viewer, fresh)
+        if name:
+            self.audio.sfx(name)
+        self.audio.music(self.music_for())
+
+    def music_for(self) -> str:
+        g = self.g
+        if self.session.online and not self.session.started:
+            return "menu"
+        if g.over:
+            winner, reason = g.over
+            if reason == "armageddon":
+                return "midnight"
+            return "victory" if winner == self.viewer or (
+                not self.session.online and g.factions[winner].human) else "defeat"
+        return "tension" if g.doomsday <= 5 else "war"
+
     def draw(self) -> None:
+        self.sounds()
         self.scr.erase()
         if self.mode == "overview":
             self.draw_overview()
@@ -712,7 +743,7 @@ class UI:
             self.center()
         self.status = f"Turno {g.turn}: ai tuoi ordini."
         if self.session.online:
-            curses.beep()
+            self.audio.sfx("turn")
 
     def end_human_turn(self) -> None:
         self.active = None
@@ -747,7 +778,7 @@ class UI:
         self.quit = True
 
     # ----------------------------------------------------------- input
-    VIEW_KEYS = {ord("m"), ord("r"), ord("?"), ord("Q"), ord("T"), ord("n"), 9}
+    VIEW_KEYS = {ord("m"), ord("M"), ord("r"), ord("?"), ord("Q"), ord("T"), ord("n"), 9}
 
     def handle(self, key: int) -> None:
         g = self.g
@@ -844,6 +875,10 @@ class UI:
                 self.status = "La chat serve nelle partite online."
         elif key == ord("m"):
             self.mode = "overview"
+        elif key == ord("M"):
+            mode = self.audio.cycle()
+            note = "" if self.audio.available else " (nessun lettore audio trovato: solo il beep)"
+            self.status = f"Audio: {MODE_NAMES[mode]}{note}."
         elif key == ord("r"):
             self.center()
         elif key == ord("N"):
@@ -1010,9 +1045,39 @@ class UI:
             for k, line in enumerate(lines):
                 self.put(2 + k, 4, line, curses.A_BOLD if k == 0 else 0)
             self.scr.refresh()
-            if self.scr.getch() in (ord("Q"), ord("q")):
+            self.audio.music("menu")
+            key = self.scr.getch()
+            if key in (ord("Q"), ord("q")):
                 return False
+            if key == ord("M"):
+                self.audio.cycle()
         return True
+
+
+SOUND_PRIORITY = ("nuke", "fall", "capture", "loss", "intercept", "gas", "crash",
+                  "truce", "alert", "battle")
+
+
+def pick_sound(g, viewer: int, events) -> str | None:
+    """The one effect worth playing for these new events, from the point of
+    view of ``viewer``: our conquests sound like victory, our losses like
+    loss, and other people's distant wars stay quiet."""
+    me = g.factions[viewer].name
+    heard = set()
+    for e in events:
+        sound = e.sound
+        if sound == "capture":
+            if e.actor == viewer:
+                heard.add("capture")
+            elif f"(prima: {me})" in e.text:
+                heard.add("loss")
+        elif sound == "fall":
+            heard.add("loss" if e.actor == viewer else "fall")
+        elif sound == "truce" and me not in e.text:
+            continue
+        elif sound:
+            heard.add(sound)
+    return next((n for n in SOUND_PRIORITY if n in heard), None)
 
 
 def defcon(minutes: int) -> int:

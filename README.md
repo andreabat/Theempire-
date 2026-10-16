@@ -32,6 +32,36 @@ python3 -m theempire --autoplay 100 --seed 1   # IA contro IA, senza interfaccia
 
 Per installarlo come comando: `pip install .` e poi `theempire`.
 
+## Musica ed effetti sonori
+
+Suoni e musiche sono **sintetizzati dal gioco stesso** in stile 8-bit, con
+onde quadre, triangolari e rumore come i computer di Theatre Europe. Nel
+progetto non c'è nessun file audio: al primo avvio vengono generati in un paio
+di secondi in `~/.theempire/sounds`.
+
+- **Musica**: nel menu e nella lobby la Toccata in re minore di Bach
+  (omaggio a Theatre Europe; la composizione è di pubblico dominio), in
+  guerra una marcia in minore con rullante, e quando l'Orologio scende sotto
+  i 5 minuti un tema di tensione con battito cardiaco e ticchettio. A fine
+  partita c'è una fanfara di vittoria, un lamento per la sconfitta o il vento
+  sul mondo morto a mezzanotte.
+- **Effetti**:
+  - battaglie, città conquistate o perdute, crolli di una fazione;
+  - attacco nucleare (sirena, fischio, esplosione), missile intercettato,
+    gas, aereo abbattuto;
+  - tregua, inizio del tuo turno online, allarmi.
+- Senti solo gli eventi che conosci. Le battaglie lontane tra altri e le
+  esplosioni nella nebbia di guerra restano mute. Le atomiche si sentono in
+  tutto il mondo.
+- Il tasto `M` passa da **musica ed effetti** a **solo effetti** a **muto**,
+  e la scelta resta per le partite successive. Da riga di comando:
+  `--audio all|sfx|off` oppure `--muto`.
+- Per suonare usa il lettore già presente: `afplay` su macOS, `paplay`,
+  `pw-play` o `aplay` su Linux, altrimenti `ffplay`. Se non ne trova nessuno
+  il gioco funziona lo stesso e usa il beep del terminale per gli eventi
+  importanti. Il server online non suona: l'audio è sul computer di ogni
+  giocatore.
+
 ## Multiplayer online
 
 Una partita online ha un **server** che tiene la partita e guida le fazioni
@@ -199,6 +229,7 @@ dell'altra né colpirla con armi chimiche o nucleari (nel pannello compare
 | `l` / `u` | carica / scarica una nave in porto |
 | `p`, `P` | produzione della città, produzione automatica in tutte le città |
 | `m` | panoramica del mondo (un punto Braille = una casella; clic per saltare) |
+| `M` | audio: musica ed effetti → solo effetti → muto |
 | `N`, `C` | attacco nucleare / chimico sulla casella del cursore |
 | `O` | diplomazia: proponi una tregua o rispondi a una proposta |
 | `T` | chat (partite online) |
@@ -302,6 +333,7 @@ theempire/
   commands.py   i comandi del giocatore, validati: unica via per cambiare la partita
   net.py        multiplayer: server autoritativo, client, protocollo JSON su TCP
   ui.py         interfaccia curses: mappa Braille, pannello, registro, lobby, menu
+  audio.py      sintetizzatore chiptune, effetti e musiche, riproduzione in background
   cli.py        riga di comando
   assets/world.json   mappa generata da Natural Earth
 tools/build_world.py  rigenera la mappa (richiede numpy e Pillow)
