@@ -1,0 +1,25 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "theempire"
+version = "0.1.0"
+description = "Gioco di strategia globale a turni nel terminale, ispirato a Theatre Europe ed Empire."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest"]
+tools = ["numpy", "Pillow"]
+
+[project.scripts]
+theempire = "theempire.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["theempire"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
