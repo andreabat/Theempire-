@@ -211,7 +211,12 @@ class AI:
                         return
         if fac.warheads <= 0 and fac.chemicals <= 0:
             return
-        losing = len(g.cities_of(self.f)) < 0.6 * max(1, fac.start_cities) or not any(
+        # Desperation: heavy losses, the capital gone, or a rival about to
+        # win by domination.
+        threshold = 0.85 * g.scenario.victory_share * len(g.cities)
+        rival_winning = any(len(g.cities_of(o.idx)) >= threshold
+                            for o in g.factions if o.idx != self.f and o.alive)
+        losing = rival_winning or len(g.cities_of(self.f)) < 0.6 * max(1, fac.start_cities) or not any(
             c.capital for c in g.cities_of(self.f))
         floor = 2 if doctrine == "aggressive" else 4
         if fac.warheads > 0 and losing and g.turn >= 5 and g.doomsday > floor \
@@ -485,9 +490,7 @@ class AI:
         reach = u.fuel
         vis = g.visible(self.f)
         for o in g.units.values():
-            if o.owner == self.f or o.carrier is not None or o.cell not in vis or not g.sees(self.f, o):
-                continue
-            if o.kind == "S":
+            if o.owner == self.f or o.carrier is not None or o.kind == "S" or o.cell not in vis:
                 continue
             d = w.dist(u.cell, o.cell)
             if d > reach or d + min(w.dist(o.cell, b) for b in bases) > reach - 1:

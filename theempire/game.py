@@ -31,7 +31,7 @@ CITY_DEFENSE_BONUS = 1.5
 FORTIFY_BONUS = 1.25
 SUPPORT_BONUS = 0.15                # per friendly land unit next to the target
 SUPPORT_MAX = 4
-SUPPLY_FACTOR = 1.6                 # unit cap = factor x base production + 20
+SUPPLY_FACTOR = 2.0                 # unit cap = factor x base production + 20
 CLOCK_RECOVERY_TURNS = 6
 
 
@@ -125,6 +125,7 @@ class Game:
         self.at: dict[int, list[int]] = {}
         self.next_id = 1
         self._vis: dict[int, set[int]] = {}
+        self._det: dict[int, set[int]] = {}
         self.factions: list[Faction] = []
         self.cities: list[City] = []
         self.city_at: dict[int, int] = {}
@@ -237,13 +238,27 @@ class Game:
         if u.cell not in self.visible(f):
             return False
         if u.type.stealth and u.carrier is None:
-            return any(self.world.dist(u.cell, o.cell) <= (2 if o.kind == "D" else 1)
-                       for o in self.units.values() if o.owner == f and o.carrier is None) \
-                or any(c.owner == f and self.world.dist(u.cell, c.cell) <= 1 for c in self.cities)
+            return u.cell in self._detection(f)
         return True
+
+    def _detection(self, f: int) -> set[int]:
+        """Cells where faction f can spot submarines."""
+        det = self._det.get(f)
+        if det is None:
+            det = set()
+            w = self.world
+            for c in self.cities:
+                if c.owner == f:
+                    det.update(w.ring(c.cell, 1))
+            for o in self.units.values():
+                if o.owner == f and o.carrier is None:
+                    det.update(w.ring(o.cell, 2 if o.kind == "D" else 1))
+            self._det[f] = det
+        return det
 
     def _dirty(self) -> None:
         self._vis.clear()
+        self._det.clear()
 
     # ------------------------------------------------------------ unit basics
     def create_unit(self, kind: str, owner: int, cell: int) -> Unit:

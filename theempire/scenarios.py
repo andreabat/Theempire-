@@ -74,10 +74,10 @@ SCENARIOS: dict[str, Scenario] = {s.key: s for s in (
                         "KAZ", "UZB", "TKM", "KGZ", "TJK", "POL", "CZE", "SVK", "HUN", "ROU",
                         "BGR", "CUB", "MNG"),
                        doctrine="aggressive", warheads=25, chemicals=8, abm=0.2,
-                       industry=1.6, extras={"A": 12, "S": 6, "B": 4}),
+                       industry=1.3, extras={"A": 12, "S": 6, "B": 4}),
         ),
         doomsday=7,
-        victory_share=0.45,
+        victory_share=0.55,
     ),
     Scenario(
         "empire", "Empire!",

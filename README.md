@@ -7,21 +7,14 @@ escalation nucleare, l'apocalisse come sconfitta di tutti) e il
 producono unità, trasporti, portaerei, carburante degli aerei, nebbia di
 guerra) e li porta **sulla scala del mondo intero**.
 
-La mappa è il mondo reale. Viene dai dati Natural Earth e la disegno in
-caratteri Braille come fa [Terrascope](https://github.com/a-shygun/Terrascope),
+La mappa è il mondo reale: viene dai dati Natural Earth ed è disegnata in
+caratteri Braille come in [Terrascope](https://github.com/a-shygun/Terrascope),
 il punto di partenza del progetto. Ogni carattere è una casella di gioco
 (1° di longitudine × 2° di latitudine) e i suoi 2×4 punti Braille
 disegnano la costa vera. La mappa si avvolge da est a ovest: il Pacifico si
 attraversa.
 
-```
- THE EMPIRE · Terza Guerra Mondiale · 1 mar 2027 · turno 1      ☢ 23:50  10 MIN A MEZZANOTTE  DEFCON 4
-⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡿⢹⣿⣿⣿⣤⣄⡀ ⢠⣶⣶⣶⣾⣿⣿⣿⣿⣿⣿⣿⣦⣽⡛⠟⠉     │ALLEANZA ATLANTICA
-⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡿⠋⠁           ⠈⠉⠬⣿⣿⣿⣿⣿⣿⣷⣶⡶⢠⡄⠉⢘⣇        │Città  86  industria 206.0/turno
-⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣧⣤⡀           ⠈⠁⢴⣿⣿⣿⣿⣿⣿⣿⣿⣷⣤⣀⣤⣾⣿⣷⣄    │Unità 317/341  ☢ 20  ☣ 0
-⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣷⣶⣶⣤⣤⣀      ⢀⣧⡀ ⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣷⡀    │Unione Eurasiatica     24 città
-⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿★A⣿⠟                                │Blocco Orientale       31 città
-```
+![Europa al turno 4 della Terza Guerra Mondiale](docs/screenshot.png)
 
 ## Avvio
 
@@ -127,7 +120,7 @@ Guerra Fredda) e sta in alto a destra, insieme al livello DEFCON.
 - **A mezzanotte la partita finisce e perdono tutti.**
 
 ### Vittoria
-- **Dominio**: controlla il 50% delle città del mondo (45% nella Guerra Fredda).
+- **Dominio**: controlla il 50% delle città del mondo (55% nella Guerra Fredda).
 - **Conquista**: tutti i rivali senza città.
 - **Ai punti** allo scadere dei turni (300; 400 in Empire!).
 - **Mezzanotte**: nessun vincitore.
@@ -191,6 +184,10 @@ cinese.
    conflitto si inasprisce, perché il deterrente conta anche se non lo usi.
 
 **In generale**
+- Attento a vincere troppo in fretta: quando una fazione si avvicina al
+  dominio (85% della soglia), le IA si sentono perse e diventano molto più
+  propense al primo colpo nucleare. A volte conviene fermarsi, consolidare
+  e abbattere prima i loro arsenali conquistando le grandi città.
 - La fanteria tiene, i corazzati prendono, i bombardieri ammorbidiscono.
   Prima di un assalto, bombarda la città per abbassarne la milizia.
 - Guarda la percentuale di vittoria nel pannello prima di ogni attacco.
@@ -201,8 +198,8 @@ cinese.
 
 ## Scelte di progetto (e alternative possibili)
 
-Dove avevo dubbi ho fatto una scelta e l'ho segnata qui, così si può
-cambiare strada.
+Dove c'erano dubbi è stata fatta una scelta, segnata qui insieme
+all'alternativa, così si può cambiare strada.
 
 1. **Turni contro tempo reale.** Theatre Europe era semi-real-time; qui i
    turni sono simultanei per fazione, come in Empire, perché a scala

@@ -450,7 +450,7 @@ class UI:
         events = [e for e in self.g.events if e.audience is None or self.viewer in e.audience]
         colors = {"info": "panel", "combat": "orange", "alert": "alert", "wmd": "wmd"}
         for k, e in enumerate(events[-(LOG_ROWS - 1):]):
-            self.put(top + 1 + k, 0, f"[{e.turn:3d}] {e.text}"[:mw],
+            self.put(top + 1 + k, 0, f"[{e.turn:3d}] {e.text}"[:mw].ljust(mw),
                      self.color(colors.get(e.level, "panel")) | (curses.A_BOLD if e.level in ("wmd", "alert") else 0))
 
     def draw_status(self) -> None:
