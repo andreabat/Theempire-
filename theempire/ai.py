@@ -159,6 +159,8 @@ class AI:
         stranded = sum(1 for u in mine if u.type.domain == "land" and self._needs_ship(u))
         total = max(1, len(mine))
         for c in g.cities_of(self.f):
+            if c.manual and self.fac.human:
+                continue  # the player chose this city's production by hand
             if c.progress >= g.production_rate(c) and g.can_build(c, c.production):
                 continue  # keep building what is already under way
             port = g.is_port(c.cell)

@@ -54,7 +54,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
                              "browser (porta predefinita 8080)")
     online.add_argument("--audio-web", action="store_true", help=argparse.SUPPRESS)
     online.add_argument("--turn-time", type=int, default=0, metavar="SECONDI",
-                        help="tempo massimo per turno di ogni giocatore (server)")
+                        help="tempo massimo per turno di ogni giocatore (anche in locale)")
     p.add_argument("--version", action="version", version=f"theempire {__version__}")
     return p.parse_args(argv)
 
@@ -235,6 +235,7 @@ def main(argv: list[str] | None = None) -> int:
         from theempire.net import LocalSession
         from theempire.ui import UI, setup_menu
         audio.music("menu")
+        turn_time = args.turn_time
         if args.load:
             game = Game.load_file(args.load)
         elif args.scenario:
@@ -251,7 +252,8 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 game = Game(choice["scenario"], humans=choice["humans"],
                             difficulty=choice["difficulty"], seed=args.seed)
-        UI(scr, LocalSession(game, args.save), audio).run()
+                turn_time = choice.get("turn_time", 0) or turn_time
+        UI(scr, LocalSession(game, args.save, turn_time), audio).run()
 
     try:
         curses.wrapper(run)

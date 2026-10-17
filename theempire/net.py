@@ -475,10 +475,12 @@ class LocalSession:
     closed = False
     error = ""
 
-    def __init__(self, game: Game, save_path: Path):
+    def __init__(self, game: Game, save_path: Path, turn_time: int = 0):
         self.game = game
         self.save_path = save_path
         self.faction = None
+        self.turn_time = turn_time      # seconds per human turn, 0 = no limit
+        self.clock_started: float | None = None
 
     def do(self, f: int, cmd: dict, progress=None) -> str:
         if cmd.get("op") == "save":
@@ -493,8 +495,14 @@ class LocalSession:
     def poll(self) -> bool:
         return False
 
-    def seconds_left(self) -> None:
-        return None
+    def start_clock(self) -> None:
+        """A human turn begins: the turn timer, if any, starts counting."""
+        self.clock_started = time.time() if self.turn_time else None
+
+    def seconds_left(self) -> int | None:
+        if not self.turn_time or self.clock_started is None or self.game.over:
+            return None
+        return max(0, int(self.turn_time - (time.time() - self.clock_started)))
 
     def player_names(self) -> dict[int, str]:
         return {}

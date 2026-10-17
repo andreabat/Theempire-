@@ -35,6 +35,18 @@ SUPPLY_FACTOR = 2.0                 # unit cap = factor x base production + 20
 CLOCK_RECOVERY_TURNS = 6
 TRUCE_TURNS = 15
 
+# Production directives: one order that sets what every city builds.
+DIRECTIVES = {
+    "": "manuale (decidi città per città)",
+    "auto": "bilanciata (decide l'IA)",
+    "land": "offensiva terrestre (corazzati e fanteria)",
+    "air": "potenza aerea (caccia e bombardieri)",
+    "sea": "dominio dei mari (flotta nei porti)",
+    "amphibious": "sbarchi (trasporti nei porti, truppe altrove)",
+    "defense": "difesa (fanteria ovunque)",
+    "nuclear": "deterrenza (testate nelle grandi città)",
+}
+
 
 @dataclass
 class Unit:
@@ -70,6 +82,7 @@ class City:
     irradiated: int = 0
     unrest: int = 0
     founder: int | None = None          # owner at the start of the game
+    manual: bool = False                # production picked by hand: directives leave it
 
     def militia_max(self) -> int:
         if self.owner is None:
@@ -97,6 +110,7 @@ class Faction:
     losses: int = 0
     start_cities: int = 0
     auto_production: bool = False       # let the AI pick what human cities build
+    directive: str = ""                 # production directive ("" = by hand), see DIRECTIVES
 
 
 @dataclass
@@ -906,6 +920,37 @@ class Game:
         if t is None:
             return False
         return t.domain != "sea" or self.is_port(c.cell)
+
+    def directive_choice(self, c: City, directive: str) -> str | None:
+        """What a city builds under a directive (None: leave it alone)."""
+        big, port, k = c.size >= 2, self.is_port(c.cell), c.id
+        troops = "A" if big and k % 3 else "I"
+        choice = {
+            "land": troops,
+            "defense": "I",
+            "air": "B" if big and k % 3 == 0 else "F",
+            "sea": ("C" if big and k % 7 == 0 else "DSR"[k % 3]) if port else troops,
+            "amphibious": ("T" if k % 2 == 0 else troops) if port else troops,
+            "nuclear": WARHEAD if c.capital or c.size == 3 else troops,
+        }.get(directive)
+        if choice is None:
+            return None
+        return choice if self.can_build(c, choice) else troops if self.can_build(c, troops) else "I"
+
+    def apply_directive(self, f: int) -> int:
+        """Set every city of ``f`` not chosen by hand to the faction's
+        directive. Progress already made carries over. Returns the cities
+        changed."""
+        directive = self.factions[f].directive
+        changed = 0
+        for c in self.cities:
+            if c.owner != f or c.manual:
+                continue
+            choice = self.directive_choice(c, directive)
+            if choice is not None and choice != c.production:
+                c.production = choice
+                changed += 1
+        return changed
 
     def begin_turn(self) -> None:
         f = self.current

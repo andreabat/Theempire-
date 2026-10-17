@@ -11,7 +11,7 @@ from pathlib import Path
 
 from theempire.audio import MUSIC_KEYS, MUSIC_NAMES, Audio
 from theempire.commands import describe
-from theempire.game import CHEM_RANGE, Unit
+from theempire.game import CHEM_RANGE, DIRECTIVES, Unit
 from theempire.scenarios import SCENARIOS
 from theempire.units import (CHEMICAL, PRODUCTION_NAMES, UNIT_TYPES, WARHEAD,
                              production_cost)
@@ -54,7 +54,9 @@ COLORS_8 = {"blue": curses.COLOR_BLUE, "red": curses.COLOR_RED, "yellow": curses
 
 HELP = """\
 MOVIMENTO UNITÀ   q w e / a · d / z x c  (o tastierino 7 8 9 4 6 1 2 3)
-CURSORE           frecce, PagSu/PagGiù, mouse (clic; trascina per scorrere)
+CURSORE           frecce, PagSu/PagGiù, mouse (trascina o rotella per scorrere)
+MOUSE             clic su una tua unità: la selezioni; clic accanto: si muove o
+                  attacca; clic lontano: mostra il percorso, secondo clic: parte
 Invio             seleziona l'unità sotto il cursore (cicla nelle città)
 n / Tab           unità successiva in attesa di ordini
 spazio            salta l'unità per questo turno
@@ -63,7 +65,7 @@ f                 fortifica (+25% difesa, resta di guardia)
 A                 automatica: l'unità viene guidata dall'IA
 O                 diplomazia: proponi o accetta una tregua
 T                 chat con gli altri giocatori (partite online)
-P                 produzione automatica in tutte le città (on/off)
+P                 direttiva di produzione: aria, terra, mare, sbarchi, difesa...
 g                 vai a... (sposta il cursore, Invio per confermare)
 v                 sveglia le unità sotto il cursore (anche il carico)
 l / u             carica / scarica un trasporto o portaerei in città
@@ -132,7 +134,7 @@ class UI:
 
     def my_turn(self) -> bool:
         g = self.g
-        return not g.over and g.current == self.viewer and self.session.started
+        return not g.over and g.current == self.viewer and getattr(self.session, "started", True)
 
     # ----------------------------------------------------------- colours
     def _init_colors(self) -> None:
@@ -411,8 +413,9 @@ class UI:
         row += 1
         self.put(row, x, f"Unità {len(units):3d}/{g.supply_limit(self.viewer)}  ☢ {fac.warheads:2d}  ☣ {fac.chemicals}")
         row += 1
-        if fac.auto_production:
-            self.put(row, x, "Produzione automatica (P)", self.color("dim"))
+        if fac.directive:
+            label = DIRECTIVES[fac.directive].split(" (")[0]
+            self.put(row, x, f"Direttiva: {label} (P)"[:SIDEBAR - 1], self.color("dim"))
             row += 1
         others = [f for f in g.factions if f.idx != self.viewer]
         names = self.session.player_names()
@@ -490,7 +493,8 @@ class UI:
                 cost = production_cost(city.production)
                 rate = g.production_rate(city)
                 eta = "∞" if rate <= 0 else str(max(0, -(-(cost - city.progress) // rate)))
-                self.put(row, x, f"  Produce: {PRODUCTION_NAMES[city.production]}")
+                hand = " (a mano)" if city.manual and g.factions[self.viewer].directive else ""
+                self.put(row, x, f"  Produce: {PRODUCTION_NAMES[city.production]}{hand}"[:SIDEBAR - 1])
                 row += 1
                 self.put(row, x, f"  {city.progress:.0f}/{cost} punti, pronto in {eta} turni")
                 row += 1
@@ -603,13 +607,56 @@ class UI:
             else:
                 stats = "scorta strategica"
             lines.append(f"{mark} {k}  {PRODUCTION_NAMES[k]:20s} costo {cost:3d}  {eta:>3s} turni  {stats}")
+        directive = g.factions[self.viewer].directive
+        if directive and city.manual:
+            lines += ["", f"  X  torna alla direttiva: {DIRECTIVES[directive].split(' (')[0]}"]
+        elif directive:
+            lines += ["", "  Scegliendo a mano, questa città non seguirà più la direttiva."]
         key = self.dialog(f"Produzione di {city.name} ({rate:.1f} punti/turno)", lines,
                           "lettera per scegliere, Esc per annullare")
         if key < 0 or key > 255:
             return
         ch = chr(key).upper()
+        if ch == "X" and directive and city.manual:
+            self.do({"op": "release", "city": city.id})
+            self.status = f"{city.name} torna a seguire la direttiva."
+            return
         if ch in keys and self.do({"op": "produce", "city": city.id, "key": ch}) == "ok":
             self.status = f"{city.name} ora produce {PRODUCTION_NAMES[ch]}."
+
+    DIRECTIVE_KEYS = {"0": "", "1": "auto", "2": "land", "3": "air", "4": "sea",
+                      "5": "amphibious", "6": "defense", "7": "nuclear"}
+
+    def directive_menu(self) -> None:
+        """One order for every city: what the whole war economy builds."""
+        fac = self.g.factions[self.viewer]
+        lines = ["Una direttiva cambia subito la produzione di tutte le città", ""]
+        for key, name in self.DIRECTIVE_KEYS.items():
+            mark = "▶" if fac.directive == name else " "
+            lines.append(f"{mark} {key}  {DIRECTIVES[name]}")
+        manual = sum(1 for c in self.g.cities_of(self.viewer) if c.manual)
+        lines += ["", "Le città che hai impostato a mano restano come sono."]
+        if manual:
+            lines.append(f"Città scelte a mano: {manual}. Premi T per includere anche quelle.")
+        key = self.dialog("Direttiva di produzione", lines, "numero, T per tutte, Esc")
+        if key < 0 or key > 255:
+            return
+        ch = chr(key)
+        include_all = False
+        if ch in ("T", "t") and manual:
+            include_all = True
+            key = self.dialog("Direttiva per tutte le città", lines[2:2 + len(self.DIRECTIVE_KEYS)],
+                              "numero, Esc")
+            if key < 0 or key > 255:
+                return
+            ch = chr(key)
+        if ch not in self.DIRECTIVE_KEYS:
+            return
+        name = self.DIRECTIVE_KEYS[ch]
+        changed = self.do({"op": "directive", "name": name, "all": include_all})
+        label = DIRECTIVES[name].split(" (")[0]
+        self.status = f"Direttiva: {label}. Città riconvertite: {changed}." if name else \
+            "Produzione manuale: ogni città continua con quello che sta costruendo."
 
     def diplomacy_menu(self) -> None:
         g = self.g
@@ -794,6 +841,9 @@ class UI:
             self.cursor = self._home_cell()
             self.center()
         self.status = f"Turno {g.turn}: ai tuoi ordini."
+        self.warned = False
+        if hasattr(self.session, "start_clock"):
+            self.session.start_clock()
         if self.session.online:
             self.audio.sfx("turn")
 
@@ -804,6 +854,8 @@ class UI:
             self.last_seq = max(self.last_seq, max(e.seq for e in g.events))
         self.do({"op": "end_turn"})
         self._replay_ai_turn()
+        if self.my_turn() and hasattr(self.session, "start_clock"):
+            self.session.start_clock()  # the newsreel does not eat your time
 
     # ------------------------------------------------------- newsreel
     def _focus(self, cell: int) -> None:
@@ -1001,9 +1053,7 @@ class UI:
             self.order("auto")
             self.status = "Unità affidata all'IA (Invio sull'unità per riprenderla)."
         elif key == ord("P"):
-            on = not g.factions[self.viewer].auto_production
-            self.do({"op": "auto_production", "on": on})
-            self.status = "Produzione automatica " + ("attivata." if on else "disattivata.")
+            self.directive_menu()
         elif key == ord("g") and self.active:
             self.mode = "goto"
         elif key == ord("v"):
@@ -1128,54 +1178,104 @@ class UI:
             self.after_action()
 
     def mouse(self) -> None:
+        """Empire-style mouse. Left click: on one of your units selects it;
+        next to the active unit moves (or attacks) there; farther away shows
+        the route and a second click on the same cell sends the unit. Drag to
+        pan the map, wheel to scroll it, right click to select."""
         try:
             _, mx, my, _, state = curses.getmouse()
         except curses.error:
             return
-        clicks = curses.BUTTON1_PRESSED | curses.BUTTON1_RELEASED | curses.BUTTON1_CLICKED | \
-            curses.BUTTON3_PRESSED | curses.BUTTON3_CLICKED
-        if self._pan is None and not state & clicks:
-            return  # the pointer just passing over the map
+        mw, mh = self.map_size()
+        inside = 1 <= my <= mh and 0 <= mx < mw
+        wheel_up = getattr(curses, "BUTTON4_PRESSED", 0)
+        wheel_down = getattr(curses, "BUTTON5_PRESSED", 0)
+        if state & wheel_up or state & wheel_down:
+            self.view_y = max(0, min(self.view_y + (-3 if state & wheel_up else 3),
+                                     max(0, self.w.height - mh)))
+            return
         if self.mode == "overview":
-            mw, mh = self.map_size()
-            if state & (curses.BUTTON1_PRESSED | curses.BUTTON1_CLICKED) and \
-                    1 <= my <= mh and 0 <= mx < mw:
+            if state & (curses.BUTTON1_PRESSED | curses.BUTTON1_CLICKED) and inside:
                 kx, ky, _, _ = getattr(self, "overview_geom", (2, 2, 0, 0))
                 y = min(self.w.height - 1, (my - 1) * 4 * ky + 2 * ky)
                 self.cursor = self.w.idx(mx * 2 * kx + kx, y)
                 self.mode = "normal"
                 self.center()
-            if state & curses.BUTTON1_RELEASED:
-                self._pan = None
             return
-        mw, mh = self.map_size()
-        # drag with the left button to pan: the map follows the hand
-        if self._pan is not None:
+        if state & curses.BUTTON1_PRESSED and inside and self._pan is None:
+            self._pan = (mx, my)
+            self._pan_view = (self.view_x, self.view_y)
+            self._dragged = False
+            return
+        if self._pan is not None and not state & (curses.BUTTON1_RELEASED | curses.BUTTON1_CLICKED):
             px, py = self._pan
-            if state & curses.BUTTON1_RELEASED:
-                self._pan = None
-                self._pan_view = None
-                if 1 <= my <= mh and 0 <= mx < mw:   # release where the hand landed
-                    self.cursor = self.w.idx(self.view_x + mx, self.view_y + my - 1)
-                return
-            if 1 <= my <= mh and 0 <= mx < mw:
+            # a wobble of one cell is still a click; more than that drags
+            if inside and (getattr(self, "_dragged", False) or max(abs(mx - px), abs(my - py)) > 1):
+                self._dragged = True
                 base_x, base_y = self._pan_view
                 self.view_x = (base_x - (mx - px)) % self.w.width
                 self.view_y = max(0, min(base_y - (my - py), max(0, self.w.height - mh)))
             return
-        if state & curses.BUTTON1_PRESSED and 1 <= my <= mh and 0 <= mx < mw:
-            self._pan = (mx, my)
-            self._pan_view = (self.view_x, self.view_y)
+        if state & (curses.BUTTON1_RELEASED | curses.BUTTON1_CLICKED):
+            dragged = self._pan is not None and getattr(self, "_dragged", False)
+            self._pan = self._pan_view = None
+            self._dragged = False
+            if dragged:
+                cell = self._cell_at(mx, my) if inside else None
+                if cell is not None:
+                    self.cursor = cell   # the cursor lands where the hand let go
+            elif inside:
+                self.click(self._cell_at(mx, my))
             return
-        if not (1 <= my <= mh and 0 <= mx < mw):
-            return
+        if state & (curses.BUTTON3_PRESSED | curses.BUTTON3_CLICKED) and inside:
+            cell = self._cell_at(mx, my)
+            if cell is not None:
+                self.cursor = cell
+                if self.mode == "normal" and self.my_turn():
+                    self.select_at_cursor()
+
+    def _cell_at(self, mx: int, my: int) -> int | None:
         y = self.view_y + my - 1
         if y >= self.w.height:
+            return None
+        return self.w.idx(self.view_x + mx, y)
+
+    def click(self, cell: int | None) -> None:
+        if cell is None:
             return
-        self.cursor = self.w.idx(self.view_x + mx, y)
-        if self.mode == "normal" and self.my_turn() and \
-                state & (curses.BUTTON3_PRESSED | curses.BUTTON3_CLICKED):
-            self.select_at_cursor()
+        g = self.g
+        if self.mode in ("goto", "nuke", "chem"):
+            if cell == self.cursor:
+                self.confirm_target()        # second click on the target: go
+            else:
+                self.cursor = cell
+                self.status = "Clicca di nuovo sulla stessa casella per confermare."
+            return
+        self.cursor = cell
+        if not self.my_turn():
+            return
+        a = self.active
+        mine = [u for u in g.units_at(cell) if u.owner == self.viewer]
+        if mine and (a is None or cell != a.cell) and not (a is not None and g.city(cell) is not None
+                                                           and cell in self.w.neighbors[a.cell]):
+            self.select_at_cursor()          # pick up one of your units
+            return
+        if a is None:
+            return
+        if cell == a.cell:
+            self.select_at_cursor()          # click again: next unit in the stack
+            return
+        if cell in self.w.neighbors[a.cell]:
+            ax, ay = self.w.xy(a.cell)
+            cx, cy = self.w.xy(cell)
+            dx = (cx - ax + self.w.width // 2) % self.w.width - self.w.width // 2
+            self.move_active(dx, cy - ay)
+            return
+        if g.path(a, cell) is None:
+            self.status = "Destinazione irraggiungibile per questa unità."
+            return
+        self.mode = "goto"                   # show the route; a second click sends it
+        self.status = "Percorso mostrato: clicca di nuovo sulla casella per partire (Esc annulla)."
 
     def save(self) -> None:
         result = self.session.do(self.viewer, {"op": "save"})
@@ -1193,11 +1293,14 @@ class UI:
                 return
         else:
             self.session.start(self._progress)
+            if getattr(self.session, "turn_time", 0):
+                self.scr.timeout(500)  # wake up to tick the turn timer
         self.sync()
         self.center()
         while not self.quit:
             self.draw()
             key = self.scr.getch()
+            self.tick_clock()
             if self.session.poll():
                 self.sync()
             if self.session.closed and not self.quit:
@@ -1206,6 +1309,21 @@ class UI:
                 return
             if key != -1:
                 self.handle(key)
+
+    def tick_clock(self) -> None:
+        """Turn timer: a warning near the end, then the turn ends by itself.
+        Online the server keeps the time; here only the warning plays."""
+        left = self.session.seconds_left()
+        if left is None or not self.my_turn():
+            return
+        if left <= 10 and not getattr(self, "warned", False):
+            self.warned = True
+            self.audio.sfx("alert")
+            self.status = f"⏱ Restano {left} secondi!"
+        if left == 0 and not self.session.online and self.mode in ("normal", "overview"):
+            self.mode = "normal"
+            self.status = "⏱ Tempo scaduto: turno finito."
+            self.end_human_turn()
 
     def lobby(self) -> bool:
         """Wait for every seat to be taken. False if the player quits."""
@@ -1363,8 +1481,17 @@ def setup_menu(scr) -> dict | None:
                                      ("difficile", "IA con industria al 130%")])
         if d is None:
             continue
+        times = (0, 60, 120, 180, 300)
+        t = menu(scr, "Tempo per turno", [
+            ("Nessun limite", "pensa quanto vuoi"),
+            ("1 minuto", "guerra lampo: decisioni di istinto"),
+            ("2 minuti", "ritmo serrato"),
+            ("3 minuti", "il giusto equilibrio"),
+            ("5 minuti", "per imperi grandi")])
+        if t is None:
+            continue
         return {"scenario": sc.key, "humans": (sc.factions[f].key,),
-                "difficulty": ("facile", "normale", "difficile")[d]}
+                "difficulty": ("facile", "normale", "difficile")[d], "turn_time": times[t]}
 
 
 def _faction_blurb(fd) -> str:

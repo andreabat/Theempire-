@@ -11,7 +11,7 @@ import random
 from typing import Callable
 
 from theempire.ai import AI
-from theempire.game import Game
+from theempire.game import DIRECTIVES, Game
 
 ORDERS = (None, "sentry", "fortify", "auto", "goto")
 
@@ -45,6 +45,7 @@ def prepare_human_turn(game: Game) -> None:
     for u in list(game.units_of(f)):
         if u.order == "goto" and u.id in game.units:
             game.follow_goto(u)
+    game.apply_directive(f)   # cities taken since last turn follow the directive too
     AI(game, f).assist()
     for proposer in game.proposals_to(f):
         game.log(f"{game.factions[proposer].name} propone una tregua: premi O per rispondere.",
@@ -123,9 +124,35 @@ def apply(game: Game, f: int, cmd: dict, name: str = "",
         if city.owner != f or not isinstance(key, str) or not game.can_build(city, key):
             return "illegal"
         city.production = key
+        city.manual = True
         return "ok"
-    if op == "auto_production":
-        game.factions[f].auto_production = bool(cmd.get("on"))
+    if op == "release":
+        cid = cmd.get("city")
+        if not isinstance(cid, int) or not 0 <= cid < len(game.cities) or game.cities[cid].owner != f:
+            return "illegal"
+        game.cities[cid].manual = False
+        game.apply_directive(f)
+        return "ok"
+    if op == "directive":
+        name = cmd.get("name")
+        if name not in DIRECTIVES:
+            return "illegal"
+        fac = game.factions[f]
+        fac.directive = name
+        fac.auto_production = name == "auto"
+        if cmd.get("all"):  # the order overrides the hand-picked cities too
+            for c in game.cities_of(f):
+                c.manual = False
+        changed = game.apply_directive(f)
+        if name == "auto":
+            ai = AI(game, f)
+            ai._fields()
+            ai.production()
+        return str(changed)
+    if op == "auto_production":  # older clients: the same as the "auto" directive
+        on = bool(cmd.get("on"))
+        game.factions[f].auto_production = on
+        game.factions[f].directive = "auto" if on else ""
         return "ok"
     if op == "nuke":
         cell = _cell(game, cmd.get("cell"))

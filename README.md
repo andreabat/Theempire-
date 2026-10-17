@@ -218,6 +218,44 @@ Le città producono anche **testate nucleari** (45 punti, città di dimensione
   Istanbul, Suez...) fa da canale.
 - Gli aerei consumano 1 di carburante per casella e si riforniscono in città
   o su una portaerei. A zero precipitano: il pannello mostra il carburante.
+- **Col mouse, come in Empire**:
+  - clic su una tua unità: la selezioni (clic di nuovo per passare alla
+    successiva nella stessa città);
+  - clic su una casella accanto all'unità attiva: si muove lì, o attacca;
+  - clic su una casella lontana: compare il percorso, un secondo clic sulla
+    stessa casella la manda in marcia (Esc annulla);
+  - trascina per spostare la mappa, rotella per scorrerla, tasto destro per
+    selezionare. Funziona anche nella web TUI.
+
+### Direttive di produzione
+Con `P` dai un ordine unico a tutta l'economia di guerra e tutte le città
+si riconvertono subito. Il lavoro già fatto resta, e le città conquistate
+dopo seguono la stessa direttiva.
+
+| Direttiva | Cosa costruiscono le città |
+|---|---|
+| manuale | decidi tu, città per città |
+| bilanciata | decide l'IA in base alla situazione |
+| offensiva terrestre | corazzati nelle città grandi, fanteria nelle piccole |
+| potenza aerea | caccia, e bombardieri in una città grande su tre |
+| dominio dei mari | cacciatorpediniere, sottomarini, incrociatori e qualche portaerei nei porti; truppe nell'entroterra |
+| sbarchi | trasporti in metà dei porti, truppe altrove |
+| difesa | fanteria ovunque |
+| deterrenza | testate nucleari nelle capitali e nelle metropoli, truppe altrove |
+
+Se imposti a mano una città con `p`, quella città esce dalla direttiva e il
+pannello la segna "(a mano)". Dal menu di produzione, `X` la riporta sotto
+la direttiva. Nel menu delle direttive, `T` applica il nuovo ordine anche
+alle città scelte a mano.
+
+### Timer del turno
+Per dare ritmo alla partita puoi limitare il tempo di ogni turno. Lo scegli
+nel menu iniziale (nessun limite, 1, 2, 3 o 5 minuti) oppure con
+`--turn-time SECONDI`, anche in locale e in hot-seat. Il conto alla rovescia
+è in alto a destra. A 10 secondi dalla fine suona l'allarme, e allo scadere
+il turno finisce da solo: le unità con un ordine di marcia proseguono, le
+altre restano dove sono. Il riepilogo animato delle mosse avversarie non
+consuma il tuo tempo.
 
 ### Combattimento
 Per attaccare muovi un'unità contro un nemico. Lo scontro è quello di Empire:
@@ -283,7 +321,8 @@ dell'altra né colpirla con armi chimiche o nucleari (nel pannello compare
 | Tasto | Azione |
 |---|---|
 | `q w e` `a d` `z x c` (o tastierino) | muove l'unità attiva nelle 8 direzioni |
-| frecce, PagSu/PagGiù, mouse | muovono il cursore (trascina con il mouse per scorrere la mappa) |
+| frecce, PagSu/PagGiù | muovono il cursore |
+| mouse | clic: seleziona, muove o attacca; clic lontano + secondo clic: marcia; trascina o rotella: scorre la mappa |
 | `Invio` | seleziona l'unità sotto il cursore (in città scorre le unità); su una città vuota apre la produzione |
 | `n` / `Tab`, `spazio` | unità successiva / salta l'unità |
 | `s`, `f` | sentinella (si sveglia se arriva il nemico), fortifica |
@@ -291,7 +330,7 @@ dell'altra né colpirla con armi chimiche o nucleari (nel pannello compare
 | `A` | **automatica**: l'unità passa sotto il controllo dell'IA |
 | `v` | sveglia le unità sotto il cursore, compreso il carico delle navi |
 | `l` / `u` | carica / scarica una nave in porto |
-| `p`, `P` | produzione della città, produzione automatica in tutte le città |
+| `p`, `P` | produzione della città, direttiva di produzione per tutte le città |
 | `m` | panoramica del mondo (un punto Braille = una casella; clic per saltare) |
 | `M` | audio: scegli musica ed effetti |
 | `N`, `C` | attacco nucleare / chimico sulla casella del cursore |
