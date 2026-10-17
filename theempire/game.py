@@ -16,7 +16,7 @@ from dataclasses import asdict, dataclass, field
 from functools import lru_cache
 from pathlib import Path
 
-from theempire import cards, events, missions, regions
+from theempire import cards, events, i18n, missions, regions
 from theempire.scenarios import SCENARIOS, Scenario
 from theempire.units import (CHEMICAL, UNIT_TYPES, WARHEAD, UnitType,
                              production_cost)
@@ -128,6 +128,11 @@ class Event:
     actor: int | None = None            # faction that caused it
     seq: int = 0                        # increasing id, to spot new events
     kind: str = ""                      # unit type behind it, for its own sound
+    msg: list | None = None             # [template, params]: translated by the reader (i18n)
+
+    def shown(self, lang: str | None = None) -> str:
+        """The text in the reader's language."""
+        return i18n.render(self.msg, lang) if self.msg else i18n.word(self.text, lang)
 
 
 class Game:
@@ -260,10 +265,13 @@ class Game:
         self.reel_mark[f] = self.reel_seq
         return [a for a in self.reel if a["seq"] > mark and a["actor"] != f]
 
-    def log(self, text: str, audience: list[int] | None = None, level: str = "info",
+    def log(self, text: "str | i18n.Msg", audience: list[int] | None = None, level: str = "info",
             sound: str = "", actor: int | None = None, kind: str = "") -> None:
+        """Write in the war log. A Msg is translated by each reader."""
         self.event_seq += 1
-        self.events.append(Event(self.turn, text, audience, level, sound, actor, self.event_seq, kind))
+        msg = text.to_json() if isinstance(text, i18n.Msg) else None
+        self.events.append(Event(self.turn, str(text), audience, level, sound, actor,
+                                 self.event_seq, kind, msg))
         if len(self.events) > 400:
             del self.events[:100]
 
