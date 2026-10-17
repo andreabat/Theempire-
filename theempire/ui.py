@@ -131,6 +131,9 @@ class UI:
         # Motion reports are needed to drag the map while the button is held.
         curses.mousemask(curses.ALL_MOUSE_EVENTS | curses.REPORT_MOUSE_POSITION)
         curses.mouseinterval(0)
+        # The terminfo of most terminals only turns on mode 1000 (clicks):
+        # ask for 1002 too, so the terminal reports the drag while it happens.
+        self._terminal(b"\x1b[?1002h")
 
     @property
     def g(self):
@@ -1622,7 +1625,12 @@ class UI:
                 self.mode = "normal"
                 self.center()
             return
-        if state & curses.BUTTON1_PRESSED and inside and self._pan is None:
+        motion = getattr(curses, "REPORT_MOUSE_POSITION", 0)
+        pressed = state & curses.BUTTON1_PRESSED
+        # Motion is reported only with a button held (mode 1002): if the press
+        # got lost in a burst of events, the first motion starts the drag.
+        if (pressed or state & motion and not state & curses.BUTTON1_RELEASED) \
+                and inside and self._pan is None:
             self._pan = (mx, my)
             self._pan_view = (self.view_x, self.view_y)
             self._dragged = False
@@ -1638,6 +1646,15 @@ class UI:
             return
         if state & (curses.BUTTON1_RELEASED | curses.BUTTON1_CLICKED):
             dragged = self._pan is not None and getattr(self, "_dragged", False)
+            if self._pan is not None and not dragged and inside:
+                # No motion reports came (old terminal, or a burst over the
+                # network): a release far from the press is still a drag.
+                px, py = self._pan
+                if max(abs(mx - px), abs(my - py)) > 1:
+                    base_x, base_y = self._pan_view
+                    self.view_x = (base_x - (mx - px)) % self.w.width
+                    self.view_y = max(0, min(base_y - (my - py), max(0, self.w.height - mh)))
+                    dragged = True
             self._pan = self._pan_view = None
             self._dragged = False
             if dragged:
@@ -1653,6 +1670,15 @@ class UI:
                 self.cursor = cell
                 if self.mode == "normal" and self.my_turn():
                     self.select_at_cursor()
+
+    @staticmethod
+    def _terminal(data: bytes) -> None:
+        """Send a control sequence straight to the terminal."""
+        import os
+        try:
+            os.write(1, data)
+        except OSError:
+            pass
 
     def _cell_at(self, mx: int, my: int) -> int | None:
         y = self.view_y + my - 1
@@ -1707,6 +1733,12 @@ class UI:
 
     # ----------------------------------------------------------- loop
     def run(self) -> None:
+        try:
+            self._run()
+        finally:
+            self._terminal(b"\x1b[?1002l")
+
+    def _run(self) -> None:
         if self.session.online:
             self.scr.timeout(300)
             if not self.lobby():

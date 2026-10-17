@@ -29,7 +29,7 @@
          border-bottom: 1px solid var(--line); font-size: 13px; }
   #bar .title { flex: 1; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   #bar button { width: auto; padding: 4px 10px; font-size: 13px; }
-  #term { flex: 1; min-height: 0; padding: 2px; }
+  #term { flex: 1; min-height: 0; padding: 2px; touch-action: none; }
   #pad { display: none; padding: 6px; gap: 6px; background: var(--panel); border-top: 1px solid var(--line);
          justify-content: center; flex-wrap: wrap; }
   #pad.on { display: flex; }
@@ -185,6 +185,40 @@ function setFont(size) {
   term.options.fontSize = fontSize; resize();
 }
 
+// A finger works like the left mouse button: a tap is a click, dragging
+// pans the map. The game reads xterm SGR mouse reports (1-based cells).
+function touchMouse(el) {
+  let last = null;
+  const cell = (t) => {
+    const r = (el.querySelector(".xterm-screen") || el).getBoundingClientRect();
+    const x = Math.floor((t.clientX - r.left) / r.width * term.cols) + 1;
+    const y = Math.floor((t.clientY - r.top) / r.height * term.rows) + 1;
+    return [Math.max(1, Math.min(term.cols, x)), Math.max(1, Math.min(term.rows, y))];
+  };
+  const report = (b, [x, y], up) => send({ t: "i", d: `\x1b[<${b};${x};${y}${up ? "m" : "M"}` });
+  el.addEventListener("touchstart", (ev) => {
+    if (ev.touches.length !== 1) return;  // two fingers: leave it to the browser
+    ev.preventDefault();
+    last = cell(ev.touches[0]);
+    report(0, last, false);
+  }, { passive: false });
+  el.addEventListener("touchmove", (ev) => {
+    if (!last) return;
+    ev.preventDefault();
+    const c = cell(ev.touches[0]);
+    if (c[0] !== last[0] || c[1] !== last[1]) { last = c; report(32, c, false); }
+  }, { passive: false });
+  const end = (ev) => {
+    if (!last) return;
+    ev.preventDefault();
+    const t = ev.changedTouches[0];
+    report(0, t ? cell(t) : last, true);
+    last = null;
+  };
+  el.addEventListener("touchend", end, { passive: false });
+  el.addEventListener("touchcancel", end, { passive: false });
+}
+
 function start(name, faction, password) {
   $("login").style.display = "none";
   $("game").style.display = "flex";
@@ -217,6 +251,7 @@ function start(name, faction, password) {
     $("ended").textContent = "Sessione terminata. Ricarica la pagina per rientrare al tuo posto.";
   };
   term.onData((d) => send({ t: "i", d }));
+  touchMouse($("term"));
   window.addEventListener("resize", resize);
   setTimeout(resize, 50);
 }

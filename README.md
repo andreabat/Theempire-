@@ -269,7 +269,8 @@ Le città producono anche **testate nucleari** (45 punti, città di dimensione
   - clic su una casella lontana: compare il percorso, un secondo clic sulla
     stessa casella la manda in marcia (Esc annulla);
   - trascina per spostare la mappa, rotella per scorrerla, tasto destro per
-    selezionare. Funziona anche nella web TUI.
+    selezionare. Funziona anche nella web TUI, e sugli schermi touch il dito
+    fa da mouse: un tocco è un clic, trascinando sposti la mappa.
 
 ### Direttive di produzione
 Con `P` dai un ordine unico a tutta l'economia di guerra e tutte le città

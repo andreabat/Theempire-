@@ -121,3 +121,26 @@ def test_mouse_click_still_moves_cursor(monkeypatch):
     assert ui._pan is None
     assert ui.view_x == 100         # no pan for a click
     assert ui.cursor == 20 * ui.w.width + 121
+
+def test_mouse_drag_without_motion_reports(monkeypatch):
+    # the terminal sent only press and release: still a drag
+    ui = _ui_with_curses(monkeypatch)
+    ui.mx, ui.my, ui.state = 20, 10, curses.BUTTON1_PRESSED
+    ui.mouse()
+    ui.mx, ui.my, ui.state = 26, 12, curses.BUTTON1_RELEASED
+    ui.mouse()
+    assert (ui.view_x, ui.view_y) == (94, 8)
+    assert ui._pan is None
+
+
+def test_mouse_drag_when_the_press_is_lost(monkeypatch):
+    # a burst of events: ncurses dropped the press, only motions arrive
+    ui = _ui_with_curses(monkeypatch)
+    ui.mx, ui.my, ui.state = 20, 10, curses.REPORT_MOUSE_POSITION
+    ui.mouse()
+    ui.mx, ui.my = 26, 12
+    ui.mouse()
+    assert (ui.view_x, ui.view_y) == (94, 8)
+    ui.state = curses.BUTTON1_RELEASED
+    ui.mouse()
+    assert ui._pan is None
