@@ -849,7 +849,8 @@ class UI:
             self.audio.sfx("loss")
             self.status = f"♠ {name}: il tentativo è fallito, la carta è persa."
         else:
-            self.status = describe(result) or f"♠ {name}: non si può giocare così."
+            self.status = f"♠ {name}: " + (describe(result) or "non si può giocare così.") + \
+                " La carta resta in mano."
         self.last_seq = max([self.last_seq] + [e.seq for e in self.g.events])
 
     def diplomacy_menu(self) -> None:

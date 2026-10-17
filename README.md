@@ -27,7 +27,7 @@ riquadro sulla mappa, ti spiega una cosa alla volta e aspetta che tu la
 faccia davvero: guardare la mappa, selezionare e muovere un'unità, dare un
 ordine di marcia, scegliere la produzione e una direttiva, finire il turno
 e leggere il bollettino, conquistare una città, giocare una carta. Alla fine
-ti lascia l'obiettivo: prendere Tirana. `h` nasconde o mostra il riquadro.
+ti lascia l'obiettivo: prendere Tirana, con una carta Rinforzi in regalo. `h` nasconde o mostra il riquadro.
 
 
 Serve Python 3.10+ e un terminale UTF-8, meglio se a 256 colori. Il gioco
@@ -358,7 +358,7 @@ carta; nel pannello vedi quante ne hai (♠) e quante ne ha ogni rivale.
 | Rinforzi (×3) | 2 fanterie e 1 corazzato in una tua città, oltre il limite logistico | sempre |
 | Diserzione (×3) | un'unità nemica che vedi, fuori dalle città, passa con te | 65% |
 | Commando (×2) | elimina un'unità nemica accanto alle tue forze | 70% |
-| Rivolta (×2) | una città nemica piccola (non capitale) insorge: neutrale, o tua se hai truppe di terra accanto (e la guarnigione passa con te) | 60% |
+| Rivolta (×2) | una città nemica di dimensione 1-2 insorge (anche le capitali minori come Varsavia o Minsk; non la capitale principale della fazione, come Mosca o Washington): neutrale, o tua se hai truppe di terra accanto (e la guarnigione passa con te) | 60% |
 | Colpo di stato (×1) | un paese neutrale con al massimo 4 città, dove hai un'unità entro 3 caselle, passa tutto con te | 50% |
 | Spionaggio (×3) | vedi tutte le unità di una fazione fino al tuo prossimo turno, più un rapporto su città, eserciti, testate, carte e produzione | sempre |
 | Sabotaggio (×2) | in una città nemica la produzione riparte da zero, con 3 turni di disordini | 75% |

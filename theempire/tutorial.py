@@ -31,12 +31,21 @@ def _more_cities(t) -> bool:
     return len(t.ui.g.cities_of(t.ui.viewer)) > t.cities_at_start
 
 
-def _give_spy(t) -> None:
+def _gift(t, key: str) -> None:
+    """The instructor puts a card in the player's hand."""
     hand = t.ui.g.factions[t.ui.viewer].cards
-    if "spy" not in hand:
+    if key not in hand:
         if len(hand) >= cards.HAND_LIMIT:
             hand.pop(0)
-        hand.append("spy")
+        hand.append(key)
+
+
+def _give_spy(t) -> None:
+    _gift(t, "spy")
+
+
+def _give_reinforcements(t) -> None:
+    _gift(t, "reinforce")
 
 
 STEPS = [
@@ -117,10 +126,14 @@ STEPS = [
     ]),
     Step("Obiettivo finale: Tirana", [
         "Conquista Tirana, la capitale della Repubblica Ribelle (★ rossa,",
-        "oltre l'Adriatico). Puoi marciare attraverso i Balcani o sbarcare",
-        "dal mare con il trasporto. Quando Tirana cade, il tutorial è finito.",
-        "Suggerimento: un Piano quinquennale o i Rinforzi aiutano.",
-    ], check=lambda t: False),
+        "oltre l'Adriatico): marcia attraverso i Balcani o sbarca dal mare.",
+        "Ti ho dato la carta RINFORZI (K): fa comparire 2 fanterie e 1",
+        "corazzato in una tua città. Giocala su una città conquistata vicino",
+        "a Tirana (Podgorica, Skopje...): le truppe nascono già al fronte.",
+        "Se peschi un PIANO QUINQUENNALE, giocalo: +50% di produzione per",
+        "3 turni = più truppe per l'assalto. Attacca con più unità attorno a",
+        "Tirana: ognuna dà +15%. Quando Tirana cade, il tutorial è finito.",
+    ], check=lambda t: False, enter=_give_reinforcements),
 ]
 
 

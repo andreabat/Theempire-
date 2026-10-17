@@ -99,7 +99,7 @@ def test_reinforce(world):
     c = g.cities_of(0)[0]
     n = len(g.units_at(c.cell))
     give(g, 0, "reinforce")
-    assert cards.play(g, 0, "reinforce", cell=g.cities_of(1)[0].cell) == "notarget"
+    assert cards.play(g, 0, "reinforce", cell=g.cities_of(1)[0].cell) == "card_own_city"
     assert cards.play(g, 0, "reinforce", cell=c.cell) == "ok"
     assert len(g.units_at(c.cell)) == n + 3
 
@@ -109,7 +109,7 @@ def test_defection_and_commando(world):
     spot = free_land(g)
     enemy = g.create_unit("A", 1, spot)
     give(g, 0, "defect")
-    assert cards.play(g, 0, "defect", cell=spot) == "notarget"     # not seen
+    assert cards.play(g, 0, "defect", cell=spot) == "card_no_enemy_unit"     # not seen
     mine = g.create_unit("I", 0, free_land(g, near=spot))
     assert cards.play(g, 0, "defect", cell=spot) == "ok"
     assert enemy.owner == 0
@@ -152,7 +152,7 @@ def test_coup(world):
                 and len([x for x in g.cities if x.iso == c.iso]) == 2
                 and all(x.owner is None for x in g.cities if x.iso == c.iso))
     give(g, 0, "coup")
-    assert cards.play(g, 0, "coup", cell=city.cell) == "notarget"   # nobody of ours nearby
+    assert cards.play(g, 0, "coup", cell=city.cell) == "card_no_friends"   # nobody of ours nearby
     g.create_unit("I", 0, free_land(g, near=city.cell))
     assert cards.play(g, 0, "coup", cell=city.cell) == "ok"
     assert all(c.owner == 0 for c in g.cities if c.iso == city.iso)
@@ -204,3 +204,26 @@ def test_cards_survive_save_and_load(world, tmp_path):
     h = Game.load_file(path)
     assert h.factions[0].cards == g.factions[0].cards
     assert cards.active(h, 0, "plan") and h.deck == g.deck and h.discard == g.discard
+
+
+def test_revolt_works_in_minor_capitals_but_not_the_seat(world):
+    g = Game("coldwar", humans=("nato",), seed=9, world=world)
+    g.rng = Lucky()
+    seat = cards.seat(g, 1)
+    assert seat.name == "Moscow"
+    give(g, 0, "revolt")
+    assert cards.play(g, 0, "revolt", cell=seat.cell) == "card_seat"
+    minor = next(c for c in g.cities_of(1) if c.capital and c.size <= 2 and c is not seat)
+    assert cards.play(g, 0, "revolt", cell=minor.cell) == "ok"     # e.g. a Warsaw Pact capital
+    assert minor.owner is None
+    big = next((c for c in g.cities_of(1) if c.size == 3 and c is not seat), None)
+    if big is not None:
+        give(g, 0, "revolt")
+        assert cards.play(g, 0, "revolt", cell=big.cell) == "card_too_big"
+    give(g, 0, "revolt")
+    assert cards.play(g, 0, "revolt", cell=g.cities_of(0)[0].cell) == "card_not_enemy_city"
+
+
+def test_tutorial_tirana_is_the_seat(world):
+    g = Game("tutorial", humans=("ita",), seed=1, world=world)
+    assert cards.seat(g, 1).name == "Tirana"

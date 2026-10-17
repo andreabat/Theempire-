@@ -46,8 +46,8 @@ CARDS: dict[str, Card] = {c.key: c for c in (
          "Un'unità nemica accanto alle tue forze, fuori dalle città, viene eliminata.",
          "enemy_unit", 2, 0.7),
     Card("revolt", "Rivolta",
-         "Una città nemica (non capitale, dimensione 1-2) insorge: diventa neutrale, "
-         "o tua se hai truppe di terra accanto.", "enemy_city", 2, 0.6),
+         "Una città nemica di dimensione 1-2 (non la capitale principale della fazione) "
+         "insorge: diventa neutrale, o tua se hai truppe di terra accanto.", "enemy_city", 2, 0.6),
     Card("coup", "Colpo di stato",
          "Un paese neutrale con al massimo 4 città, dove hai un'unità entro 3 caselle, "
          "passa con te.", "neutral_city", 1, 0.5),
@@ -127,8 +127,20 @@ def play(game: "Game", f: int, key: str, cell: int | None = None,
     return EFFECTS[key](game, f, cell, target)
 
 
+def seat(game: "Game", f: int):
+    """The faction's seat of government (Moscow, Washington, Beijing...):
+    the capital of its first country, or its starting capital in Empire!."""
+    fd = game.scenario.factions[f]
+    for c in game.cities:
+        if fd.capital_city and c.name == fd.capital_city:
+            return c
+        if not fd.capital_city and fd.countries and c.capital and c.iso == fd.countries[0]:
+            return c
+    return None
+
+
 def _check(game: "Game", f: int, card: Card, cell: int | None, target: int | None) -> str | None:
-    """None if the target is valid, else the reason code."""
+    """None if the target is valid, else a reason code (see commands.describe)."""
     if card.target == "none":
         return None
     if card.target == "faction":
@@ -139,33 +151,40 @@ def _check(game: "Game", f: int, card: Card, cell: int | None, target: int | Non
         return "illegal"
     city = game.city(cell)
     if card.target == "own_city":
-        return None if city is not None and city.owner == f else "notarget"
+        return None if city is not None and city.owner == f else "card_own_city"
     if card.target == "neutral_city":
         if city is None or city.owner is not None:
-            return "notarget"
+            return "card_neutral_city"
         same = [c for c in game.cities if c.iso == city.iso]
-        if any(c.owner is not None for c in same) or len(same) > 4:
-            return "notarget"
+        if any(c.owner is not None for c in same):
+            return "card_country_taken"
+        if len(same) > 4:
+            return "card_country_big"
         # a coup needs friends on the spot: one of our units near the country
         if not any(u.owner == f and u.carrier is None and game.world.dist(u.cell, c.cell) <= 3
                    for c in same for u in game.units.values()):
-            return "notarget"
+            return "card_no_friends"
         return None
     if card.target == "enemy_city":
-        if city is None or city.owner is None or not game.hostile(f, city.owner):
-            return "notarget"
-        if card.key == "revolt" and (city.capital or city.size > 2):
-            return "notarget"
+        if city is None:
+            return "card_not_city"
+        if city.owner is None or not game.hostile(f, city.owner):
+            return "card_not_enemy_city"
+        if card.key == "revolt":
+            if city is seat(game, city.owner):
+                return "card_seat"
+            if city.size > 2:
+                return "card_too_big"
         return None
     if card.target == "enemy_unit":
         if city is not None:
-            return "notarget"
+            return "card_unit_in_city"
         enemies = [u for u in game.units_at(cell) if game.hostile(f, u.owner) and game.sees(f, u)]
         if not enemies:
-            return "notarget"
+            return "card_no_enemy_unit"
         if card.key == "commando" and not any(
                 o.owner == f for c in game.world.ring(cell, 1) for o in game.units_at(c)):
-            return "notarget"
+            return "card_not_adjacent"
         return None
     return "illegal"
 

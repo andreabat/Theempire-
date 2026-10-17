@@ -88,6 +88,7 @@ def test_walkthrough():
     t.update()
     # two explanations are read through, then the final objective waits
     assert t.step.title == "Obiettivo finale: Tirana"
+    assert "reinforce" in g.factions[0].cards        # the instructor's second gift
     assert "✔ Ben fatto!" in ui.dialogs
 
 

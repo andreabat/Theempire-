@@ -316,7 +316,7 @@ class AI:
     def _revolt_target(self) -> int | None:
         g, w = self.g, self.w
         options = [c for c in g.cities if c.owner is not None and g.hostile(self.f, c.owner)
-                   and not c.capital and c.size <= 2]
+                   and cards._check(g, self.f, cards.CARDS["revolt"], c.cell, None) is None]
         if not options:
             return None
 
