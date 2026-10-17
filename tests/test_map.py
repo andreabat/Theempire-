@@ -172,9 +172,9 @@ def test_stray_release_does_not_click_the_map(monkeypatch):
 
 def test_zoom_maps_clicks_to_cells(monkeypatch):
     ui = _ui_with_curses(monkeypatch)
-    ui.zoom = 2                                     # a cell is 4×2 characters
-    assert ui.view_size() == ((200 - 36 - 1) // 4, (50 - 6 - 2) // 2)
-    assert ui._cell_at(9, 4) == (10 + 1) * ui.w.width + 100 + 2
+    ui.zoom = 2                                     # a cell is 4×4 characters
+    assert ui.view_size() == ((200 - 36 - 1) // 4, (50 - 6 - 2) // 4)
+    assert ui._cell_at(9, 4) == (10 + 0) * ui.w.width + 100 + 2
     ui.mx, ui.my, ui.state = 40, 20, curses.BUTTON1_PRESSED
     ui.mouse()
     ui.mx, ui.state = 48, curses.BUTTON1_RELEASED   # 8 characters = 2 cells
@@ -182,9 +182,16 @@ def test_zoom_maps_clicks_to_cells(monkeypatch):
     assert ui.view_x == 98
 
 
-def test_zoomed_coastline_is_magnified():
-    from theempire.ui import zoom_braille
-    left_column = chr(0x2800 + 0x01 + 0x02 + 0x04 + 0x40)   # ⡇
-    assert zoom_braille(left_column, 0, 0, 2, 1) == "⣿"      # doubled: fills the left char
-    assert zoom_braille(left_column, 1, 0, 2, 1) == " "      # and nothing on the right
-    assert zoom_braille("⣿", 1, 1, 4, 2) == "⣿"
+def test_zoom_redraws_the_coast_in_detail():
+    from theempire.ui import zoom_tile
+    from theempire.world import load_hd
+    w = load_world()
+    assert load_hd() is not None
+    sea = next(i for i in range(w.size) if not w.land[i] and w.dots[i] == 0)
+    inland = w.idx(10 + 180, (84 - 22) // 2)          # the Sahara, 10°E 22°N
+    assert zoom_tile(w, sea, 4) == ("    ",) * 4
+    assert zoom_tile(w, inland, 2) == ("⣿⣿",) * 2
+    coast = next(i for i in range(w.size) if w.land[i] and 0 < w.dots[i] < 0xFF)
+    tile = zoom_tile(w, coast, 4)
+    assert len(tile) == 4 and all(len(row) == 4 for row in tile)
+    assert len(set("".join(tile))) > 2          # real detail, not one repeated character

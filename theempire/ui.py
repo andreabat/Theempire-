@@ -18,6 +18,7 @@ from theempire.scenarios import SCENARIOS
 from theempire.tutorial import Tutorial
 from theempire.units import (CHEMICAL, PRODUCTION_NAMES, UNIT_TYPES, WARHEAD,
                              production_cost)
+from theempire.world import load_hd
 
 SIDEBAR = 36
 LOG_ROWS = 6
@@ -97,20 +98,35 @@ alla mezzanotte: a 0 minuti la guerra nucleare totale distrugge tutti."""
 BRAILLE_DOTS = ((0x01, 0x02, 0x04, 0x40), (0x08, 0x10, 0x20, 0x80))  # [column][row]
 
 
-def zoom_braille(ch: str, i: int, j: int, zx: int, zy: int) -> str:
-    """Part (i, j) of a Braille character blown up to zx × zy characters,
-    so that the coastline is magnified instead of repeated."""
-    code = ord(ch) - 0x2800
-    if not 0 < code < 0x100 or (zx, zy) == (1, 1):
-        return ch
-    out = 0
-    for tc in range(2):
-        for tr in range(4):
-            sc = (i * 2 + tc) // zx
-            sr = (j * 4 + tr) // zy
-            if code & BRAILLE_DOTS[sc][sr]:
-                out |= BRAILLE_DOTS[tc][tr]
-    return chr(0x2800 + out) if out else " "
+def zoom_tile(world, cell: int, k: int) -> tuple[str, ...]:
+    """The land of a cell drawn k × k characters large, as rows of Braille.
+
+    Like Terrascope, the zoom samples the coastline again at the finer scale
+    (the land mask of world.load_hd) instead of blowing up the dots of the
+    normal map; without that file the dots are only magnified."""
+    hd = load_hd()
+    cx, cy = world.xy(cell)
+    rows = []
+    for j in range(k):
+        row = ""
+        for i in range(k):
+            bits = 0
+            for tc in range(2):
+                for tr in range(4):
+                    if hd is not None and hd.zoom % k == 0:
+                        s = hd.zoom // k                     # samples per dot, each way
+                        x0 = cx * 2 * hd.zoom + (i * 2 + tc) * s
+                        y0 = cy * 4 * hd.zoom + (j * 4 + tr) * s
+                        land = sum(hd.land(x0 + a, y0 + b) for a in range(s) for b in range(s))
+                        on = land * 2 >= s * s
+                    else:
+                        dots = world.dots[cell] or (0xFF if world.land[cell] else 0)
+                        on = bool(dots & BRAILLE_DOTS[(i * 2 + tc) // k][(j * 4 + tr) // k])
+                    if on:
+                        bits |= BRAILLE_DOTS[tc][tr]
+            row += chr(0x2800 + bits) if bits else " "
+        rows.append(row)
+    return tuple(rows)
 
 
 class UI:
@@ -250,12 +266,18 @@ class UI:
         h, w = self.scr.getmaxyx()
         return max(10, w - SIDEBAR - 1), max(5, h - LOG_ROWS - 2)
 
-    # Zoom levels: how many characters (wide, high) one cell of the map takes.
-    # Terminal characters are about twice as tall as wide, so 2×1 is square.
-    ZOOMS = ((1, 1), (2, 1), (4, 2))
+    # Zoom levels: one cell of the map takes k × k characters, so the map
+    # keeps its proportions; the coast is redrawn with finer detail.
+    ZOOMS = (1, 2, 4)
+
+    @property
+    def _tiles(self) -> dict:
+        """Zoomed land drawings, made once per cell and zoom level."""
+        return self.__dict__.setdefault("_tile_cache", {})
 
     def zoom_factor(self) -> tuple[int, int]:
-        return self.ZOOMS[getattr(self, "zoom", 0)]
+        k = self.ZOOMS[getattr(self, "zoom", 0)]
+        return k, k
 
     def view_size(self) -> tuple[int, int]:
         """How many cells of the map are on screen (wide, high)."""
@@ -270,7 +292,7 @@ class UI:
             return
         self.zoom = zoom
         self.center()
-        self.status = f"Zoom ×{self.ZOOMS[zoom][0]}."
+        self.status = f"Zoom ×{self.ZOOMS[zoom]}."
 
     def follow_cursor(self) -> None:
         mw, mh = self.view_size()
@@ -455,6 +477,19 @@ class UI:
             return chr(0x2800 + dots), self.color("coast", bg) | dim
         return " ", self.color("white", bg)
 
+    def zoom_attrs(self, cell: int, seen: bool) -> tuple[int, int]:
+        """Colours of a zoomed cell: (solid land, land against the sea).
+        The land dots of a sea cell belong to the land next to it."""
+        dim = 0 if seen else curses.A_DIM
+        src_cell = cell if self.w.land[cell] else next(
+            (n for n in self.w.neighbors[cell] if self.w.land[n]), None)
+        if src_cell is None:
+            return (self.color("coast", "sea" if self.rich else None) | dim,) * 2
+        src = self.territory_source[src_cell]
+        owner = self.g.cities[src].owner if src >= 0 else None
+        fg = self.owner_color(owner)
+        return self.color(fg) | dim, self.color(fg, "sea" if self.rich else None) | dim
+
     def draw_map(self) -> None:
         g = self.g
         mw, mh = self.map_size()
@@ -472,7 +507,9 @@ class UI:
             for sx in range(cols):
                 cell = y * self.w.width + (self.view_x + sx) % self.w.width
                 ch, attr = self.cell_glyph(cell, vis, path)
-                ground, gattr = (ch, attr) if zx == 1 else self.ground_glyph(cell, cell in vis)
+                gattr = sattr = attr
+                if zx > 1:
+                    gattr, sattr = self.zoom_attrs(cell, cell in vis)
                 mark = 0
                 if cell == self.cursor:
                     mark = curses.A_REVERSE if self.mode == "normal" else -1
@@ -481,16 +518,25 @@ class UI:
                 elif self.mode in ("nuke", "chem") and self.w.dist(cell, self.cursor) == 1:
                     mark = curses.A_REVERSE
                 if mark == -1:
-                    attr = gattr = self.color("alert") | curses.A_REVERSE | curses.A_BOLD
+                    attr = gattr = sattr = self.color("alert") | curses.A_REVERSE | curses.A_BOLD
                 elif mark:
-                    attr, gattr = attr | mark, gattr | mark
-                # zoomed in, the glyph sits in the middle of a block of ground
-                for j in range(zy):
-                    for i in range(zx):
-                        middle = i == (zx - 1) // 2 and j == (zy - 1) // 2
-                        self.put(1 + sy * zy + j, sx * zx + i,
-                                 ch if middle else zoom_braille(ground, i, j, zx, zy),
-                                 attr if middle else gattr)
+                    attr, gattr, sattr = attr | mark, gattr | mark, sattr | mark
+                if zx == 1:
+                    self.put(1 + sy, sx, ch, attr)
+                    continue
+                # zoomed in: the cell is a block of finer coastline, and what
+                # stands on it (unit, city...) sits in its middle
+                tile = self._tiles.get((cell, zx))
+                if tile is None:
+                    tile = self._tiles[(cell, zx)] = zoom_tile(self.w, cell, zx)
+                plain = ch == self.ground_glyph(cell, cell in vis)[0]
+                mid = (zx - 1) // 2
+                for j, row in enumerate(tile):
+                    for i, dot in enumerate(row):
+                        if not plain and i == mid and j == mid:
+                            self.put(1 + sy * zy + j, sx * zx + i, ch, attr)
+                        else:
+                            self.put(1 + sy * zy + j, sx * zx + i, dot, gattr if dot == "⣿" else sattr)
 
     def draw_overview(self) -> None:
         """The whole world in the map area; each Braille dot is one cell."""

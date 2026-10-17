@@ -13,6 +13,7 @@ from functools import lru_cache
 from pathlib import Path
 
 ASSET = Path(__file__).resolve().parent / "assets" / "world.json"
+HD_ASSET = ASSET.with_name("land_hd.bin")   # the fine land mask for the zoom
 
 
 @dataclass(frozen=True)
@@ -134,6 +135,34 @@ class World:
                     dist[n] = d
                     queue.append(n)
         return dist
+
+
+class LandHD:
+    """Land and sea sampled ``zoom`` times finer than the Braille dots of the
+    normal map (built by tools/build_world.py from Natural Earth)."""
+
+    def __init__(self, data: bytes):
+        import struct
+        import zlib
+        if data[:4] != b"TEHD":
+            raise ValueError("not a land mask")
+        self.width, self.height, self.zoom = struct.unpack(">HHH", data[4:10])
+        self.bits = zlib.decompress(data[10:])
+        self.stride = (self.width + 7) // 8
+
+    def land(self, x: int, y: int) -> bool:
+        x %= self.width
+        if not 0 <= y < self.height:
+            return False
+        return bool(self.bits[y * self.stride + (x >> 3)] & (0x80 >> (x & 7)))
+
+
+@lru_cache(maxsize=1)
+def load_hd() -> LandHD | None:
+    try:
+        return LandHD(HD_ASSET.read_bytes())
+    except (OSError, ValueError):
+        return None
 
 
 @lru_cache(maxsize=None)

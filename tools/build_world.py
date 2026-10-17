@@ -41,6 +41,11 @@ MAX_CITIES = 320
 DOT_BITS = [[0x01, 0x08], [0x02, 0x10], [0x04, 0x20], [0x40, 0x80]]
 
 OUT = Path(__file__).resolve().parents[1] / "theempire" / "assets" / "world.json"
+# The zoomed map: land/sea samples ZOOM_MAX times finer than the Braille dots
+# of the normal map, so that a zoomed cell shows real detail (as Terrascope
+# does) instead of the same dots blown up.
+HD_OUT = OUT.with_name("land_hd.bin")
+ZOOM_MAX = 4
 
 
 def fetch(source: Path, name: str) -> dict:
@@ -87,11 +92,40 @@ def rasterize(countries: dict) -> tuple[np.ndarray, list[dict]]:
     return np.array(img, dtype=np.int32), table
 
 
+def build_hd(countries: dict) -> None:
+    """Write the fine land mask: a small header, then zlib-packed bits,
+    one row after the other, most significant bit first."""
+    import struct
+    import zlib
+    sw, sh = WIDTH * SUB_X * ZOOM_MAX, HEIGHT * SUB_Y * ZOOM_MAX
+    img = Image.new("1", (sw, sh), 0)
+    draw = ImageDraw.Draw(img)
+    sx, sy = sw / (WIDTH * DLON), sh / (HEIGHT * DLAT)
+    for feat in countries["features"]:
+        if iso_of(feat["properties"]) == "ATA":
+            continue
+        geom = feat["geometry"]
+        polys = geom["coordinates"] if geom["type"] == "MultiPolygon" else [geom["coordinates"]]
+        for poly in polys:
+            for k, ring in enumerate(poly):
+                pts = [((lon - LON0) * sx, (LAT0 - lat) * sy) for lon, lat in ring]
+                if len(pts) >= 3:
+                    draw.polygon(pts, fill=0 if k else 1)
+    bits = np.packbits(np.array(img, dtype=np.uint8), axis=1)
+    HD_OUT.write_bytes(b"TEHD" + struct.pack(">HHH", sw, sh, ZOOM_MAX)
+                       + zlib.compress(bits.tobytes(), 9))
+    print(f"wrote {HD_OUT} ({HD_OUT.stat().st_size // 1024} KiB): {sw}x{sh} samples")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--source", type=Path, default=Path("/tmp/ne"))
+    parser.add_argument("--hd-only", action="store_true", help="only the zoomed land mask")
     args = parser.parse_args()
     countries = fetch(args.source, COUNTRIES)
+    build_hd(countries)
+    if args.hd_only:
+        return
     places = fetch(args.source, PLACES)
 
     samples, table = rasterize(countries)
