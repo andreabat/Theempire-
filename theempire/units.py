@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from theempire.i18n import N
+
 
 @dataclass(frozen=True)
 class UnitType:
@@ -24,15 +26,15 @@ class UnitType:
 
 
 UNIT_TYPES: dict[str, UnitType] = {u.key: u for u in (
-    UnitType("I", "Fanteria", "land", 1, 2, 2, 3, 6, capture=True),
-    UnitType("A", "Corazzati", "land", 2, 3, 4, 2, 10, capture=True),
-    UnitType("F", "Caccia", "air", 8, 1, 3, 3, 12, vision=2, fuel=16),
-    UnitType("B", "Bombardiere", "air", 6, 2, 6, 1, 18, vision=2, fuel=24),
-    UnitType("D", "Cacciatorpediniere", "sea", 3, 3, 2, 2, 12, vision=2),
-    UnitType("S", "Sottomarino", "sea", 2, 2, 4, 1, 14, stealth=True),
-    UnitType("T", "Trasporto", "sea", 3, 1, 0, 1, 10, capacity=6, carries="land"),
-    UnitType("R", "Incrociatore", "sea", 2, 6, 3, 3, 22, vision=2),
-    UnitType("C", "Portaerei", "sea", 2, 6, 1, 2, 28, vision=2, capacity=6, carries="air"),
+    UnitType("I", N("Fanteria"), "land", 1, 2, 2, 3, 6, capture=True),
+    UnitType("A", N("Corazzati"), "land", 2, 3, 4, 2, 10, capture=True),
+    UnitType("F", N("Caccia"), "air", 8, 1, 3, 3, 12, vision=2, fuel=16),
+    UnitType("B", N("Bombardiere"), "air", 6, 2, 6, 1, 18, vision=2, fuel=24),
+    UnitType("D", N("Cacciatorpediniere"), "sea", 3, 3, 2, 2, 12, vision=2),
+    UnitType("S", N("Sottomarino"), "sea", 2, 2, 4, 1, 14, stealth=True),
+    UnitType("T", N("Trasporto"), "sea", 3, 1, 0, 1, 10, capacity=6, carries="land"),
+    UnitType("R", N("Incrociatore"), "sea", 2, 6, 3, 3, 22, vision=2),
+    UnitType("C", N("Portaerei"), "sea", 2, 6, 1, 2, 28, vision=2, capacity=6, carries="air"),
 )}
 
 # Things a city can build that are not units.
@@ -42,7 +44,7 @@ CHEMICAL = "G"
 CHEMICAL_COST = 20
 
 PRODUCTION_NAMES = {**{k: u.name for k, u in UNIT_TYPES.items()},
-                    WARHEAD: "Testata nucleare", CHEMICAL: "Armi chimiche"}
+                    WARHEAD: N("Testata nucleare"), CHEMICAL: N("Armi chimiche")}
 
 
 def production_cost(key: str) -> int:

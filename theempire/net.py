@@ -29,6 +29,7 @@ from typing import Callable
 
 from theempire import commands
 from theempire.game import Game
+from theempire.i18n import Msg, tr, word
 
 PROTOCOL = 1
 DEFAULT_PORT = 7777
@@ -52,7 +53,7 @@ def _recv_exact(sock: socket.socket, n: int) -> bytes:
     while len(buf) < n:
         chunk = sock.recv(min(65536, n - len(buf)))
         if not chunk:
-            raise ConnectionError("connessione chiusa")
+            raise ConnectionError(tr("connessione chiusa"))
         buf += chunk
     return bytes(buf)
 
@@ -60,17 +61,17 @@ def _recv_exact(sock: socket.socket, n: int) -> bytes:
 def recv_msg(sock: socket.socket, limit: int) -> dict:
     (n,) = struct.unpack(">I", _recv_exact(sock, 4))
     if n > limit:
-        raise ProtocolError("messaggio troppo grande")
+        raise ProtocolError(tr("messaggio troppo grande"))
     z = zlib.decompressobj()
     raw = z.decompress(_recv_exact(sock, n), limit * 8)
     if z.unconsumed_tail:
-        raise ProtocolError("messaggio troppo grande")
+        raise ProtocolError(tr("messaggio troppo grande"))
     try:
         obj = json.loads(raw.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise ProtocolError("messaggio non valido") from exc
+        raise ProtocolError(tr("messaggio non valido")) from exc
     if not isinstance(obj, dict):
-        raise ProtocolError("messaggio non valido")
+        raise ProtocolError(tr("messaggio non valido"))
     return obj
 
 
@@ -122,7 +123,7 @@ class GameServer:
         self.lock = threading.RLock()
         self.slots = {f.idx: Slot(f.idx) for f in game.factions if f.human}
         if not self.slots:
-            raise ValueError("serve almeno una fazione umana")
+            raise ValueError(tr("serve almeno una fazione umana"))
         self.started = False
         self.reels: dict[int, list[dict]] = {}   # bulletins waiting for their player
         self.turn_key: tuple[int, int] | None = None
@@ -172,8 +173,9 @@ class GameServer:
         if self.sock is None:
             self.listen()
         threading.Thread(target=self._timer, daemon=True).start()
-        self.log(f"Server in ascolto su {self.host}:{self.port} · {self.game.scenario.name} · "
-                 f"posti: {', '.join(self.game.factions[f].name for f in self.slots)}")
+        self.log(tr("Server in ascolto su {address} · {scenario} · posti: {seats}",
+                    address=f"{self.host}:{self.port}", scenario=self.game.scenario.name,
+                    seats=", ".join(word(self.game.factions[f].name) for f in self.slots)))
         while not self.stopping.is_set():
             try:
                 client, addr = self.sock.accept()
@@ -214,10 +216,10 @@ class GameServer:
 
     def _join(self, conn: Connection, hello: dict) -> bool:
         if hello.get("type") != "hello" or hello.get("version") != PROTOCOL:
-            conn.send({"type": "error", "message": "versione del gioco diversa da quella del server"})
+            conn.send({"type": "error", "message": tr("versione del gioco diversa da quella del server")})
             return False
         if self.password and not hmac.compare_digest(str(hello.get("password", "")), self.password):
-            conn.send({"type": "error", "message": "password errata"})
+            conn.send({"type": "error", "message": tr("password errata")})
             return False
         name = commands.printable(str(hello.get("name") or ""))[:24].strip() or "Giocatore"
         token = str(hello.get("token") or "")
@@ -231,15 +233,15 @@ class GameServer:
                 slot = next((s for s in self.slots.values()
                              if self.game.factions[s.faction].key == wanted), None)
                 if slot is None:
-                    conn.send({"type": "error", "message": f"la fazione {wanted} non è un posto libero"})
+                    conn.send({"type": "error", "message": tr("la fazione {faction} non è un posto libero", faction=str(wanted))})
                     return False
                 if slot.token:
-                    conn.send({"type": "error", "message": "posto già occupato da un altro giocatore"})
+                    conn.send({"type": "error", "message": tr("posto già occupato da un altro giocatore")})
                     return False
             if slot is None:
                 slot = next((s for s in self.slots.values() if not s.token), None)
                 if slot is None:
-                    conn.send({"type": "error", "message": "la partita è al completo"})
+                    conn.send({"type": "error", "message": tr("la partita è al completo")})
                     return False
             if slot.conn is not None and slot.conn is not conn:
                 slot.conn.close()  # the same player reconnecting
@@ -248,10 +250,11 @@ class GameServer:
             slot.name, slot.conn, conn.slot = name, conn, slot
             conn.send({"type": "welcome", "faction": slot.faction, "token": slot.token,
                        "faction_key": self.game.factions[slot.faction].key})
-            self.log(f"{name} ({conn.address}) gioca con {self.game.factions[slot.faction].name}")
+            self.log(tr("{name} ({address}) gioca con {faction}", name=name, address=conn.address,
+                        faction=self.game.factions[slot.faction].name))
             if not self.started and all(s.token for s in self.slots.values()):
                 self.started = True
-                self.log("Tutti i giocatori sono arrivati: si comincia.")
+                self.log(tr("Tutti i giocatori sono arrivati: si comincia."))
                 commands.advance(self.game)
             self._broadcast()
         return True
@@ -261,7 +264,8 @@ class GameServer:
             slot = conn.slot
             if slot is not None and slot.conn is conn:
                 slot.conn = None
-                self.log(f"{slot.name} si è disconnesso ({self.game.factions[slot.faction].name})")
+                self.log(tr("{name} si è disconnesso ({faction})", name=slot.name,
+                            faction=self.game.factions[slot.faction].name))
                 self._broadcast()
         conn.close()
 
@@ -331,7 +335,8 @@ class GameServer:
                     continue
                 if time.time() - self.turn_started >= self.turn_time:
                     f = self.game.current
-                    self.game.log(f"Tempo scaduto per {self.game.factions[f].name}.", None, "alert")
+                    self.game.log(Msg("Tempo scaduto per {faction}.", faction=self.game.factions[f].name),
+                                  None, "alert")
                     commands.apply(self.game, f, {"op": "end_turn"})
                     self.save()
                     self._broadcast()
@@ -357,14 +362,14 @@ class RemoteSession:
         reply = recv_msg(self.sock, MAX_SERVER_MESSAGE)
         if reply.get("type") == "error":
             self.sock.close()
-            raise ConnectionError(reply.get("message", "rifiutato dal server"))
+            raise ConnectionError(reply.get("message") or tr("rifiutato dal server"))
         if reply.get("type") != "welcome":
-            raise ProtocolError("risposta inattesa dal server")
+            raise ProtocolError(tr("risposta inattesa dal server"))
         self.faction: int = reply["faction"]
         self._store_token(reply.get("faction_key", ""), reply["token"])
         first = recv_msg(self.sock, MAX_SERVER_MESSAGE)
         if first.get("type") != "state":
-            raise ProtocolError("risposta inattesa dal server")
+            raise ProtocolError(tr("risposta inattesa dal server"))
         self.sock.settimeout(None)
         self.game = Game.from_dict(first["state"])
         self.lobby: list[dict] = first.get("lobby", [])
@@ -468,7 +473,7 @@ class RemoteSession:
         with self._cond:
             while rid not in self._results and not self.closed and time.time() < end:
                 if progress:
-                    progress("il server")
+                    progress(tr("il server"))
                 self._cond.wait(0.5)
             result = self._results.pop(rid, "disconnected")
         self.poll()

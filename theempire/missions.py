@@ -17,6 +17,7 @@ import random
 from typing import TYPE_CHECKING
 
 from theempire import regions
+from theempire.i18n import Msg, tr, word
 
 if TYPE_CHECKING:
     from theempire.game import Game
@@ -81,39 +82,50 @@ def _region_pair(game: "Game", f: int, rng: random.Random) -> list[str] | None:
 
 
 # ------------------------------------------------------------------ reading
-def text(game: "Game", f: int) -> str:
-    """The objective in words."""
+def message(game: "Game", f: int) -> Msg | None:
+    """The objective in words, still to translate (for the log); None if
+    there is none, or it is a rival's secret."""
     m = game.factions[f].mission
     kind = m.get("kind")
     if kind == "regions":
         a, b = (regions.REGIONS[k].name for k in m["regions"])
-        return f"Conquista tutte le città di {a} e di {b}."
+        return Msg("Conquista tutte le città di {a} e di {b}.", a=a, b=b)
     if kind == "eliminate":
-        return f"Elimina {game.factions[m['target']].name} dalla guerra (devi prendere tu l'ultima città)."
+        return Msg("Elimina {faction} dalla guerra (devi prendere tu l'ultima città).",
+                   faction=game.factions[m["target"]].name)
     if kind == "cities":
-        return f"Controlla {m['count']} città."
+        return Msg("Controlla {count} città.", count=m["count"])
     if kind == "capitals":
-        return f"Conquista e tieni {m['count']} capitali che all'inizio erano dei tuoi rivali."
-    return ""
+        return Msg("Conquista e tieni {count} capitali che all'inizio erano dei tuoi rivali.",
+                   count=m["count"])
+    return None
+
+
+def text(game: "Game", f: int) -> str:
+    """The objective in words, in the current language."""
+    msg = message(game, f)
+    return str(msg) if msg is not None else ""
 
 
 def progress(game: "Game", f: int) -> str:
-    """How far the faction is, in a few words."""
+    """How far the faction is, in a few words (current language)."""
     m = game.factions[f].mission
     kind = m.get("kind")
     if kind == "regions":
         parts = []
         for k in m["regions"]:
             cities = regions.cities_in(game, k)
-            parts.append(f"{regions.REGIONS[k].short} {sum(c.owner == f for c in cities)}/{len(cities)}")
+            parts.append(tr("{region} {held}/{total}", region=regions.REGIONS[k].short,
+                            held=sum(c.owner == f for c in cities), total=len(cities)))
         return " · ".join(parts)
     if kind == "eliminate":
-        return f"{game.factions[m['target']].name.split()[-1]}: {len(game.cities_of(m['target']))} città da prendere"
+        name = word(game.factions[m["target"]].name).split()[-1]
+        return tr("{faction}: {n} città da prendere", faction=name, n=len(game.cities_of(m["target"])))
     if kind == "cities":
-        return f"{len(game.cities_of(f))}/{m['count']} città"
+        return tr("{held}/{count} città", held=len(game.cities_of(f)), count=m["count"])
     if kind == "capitals":
         held = sum(1 for c in _rival_capitals(game, f) if c.owner == f)
-        return f"{held}/{m['count']} capitali nemiche"
+        return tr("{held}/{count} capitali nemiche", held=held, count=m["count"])
     return ""
 
 
@@ -142,5 +154,6 @@ def on_elimination(game: "Game", victim: int, by: int | None) -> None:
             m["done"] = True
         elif f.alive:
             f.mission = _cities(game, f.idx)
-            game.log(f"Obiettivo segreto: {game.factions[victim].name} è stato eliminato da "
-                     f"altri. Nuovo obiettivo: {text(game, f.idx)}", [f.idx], "alert", "alert")
+            game.log(Msg("Obiettivo segreto: {faction} è stato eliminato da altri. "
+                         "Nuovo obiettivo: {mission}", faction=game.factions[victim].name,
+                         mission=message(game, f.idx)), [f.idx], "alert", "alert")

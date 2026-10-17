@@ -13,6 +13,7 @@ from typing import Callable
 from theempire import cards
 from theempire.ai import AI
 from theempire.game import DIRECTIVES, Game
+from theempire.i18n import N, Msg, tr
 
 ORDERS = (None, "sentry", "fortify", "auto", "goto")
 
@@ -42,8 +43,8 @@ def prepare_human_turn(game: Game) -> None:
     game.apply_directive(f)   # cities taken since last turn follow the directive too
     AI(game, f).assist()
     for proposer in game.proposals_to(f):
-        game.log(f"{game.factions[proposer].name} propone una tregua: premi O per rispondere.",
-                 [f], "alert")
+        game.log(Msg("{faction} propone una tregua: premi O per rispondere.",
+                     faction=game.factions[proposer].name), [f], "alert")
 
 
 def apply(game: Game, f: int, cmd: dict, name: str = "",
@@ -55,7 +56,7 @@ def apply(game: Game, f: int, cmd: dict, name: str = "",
         if not text:
             return "empty"
         who = name or game.factions[f].name
-        game.log(f"✉ {who}: {text}", None, "chat")
+        game.log(Msg("✉ {who}: {text}", who=who, text=text), None, "chat")
         return "ok"
     if game.over:
         return "over"
@@ -258,29 +259,36 @@ def _cell(game: Game, cell):
     return cell
 
 
+# The message for each result code of a command.
+RESULTS = {
+    "illegal": N("Movimento impossibile."), "nomoves": N("Unità senza mosse."),
+    "captured": N("Città conquistata!"), "lost": N("Unità perduta."),
+    "crashed": N("L'aereo è precipitato."), "blocked": N("Contatto con il nemico!"),
+    "notyourturn": N("Non è il tuo turno."), "unreachable": N("Destinazione irraggiungibile."),
+    "intercepted": N("Missile intercettato!"), "nowarheads": N("Nessuna testata disponibile."),
+    "own": N("Non puoi colpire una tua città."), "truce": N("C'è una tregua in corso con quella fazione."),
+    "over": N("La partita è finita."), "failed": N("Carta giocata, ma il tentativo è fallito."),
+    "notarget": N("Bersaglio non valido per questa carta."),
+    "card_own_city": N("Scegli una tua città."),
+    "card_neutral_city": N("Scegli una città neutrale."),
+    "card_country_taken": N("Quel paese ha già città in mano a qualcuno: niente colpo di stato."),
+    "card_country_big": N("Il colpo di stato riesce solo nei paesi con al massimo 4 città."),
+    "card_no_friends": N("Serve una tua unità entro 3 caselle da una città di quel paese."),
+    "card_not_city": N("Scegli una città: porta il cursore proprio sulla città."),
+    "card_not_enemy_city": N("Non è una città nemica (le città neutrali e quelle in tregua non valgono)."),
+    "card_seat": N("È la capitale principale della fazione: lì la rivolta non attecchisce."),
+    "card_too_big": N("Città troppo grande (dimensione 3): la rivolta riesce solo nelle città di dimensione 1-2."),
+    "card_unit_in_city": N("Le unità dentro le città non si possono colpire con questa carta."),
+    "card_no_enemy_unit": N("Lì non c'è un'unità nemica che le tue forze vedono."),
+    "card_not_adjacent": N("Il commando agisce solo accanto a una tua unità."),
+    "cooldown": N("Hai già proposto una tregua di recente."),
+    "pending": N("Proposta di tregua inviata."), "accepted": N("Tregua accettata!"),
+    "refused": N("Proposta di tregua respinta."),
+}
+
+
 def describe(result: str) -> str:
-    return {
-        "illegal": "Movimento impossibile.", "nomoves": "Unità senza mosse.",
-        "captured": "Città conquistata!", "lost": "Unità perduta.",
-        "crashed": "L'aereo è precipitato.", "blocked": "Contatto con il nemico!",
-        "notyourturn": "Non è il tuo turno.", "unreachable": "Destinazione irraggiungibile.",
-        "intercepted": "Missile intercettato!", "nowarheads": "Nessuna testata disponibile.",
-        "own": "Non puoi colpire una tua città.", "truce": "C'è una tregua in corso con quella fazione.",
-        "over": "La partita è finita.", "failed": "Carta giocata, ma il tentativo è fallito.",
-        "notarget": "Bersaglio non valido per questa carta.",
-        "card_own_city": "Scegli una tua città.",
-        "card_neutral_city": "Scegli una città neutrale.",
-        "card_country_taken": "Quel paese ha già città in mano a qualcuno: niente colpo di stato.",
-        "card_country_big": "Il colpo di stato riesce solo nei paesi con al massimo 4 città.",
-        "card_no_friends": "Serve una tua unità entro 3 caselle da una città di quel paese.",
-        "card_not_city": "Scegli una città: porta il cursore proprio sulla città.",
-        "card_not_enemy_city": "Non è una città nemica (le città neutrali e quelle in tregua non valgono).",
-        "card_seat": "È la capitale principale della fazione: lì la rivolta non attecchisce.",
-        "card_too_big": "Città troppo grande (dimensione 3): la rivolta riesce solo nelle città di dimensione 1-2.",
-        "card_unit_in_city": "Le unità dentro le città non si possono colpire con questa carta.",
-        "card_no_enemy_unit": "Lì non c'è un'unità nemica che le tue forze vedono.",
-        "card_not_adjacent": "Il commando agisce solo accanto a una tua unità.", "cooldown": "Hai già proposto una tregua di recente.",
-        "pending": "Proposta di tregua inviata.", "accepted": "Tregua accettata!",
-        "refused": "Proposta di tregua respinta.",
-    }.get(result, "")
+    """The message for a result code, in the current language."""
+    text = RESULTS.get(result, "")
+    return tr(text) if text else ""
 
