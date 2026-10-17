@@ -400,14 +400,22 @@ class Game:
             if t.domain == "sea" and not self.is_port(cell):
                 return None
             return "move"
-        if others:
-            o = others[0]
-            if t.domain == "land" and o.type.carries == "land" and self.has_room(o):
-                return "board"
-            if t.domain == "air" and o.type.carries == "air" and self.has_room(o):
-                return "board"
+        if self.carrier_at(u, cell) is not None:
+            return "board"
+        # Aircraft fly over your units: outside cities a cell holds at most
+        # one aircraft and one unit on the ground (or at sea) below it.
+        if any((o.type.domain == "air") == (t.domain == "air") for o in others):
             return None
         return "move" if self.terrain_ok(u.kind, cell, u.owner) else None
+
+    def carrier_at(self, u: Unit, cell: int) -> Unit | None:
+        """An own transport or carrier at ``cell`` with room for ``u``."""
+        if u.type.domain == "sea":
+            return None
+        for o in self.units_at(cell):
+            if o.owner == u.owner and o.type.carries == u.type.domain and self.has_room(o):
+                return o
+        return None
 
     def can_attack(self, u: Unit, cell: int) -> bool:
         t = u.type
@@ -446,8 +454,7 @@ class Game:
             return self.attack(u, cell)
         self._spend(u)
         if action == "board":
-            carrier = self.units_at(cell)[0]
-            self._embark(u, carrier)
+            self._embark(u, self.carrier_at(u, cell))
             u.moves = 0
         else:
             disembark = u.carrier is not None
@@ -539,7 +546,9 @@ class Game:
             city = self.city(c)
             if city is not None and city.owner != owner:
                 return False
-            if avoid_units and c in self.at and city is None:
+            if avoid_units and city is None and any(
+                    o.owner != owner or (o.type.domain == "air") == (domain == "air")
+                    for o in self.units_at(c)):
                 return False
             return True
 

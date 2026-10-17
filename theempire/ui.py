@@ -337,7 +337,8 @@ class UI:
                 attr |= curses.A_UNDERLINE
             return glyph, attr
         if units:
-            u = units[0]
+            # an aircraft flying over a unit is drawn on top
+            u = next((o for o in units if o.type.domain == "air"), units[0])
             return u.kind, self.color(self.owner_color(u.owner), bg) | curses.A_BOLD
         if cell in path:
             return "·", self.color("white", bg) | curses.A_BOLD
@@ -1702,8 +1703,10 @@ class UI:
             return
         a = self.active
         mine = [u for u in g.units_at(cell) if u.owner == self.viewer]
-        if mine and (a is None or cell != a.cell) and not (a is not None and g.city(cell) is not None
-                                                           and cell in self.w.neighbors[a.cell]):
+        # next to the active unit, a cell it can enter (own city, a plane over
+        # a tank, a transport to board) is a move, not a change of unit
+        enter = a is not None and cell in self.w.neighbors[a.cell] and g.classify(a, cell) is not None
+        if mine and (a is None or cell != a.cell) and not enter:
             self.select_at_cursor()          # pick up one of your units
             return
         if a is None:

@@ -98,6 +98,39 @@ def test_one_unit_per_cell_and_attack(world):
     assert enemy.id not in g.units and a.cell == cell
 
 
+def test_aircraft_fly_over_units(world):
+    g = empty_game(world)
+    cell = inland_cell(g)
+    ring = world.neighbors[cell]
+    tank = g.create_unit("A", 0, ring[0])
+    f = g.create_unit("F", 0, cell)
+    assert g.classify(f, ring[0]) == "move"         # over its own tank
+    assert g.move(f, ring[0]) == "moved"
+    assert {u.id for u in g.units_at(ring[0])} == {tank.id, f.id}
+    f2 = g.create_unit("F", 0, cell)
+    assert g.classify(f2, ring[0]) is None          # one aircraft per cell
+    inf = g.create_unit("I", 0, cell)
+    assert g.classify(inf, ring[0]) is None         # and one unit below it
+    g.kill(tank)
+    assert g.classify(inf, ring[0]) == "move"       # a free spot under the plane
+    # the route of an aircraft is not blocked by units on the ground
+    for c in ring:
+        if c not in g.at:
+            g.create_unit("I", 0, c)
+    assert g.path(f2, ring[3], avoid_units=True) == [ring[3]]
+
+
+def test_enemy_aircraft_are_still_targets(world):
+    g = empty_game(world)
+    g.rng = AlwaysWin()
+    cell = inland_cell(g)
+    n = world.neighbors[cell][0]
+    g.create_unit("A", 1, n)
+    g.create_unit("F", 1, n)
+    f = g.create_unit("F", 0, cell)
+    assert g.classify(f, n) == "attack"              # no flying over enemies
+
+
 def test_capture_neutral_city(world):
     g = empty_game(world)
     g.rng = AlwaysWin()
@@ -211,4 +244,6 @@ def test_ai_plays_every_scenario(world, scenario):
     for cell, ids in g.at.items():
         top = [g.units[i] for i in ids]
         if g.city(cell) is None:
-            assert len(top) == 1, "one unit per cell outside cities"
+            air = [u for u in top if u.type.domain == "air"]
+            assert len(air) <= 1 and len(top) - len(air) <= 1, \
+                "outside cities: at most one aircraft over one other unit"

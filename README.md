@@ -253,7 +253,10 @@ Le città producono anche **testate nucleari** (45 punti, città di dimensione
 2 o più) e **armi chimiche** (20).
 
 ### Movimento
-- Fuori dalle città sta **una sola unità per casella**. Nelle città se ne
+- Fuori dalle città sta **una sola unità per casella**, più un aereo: gli
+  aerei **volano sopra le tue unità** (di terra o navi) e possono fermarsi
+  lì, uno per casella; sulla mappa si vede l'aereo. Sopra le unità nemiche
+  invece non si passa: muoversi lì è un attacco. Nelle città se ne
   ammassano quante vuoi.
 - Le unità di terra **salgono** su un trasporto muovendosi sulla sua casella e
   **sbarcano** muovendosi su una casella di terra (lo sbarco consuma il turno).

@@ -461,8 +461,8 @@ class AI:
             city = g.city(u.cell)
             if city is not None and city.owner == self.f and g.is_port(u.cell):
                 for n in self.w.neighbors[u.cell]:
-                    o = g.units_at(n)
-                    if o and o[0].owner == self.f and o[0].kind == "T" and g.has_room(o[0]):
+                    ship = g.carrier_at(u, n)
+                    if ship is not None and ship.kind == "T":
                         g.move(u, n)
                         return
                 u.order = "sentry"
