@@ -35,7 +35,7 @@ from pathlib import Path
 from typing import Callable
 from urllib.parse import parse_qs, urlparse
 
-from theempire import audio
+from theempire import audio, midi
 from theempire.commands import printable
 
 PAGE = Path(__file__).resolve().parent / "assets" / "web" / "index.html"
@@ -203,7 +203,8 @@ class WebGateway:
             name = path[len("/sounds/"):].removesuffix(".wav")
             self.sounds_ready.wait(30)  # the first visitors may beat the synthesiser
             wav = audio.CACHE / f"{name}.wav"
-            if name in audio._SFX_NAMES + audio._MUSIC_NAMES and wav.exists():
+            known = audio._SFX_NAMES + audio._MUSIC_NAMES + tuple(audio.user_tracks())
+            if name in known and wav.exists():
                 self._reply(req, wav.read_bytes(), "audio/wav", cache=True)
             else:
                 req.send_error(HTTPStatus.NOT_FOUND)
@@ -274,7 +275,9 @@ class WebGateway:
                 "--name", name, "--audio-web"]
         if faction:
             argv += ["--faction", faction]
+        # the browsers hear the music folder of whoever runs the server
         env = {**os.environ, "HOME": str(home), "TERM": "xterm-256color",
+               "THEEMPIRE_MUSIC": str(midi.music_dir()),
                "LANG": "C.UTF-8", "LC_ALL": "C.UTF-8", "THEEMPIRE_PASSWORD": password,
                "PYTHONPATH": str(Path(__file__).resolve().parents[1]) + os.pathsep
                + os.environ.get("PYTHONPATH", "")}

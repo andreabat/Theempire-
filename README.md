@@ -60,6 +60,14 @@ di secondi in `~/.theempire/sounds`.
   «Ах, под сосною», ricavati dall'arrangiamento MIDI di riferimento), l'**inno sovietico** (il «Союз нерушимый» di Aleksandrov,
   trascritto dalla partitura ufficiale: strofa e ritornello completi), la
   Toccata, la marcia, la tensione, la vittoria, la sconfitta o la mezzanotte.
+- **La tua musica**: metti dei file MIDI (`.mid`) nella cartella
+  `~/.theempire/music` (o in quella indicata da `THEEMPIRE_MUSIC`) e
+  compaiono nel menu `M` con il nome del file e i tasti 1-9: per esempio
+  `~/.theempire/music/Give Peace a Chance.mid` diventa «Give Peace a
+  Chance». Il gioco li suona con il suo sintetizzatore (basso, chitarre,
+  melodia e batteria, al massimo 4 minuti) e li prepara una volta sola
+  nella cache. I file restano tuoi: non fanno parte del gioco né del
+  repository. Nella web TUI si usa la cartella di chi avvia il server.
 - **Effetti**:
   - battaglie, città conquistate o perdute, crolli di una fazione;
   - attacco nucleare (sirena, fischio, esplosione), missile intercettato,
@@ -264,6 +272,10 @@ Le città producono anche **testate nucleari** (45 punti, città di dimensione
   Istanbul, Suez...) fa da canale.
 - Gli aerei consumano 1 di carburante per casella e si riforniscono in città
   o su una portaerei. A zero precipitano: il pannello mostra il carburante.
+- **Zoom**: `+` e `-` (o i pulsanti «Zoom +» e «Zoom -» in fondo al
+  pannello; sul telefono il pizzico con due dita) ingrandiscono la mappa a
+  2 o 4 caratteri per casella: le coste si vedono più dettagliate e le unità
+  si cliccano meglio. Per vedere più mondo c'è la panoramica (`m`).
 - **Col mouse**:
   - clic su una tua unità: la selezioni (clic di nuovo per passare alla
     successiva nella stessa città);

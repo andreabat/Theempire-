@@ -130,3 +130,45 @@ def test_anthem_voices_line_up():
     tracks = audio._music()
     # melody and bass of the anthem end together (no dangling bass bar)
     assert len(tracks["anthem"].buf) > audio.RATE * 60
+
+
+def _tiny_midi(path):
+    """A format-0 file: tempo, a program change, two notes and a kick."""
+    ev = bytes([0x00, 0xFF, 0x51, 0x03, 0x07, 0xA1, 0x20,     # 120 bpm
+                0x00, 0xC0, 60,                               # trumpet
+                0x00, 0x90, 67, 100, 0x60, 0x80, 67, 0,       # G4, an eighth
+                0x00, 0x90, 72, 100, 0x60, 0x90, 72, 0,       # C5 (note on, velocity 0)
+                0x00, 0x99, 36, 120, 0x30, 0x89, 36, 0,
+                0x00, 0xFF, 0x2F, 0x00])
+    path.write_bytes(b"MThd" + (6).to_bytes(4, "big") + bytes([0, 0, 0, 1, 0, 192])
+                     + b"MTrk" + len(ev).to_bytes(4, "big") + ev)
+
+
+def test_players_own_midi_music(tmp_path, monkeypatch):
+    from theempire import midi
+    folder = tmp_path / "music"
+    folder.mkdir()
+    _tiny_midi(folder / "Give Peace a Chance.mid")
+    monkeypatch.setenv("THEEMPIRE_MUSIC", str(folder))
+    notes = midi.read(folder / "Give Peace a Chance.mid")
+    assert [n[2] for n in notes] == [67, 72, 36]
+    assert abs(notes[1][0] - 0.25) < 1e-6                 # an eighth at 120 bpm
+    assert audio.user_tracks() == {"user-give-peace-a-chance": folder / "Give Peace a Chance.mid"}
+    assert audio.music_name("user-give-peace-a-chance") == "Give Peace a Chance"
+    assert audio.music_keys()["1"] == "user-give-peace-a-chance"
+    assert audio.loops("user-give-peace-a-chance")
+    audio._render_user_music(tmp_path)
+    with wave.open(str(tmp_path / "user-give-peace-a-chance.wav")) as w:
+        assert w.getnframes() > audio.RATE // 4
+    monkeypatch.setattr(audio, "SETTINGS", tmp_path / "settings.json")
+    audio.save_music("user-give-peace-a-chance")
+    assert audio.load_music() == "user-give-peace-a-chance"
+
+
+def test_broken_midi_is_skipped(tmp_path, monkeypatch):
+    folder = tmp_path / "music"
+    folder.mkdir()
+    (folder / "rotto.mid").write_bytes(b"non sono un midi")
+    monkeypatch.setenv("THEEMPIRE_MUSIC", str(folder))
+    audio._render_user_music(tmp_path)
+    assert not (tmp_path / "user-rotto.wav").exists()

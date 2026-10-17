@@ -14,6 +14,7 @@ import json
 import math
 import random
 import shutil
+import struct
 import subprocess
 import sys
 import threading
@@ -44,6 +45,38 @@ MUSIC_NAMES = {"auto": "automatica (a seconda del momento)",
 MUSIC_KEYS = {"a": "auto", "o": "off", "k": "kalinka", "s": "anthem",
               "m": "menu", "w": "war", "t": "tension", "v": "victory",
               "d": "defeat", "n": "midnight"}
+
+
+
+def user_tracks() -> dict:
+    """The player's own MIDI files (see theempire.midi)."""
+    from theempire import midi
+    return midi.user_tracks()
+
+
+def music_choices() -> tuple[str, ...]:
+    return MUSIC_CHOICES + tuple(user_tracks())
+
+
+def music_name(choice: str) -> str:
+    if choice in MUSIC_NAMES:
+        return MUSIC_NAMES[choice]
+    from theempire import midi
+    path = user_tracks().get(choice)
+    return midi.title(path) if path else choice
+
+
+def music_keys() -> dict[str, str]:
+    """Menu shortcuts: the built-in tunes, then 1-9 for the player's files."""
+    keys = dict(MUSIC_KEYS)
+    for k, choice in enumerate(user_tracks()):
+        keys[str(k + 1) if k < 9 else f"u{k + 1}"] = choice
+    return keys
+
+
+def loops(track: str | None) -> bool:
+    return track in LOOPING or (track or "").startswith("user-")
+
 
 NOTES = {"C": -9, "C#": -8, "Db": -8, "D": -7, "D#": -6, "Eb": -6, "E": -5, "F": -4,
          "F#": -3, "Gb": -3, "G": -2, "G#": -1, "Ab": -1, "A": 0, "A#": 1, "Bb": 1, "B": 2}
@@ -549,6 +582,27 @@ def generate(cache: Path = CACHE) -> None:
                 # Music sits under the effects.
                 w.writeframes(track.pcm(0.9 if builder is _sfx else 0.45))
             tmp.replace(path)
+    _render_user_music(cache)
+
+
+def _render_user_music(cache: Path) -> None:
+    """Render the player's MIDI files, again only when a file changed."""
+    from theempire import midi
+    for name, src in user_tracks().items():
+        path = cache / f"{name}.wav"
+        try:
+            if path.exists() and path.stat().st_mtime >= src.stat().st_mtime:
+                continue
+            track = midi.render(src)
+        except (OSError, ValueError, IndexError, struct.error):
+            continue                   # a broken file just stays silent
+        tmp = path.with_suffix(".tmp")
+        with wave.open(str(tmp), "wb") as w:
+            w.setnchannels(1)
+            w.setsampwidth(2)
+            w.setframerate(RATE)
+            w.writeframes(track.pcm(0.45))
+        tmp.replace(path)
 
 
 UNIT_KINDS = "IAFBDSTRC"
@@ -596,13 +650,13 @@ def load_music() -> str:
     data = _settings()
     if "music" in data:
         music = {"cossack": "kalinka"}.get(data["music"], data["music"])  # renamed tune
-        return music if music in MUSIC_CHOICES else "auto"
+        return music if music in music_choices() else "auto"
     mode = data.get("audio", "all")  # legacy: the old all/sfx/off mode
     return "off" if mode in ("sfx", "off") else "auto"
 
 
 def save_music(choice: str) -> None:
-    if choice not in MUSIC_CHOICES:
+    if choice not in music_choices():
         return
     data = _settings()
     data["music"] = choice
@@ -720,8 +774,8 @@ class Audio:
             self._stop_music()
 
     def select_music(self, choice: str) -> None:
-        """Pick a tune from MUSIC_CHOICES and keep it for the next games."""
-        if choice not in MUSIC_CHOICES:
+        """Pick a tune from music_choices() and keep it for the next games."""
+        if choice not in music_choices():
             return
         self.music_choice = choice
         save_music(choice)
@@ -757,7 +811,7 @@ class Audio:
                 running = self.music_proc is not None and self.music_proc.poll() is None
                 if running:
                     continue
-                if track not in LOOPING and played_once == track:
+                if not loops(track) and played_once == track:
                     continue
                 self.music_proc = self._spawn(track)
                 played_once = track
@@ -810,10 +864,10 @@ class EscapeAudio:
         if track == self.track:
             return
         self.track = track
-        self._send("music", track or "", "1" if track in LOOPING else "0")
+        self._send("music", track or "", "1" if loops(track) else "0")
 
     def select_music(self, choice: str) -> None:
-        if choice in MUSIC_CHOICES:
+        if choice in music_choices():
             self.music_choice = choice
             save_music(choice)
             self.music(self.wanted)

@@ -10,7 +10,7 @@ from collections import Counter, deque
 from pathlib import Path
 
 from theempire import cards
-from theempire.audio import MUSIC_KEYS, MUSIC_NAMES, Audio
+from theempire.audio import Audio, music_keys, music_name
 from theempire.commands import describe
 from theempire.game import CHEM_RANGE, DIRECTIVES, Unit
 from theempire.scenarios import SCENARIOS
@@ -77,6 +77,7 @@ l / u             carica / scarica un trasporto o portaerei in città
 p                 produzione della città sotto il cursore
 D                 congeda l'unità attiva
 m                 mappa del mondo (panoramica)
++ / -             zoom della mappa (anche pulsanti nel pannello, pizzico)
 r                 centra la vista sul cursore
 M                 audio: scegli musica ed effetti
 N                 ☢ attacco nucleare sulla casella del cursore
@@ -89,6 +90,25 @@ conquistano le città. Le navi entrano solo nei porti amici; gli aerei
 consumano carburante e si riforniscono in città o sulle portaerei.
 Ogni arma di distruzione di massa avvicina l'Orologio dell'Apocalisse
 alla mezzanotte: a 0 minuti la guerra nucleare totale distrugge tutti."""
+
+
+BRAILLE_DOTS = ((0x01, 0x02, 0x04, 0x40), (0x08, 0x10, 0x20, 0x80))  # [column][row]
+
+
+def zoom_braille(ch: str, i: int, j: int, zx: int, zy: int) -> str:
+    """Part (i, j) of a Braille character blown up to zx × zy characters,
+    so that the coastline is magnified instead of repeated."""
+    code = ord(ch) - 0x2800
+    if not 0 < code < 0x100 or (zx, zy) == (1, 1):
+        return ch
+    out = 0
+    for tc in range(2):
+        for tr in range(4):
+            sc = (i * 2 + tc) // zx
+            sr = (j * 4 + tr) // zy
+            if code & BRAILLE_DOTS[sc][sr]:
+                out |= BRAILLE_DOTS[tc][tr]
+    return chr(0x2800 + out) if out else " "
 
 
 class UI:
@@ -228,8 +248,30 @@ class UI:
         h, w = self.scr.getmaxyx()
         return max(10, w - SIDEBAR - 1), max(5, h - LOG_ROWS - 2)
 
-    def follow_cursor(self) -> None:
+    # Zoom levels: how many characters (wide, high) one cell of the map takes.
+    # Terminal characters are about twice as tall as wide, so 2×1 is square.
+    ZOOMS = ((1, 1), (2, 1), (4, 2))
+
+    def zoom_factor(self) -> tuple[int, int]:
+        return self.ZOOMS[getattr(self, "zoom", 0)]
+
+    def view_size(self) -> tuple[int, int]:
+        """How many cells of the map are on screen (wide, high)."""
         mw, mh = self.map_size()
+        zx, zy = self.zoom_factor()
+        return max(1, mw // zx), max(1, mh // zy)
+
+    def set_zoom(self, step: int) -> None:
+        zoom = max(0, min(len(self.ZOOMS) - 1, getattr(self, "zoom", 0) + step))
+        if zoom == getattr(self, "zoom", 0):
+            self.status = "Zoom massimo." if step > 0 else "Zoom minimo: m mostra il mondo intero."
+            return
+        self.zoom = zoom
+        self.center()
+        self.status = f"Zoom ×{self.ZOOMS[zoom][0]}."
+
+    def follow_cursor(self) -> None:
+        mw, mh = self.view_size()
         cx, cy = self.w.xy(self.cursor)
         rel = (cx - self.view_x) % self.w.width
         if rel < 3 or rel > mw - 4:
@@ -239,7 +281,7 @@ class UI:
         self.view_y = max(0, min(self.view_y, max(0, self.w.height - mh)))
 
     def center(self) -> None:
-        mw, mh = self.map_size()
+        mw, mh = self.view_size()
         cx, cy = self.w.xy(self.cursor)
         self.view_x = (cx - mw // 2) % self.w.width
         self.view_y = max(0, min(cy - mh // 2, max(0, self.w.height - mh)))
@@ -394,6 +436,14 @@ class UI:
             return "·", self.color("white", bg) | curses.A_BOLD
         if cell in g.fallout:
             return "☢", self.color("fallout", bg) | dim
+        return self.ground_glyph(cell, seen)
+
+    def ground_glyph(self, cell: int, seen: bool) -> tuple[str, int]:
+        """The land or sea of a cell, without what stands on it."""
+        g = self.g
+        land = self.w.land[cell]
+        bg = None if land or not self.rich else "sea"
+        dim = 0 if seen else curses.A_DIM
         dots = self.w.dots[cell]
         if land:
             src = self.territory_source[cell]
@@ -411,21 +461,34 @@ class UI:
         if self.mode == "goto" and self.active is not None and self.active.id in g.units:
             route = g.path(self.active, self.cursor) or []
             path = set(route[:-1])
-        for sy in range(mh):
+        zx, zy = self.zoom_factor()
+        cols, rows = self.view_size()
+        for sy in range(rows):
             y = self.view_y + sy
             if y >= self.w.height:
                 break
-            for sx in range(mw):
+            for sx in range(cols):
                 cell = y * self.w.width + (self.view_x + sx) % self.w.width
                 ch, attr = self.cell_glyph(cell, vis, path)
+                ground, gattr = (ch, attr) if zx == 1 else self.ground_glyph(cell, cell in vis)
+                mark = 0
                 if cell == self.cursor:
-                    attr = (attr | curses.A_REVERSE) if self.mode == "normal" else (
-                        self.color("alert") | curses.A_REVERSE | curses.A_BOLD)
+                    mark = curses.A_REVERSE if self.mode == "normal" else -1
                     if self.mode in ("nuke", "chem"):
                         ch = "✕"
                 elif self.mode in ("nuke", "chem") and self.w.dist(cell, self.cursor) == 1:
-                    attr |= curses.A_REVERSE
-                self.put(1 + sy, sx, ch, attr)
+                    mark = curses.A_REVERSE
+                if mark == -1:
+                    attr = gattr = self.color("alert") | curses.A_REVERSE | curses.A_BOLD
+                elif mark:
+                    attr, gattr = attr | mark, gattr | mark
+                # zoomed in, the glyph sits in the middle of a block of ground
+                for j in range(zy):
+                    for i in range(zx):
+                        middle = i == (zx - 1) // 2 and j == (zy - 1) // 2
+                        self.put(1 + sy * zy + j, sx * zx + i,
+                                 ch if middle else zoom_braille(ground, i, j, zx, zy),
+                                 attr if middle else gattr)
 
     def draw_overview(self) -> None:
         """The whole world in the map area; each Braille dot is one cell."""
@@ -551,7 +614,7 @@ class UI:
         row = self._cell_lines(self.cursor, row, x, bottom)
 
     COMMANDS = (("E", "Fine turno"), ("B", "Bollettino"), ("O", "Diplomazia"), ("m", "Mondo"),
-                ("M", "Audio"), ("S", "Salva"), ("?", "Aiuto"))
+                ("+", "Zoom"), ("-", "Zoom"), ("M", "Audio"), ("S", "Salva"), ("?", "Aiuto"))
 
     def _command_buttons(self, x: int, last: int) -> int:
         """The clickable command bar at the foot of the panel; returns the
@@ -994,7 +1057,7 @@ class UI:
     def music_menu(self) -> None:
         """Choose the background music and mute or unmute the effects."""
         a = self.audio
-        items = [(key, MUSIC_NAMES[choice], choice) for key, choice in MUSIC_KEYS.items()]
+        items = [(key, music_name(choice), choice) for key, choice in music_keys().items()]
         items.append(("e", f"effetti sonori: {'attivi (premi per spegnerli)' if a.effects else 'muti (premi per accenderli)'}",
                       "effects"))
         picked = self.choose("Audio: musica ed effetti", items, current=a.music_choice)
@@ -1006,7 +1069,7 @@ class UI:
             return
         a.select_music(picked[1])
         note = "" if a.available else " (nessun lettore audio trovato: solo il beep)"
-        self.status = f"Musica: {MUSIC_NAMES[picked[1]]}{note}."
+        self.status = f"Musica: {music_name(picked[1])}{note}."
 
     def chat(self) -> None:
         text = self.ask("Messaggio", ["Scrivi un messaggio per tutti i giocatori."], "> ", 120)
@@ -1159,7 +1222,7 @@ class UI:
     # ------------------------------------------------------- newsreel
     def _focus(self, cell: int) -> None:
         """Pan the map so ``cell`` is in view (keep the view if it already is)."""
-        mw, mh = self.map_size()
+        mw, mh = self.view_size()
         cx, cy = self.w.xy(cell)
         rel = (cx - self.view_x) % self.w.width
         if rel < 3 or rel > mw - 4:
@@ -1262,7 +1325,7 @@ class UI:
         return f"{name} ({self._faction(act.get('owner'))})"
 
     def _centre(self, cell: int) -> None:
-        mw, mh = self.map_size()
+        mw, mh = self.view_size()
         cx, cy = self.w.xy(cell)
         self.view_x = (cx - mw // 2) % self.w.width
         self.view_y = max(0, min(cy - mh // 2, max(0, self.w.height - mh)))
@@ -1502,7 +1565,7 @@ class UI:
 
     # ----------------------------------------------------------- input
     VIEW_KEYS = {ord("m"), ord("M"), ord("r"), ord("?"), ord("Q"), ord("T"), ord("n"), ord("B"),
-                 ord("K"), ord("h"), 9}
+                 ord("K"), ord("h"), 9, ord("+"), ord("="), ord("-")}
 
     def handle(self, key: int) -> None:
         g = self.g
@@ -1536,6 +1599,12 @@ class UI:
             return
         if key in CURSOR_KEYS:
             self.move_cursor(*CURSOR_KEYS[key])
+            return
+        if key in (ord("+"), ord("=")):
+            self.set_zoom(1)
+            return
+        if key == ord("-"):
+            self.set_zoom(-1)
             return
         if not self.my_turn() and key not in self.VIEW_KEYS and key != -1:
             if not self.session.started:
@@ -1730,8 +1799,9 @@ class UI:
             # old ncurses (no SGR mouse) reads a drag motion as "wheel up"
             state = motion
         elif state & wheel_up or state & wheel_down:
+            rows = self.view_size()[1]
             self.view_y = max(0, min(self.view_y + (-3 if state & wheel_up else 3),
-                                     max(0, self.w.height - mh)))
+                                     max(0, self.w.height - rows)))
             return
         if up and self._pan is None:
             action = self.hotspot(mx, my)
@@ -1760,9 +1830,7 @@ class UI:
             # a wobble of one cell is still a click; more than that drags
             if inside and (getattr(self, "_dragged", False) or max(abs(mx - px), abs(my - py)) > 1):
                 self._dragged = True
-                base_x, base_y = self._pan_view
-                self.view_x = (base_x - (mx - px)) % self.w.width
-                self.view_y = max(0, min(base_y - (my - py), max(0, self.w.height - mh)))
+                self._pan_by(mx - px, my - py)
             return
         if state & (curses.BUTTON1_RELEASED | curses.BUTTON1_CLICKED):
             was_pressed = self._pan is not None
@@ -1772,9 +1840,7 @@ class UI:
                 # network): a release far from the press is still a drag.
                 px, py = self._pan
                 if max(abs(mx - px), abs(my - py)) > 1:
-                    base_x, base_y = self._pan_view
-                    self.view_x = (base_x - (mx - px)) % self.w.width
-                    self.view_y = max(0, min(base_y - (my - py), max(0, self.w.height - mh)))
+                    self._pan_by(mx - px, my - py)
                     dragged = True
             self._pan = self._pan_view = None
             self._dragged = False
@@ -1792,6 +1858,15 @@ class UI:
                 if self.mode == "normal" and self.my_turn():
                     self.select_at_cursor()
 
+    def _pan_by(self, dx: int, dy: int) -> None:
+        """The map follows the hand: the view moves ``dx``, ``dy`` characters
+        back from where the drag started."""
+        zx, zy = self.zoom_factor()
+        base_x, base_y = self._pan_view
+        rows = self.view_size()[1]
+        self.view_x = (base_x - int(dx / zx)) % self.w.width
+        self.view_y = max(0, min(base_y - int(dy / zy), max(0, self.w.height - rows)))
+
     @staticmethod
     def _terminal(data: bytes) -> None:
         """Send a control sequence straight to the terminal."""
@@ -1802,10 +1877,11 @@ class UI:
             pass
 
     def _cell_at(self, mx: int, my: int) -> int | None:
-        y = self.view_y + my - 1
+        zx, zy = self.zoom_factor()
+        y = self.view_y + (my - 1) // zy
         if y >= self.w.height:
             return None
-        return self.w.idx(self.view_x + mx, y)
+        return self.w.idx(self.view_x + mx // zx, y)
 
     def click(self, cell: int | None) -> None:
         if cell is None:

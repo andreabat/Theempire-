@@ -89,6 +89,8 @@
       <button data-k="v">Sveglia</button><button data-k="O">Diplom.</button>
       <button data-k="T">Chat</button><button data-k="M">Audio</button>
       <button data-k="K">♠ Carte</button><button data-k="B">Bollett.</button>
+      <button data-k="+">Zoom +</button><button data-k="-">Zoom −</button>
+      <button data-k="P">Direttiva</button><button data-k="r">Centra</button>
       <button data-k="&#27;">Esc</button><button data-k="N">☢</button>
       <button data-k="S">Salva</button><button data-k="E">FINE TURNO</button>
     </div>
@@ -187,8 +189,10 @@ function setFont(size) {
 
 // A finger works like the left mouse button: a tap is a click, dragging
 // pans the map. The game reads xterm SGR mouse reports (1-based cells).
+// Two fingers pinch the map: apart zooms in (+), together zooms out (-).
 function touchMouse(el) {
-  let last = null;
+  let last = null, pinch = 0;
+  const spread = (ts) => Math.hypot(ts[0].clientX - ts[1].clientX, ts[0].clientY - ts[1].clientY);
   const cell = (t) => {
     const r = (el.querySelector(".xterm-screen") || el).getBoundingClientRect();
     const x = Math.floor((t.clientX - r.left) / r.width * term.cols) + 1;
@@ -197,18 +201,31 @@ function touchMouse(el) {
   };
   const report = (b, [x, y], up) => send({ t: "i", d: `\x1b[<${b};${x};${y}${up ? "m" : "M"}` });
   el.addEventListener("touchstart", (ev) => {
-    if (ev.touches.length !== 1) return;  // two fingers: leave it to the browser
+    if (ev.touches.length === 2) {
+      ev.preventDefault();
+      if (last) { report(0, last, true); last = null; }  // the drag becomes a pinch
+      pinch = spread(ev.touches);
+      return;
+    }
+    if (ev.touches.length !== 1) return;
     ev.preventDefault();
     last = cell(ev.touches[0]);
     report(0, last, false);
   }, { passive: false });
   el.addEventListener("touchmove", (ev) => {
+    if (pinch && ev.touches.length === 2) {
+      ev.preventDefault();
+      const d = spread(ev.touches);
+      if (d > pinch * 1.4 || d < pinch / 1.4) { send({ t: "i", d: d > pinch ? "+" : "-" }); pinch = d; }
+      return;
+    }
     if (!last) return;
     ev.preventDefault();
     const c = cell(ev.touches[0]);
     if (c[0] !== last[0] || c[1] !== last[1]) { last = c; report(32, c, false); }
   }, { passive: false });
   const end = (ev) => {
+    if (ev.touches.length < 2) pinch = 0;
     if (!last) return;
     ev.preventDefault();
     const t = ev.changedTouches[0];
