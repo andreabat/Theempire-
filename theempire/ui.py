@@ -14,6 +14,7 @@ from theempire.audio import MUSIC_KEYS, MUSIC_NAMES, Audio
 from theempire.commands import describe
 from theempire.game import CHEM_RANGE, DIRECTIVES, Unit
 from theempire.scenarios import SCENARIOS
+from theempire.tutorial import Tutorial
 from theempire.units import (CHEMICAL, PRODUCTION_NAMES, UNIT_TYPES, WARHEAD,
                              production_cost)
 
@@ -105,6 +106,7 @@ class UI:
         self.fx: dict[int, tuple[str, str, int]] = {}  # newsreel effects: (char, colour, attr)
         self.last_reel: list[dict] = []
         self.pending_card: str | None = None
+        self.tutorial: Tutorial | None = None
         self.bulletins: list[tuple[str, list[str], list[dict]]] = []  # archive: title, text, reel
         self.ticker: list[str] | None = None   # the bulletin's running chronicle
         self.active_id: int | None = None
@@ -277,11 +279,29 @@ class UI:
             self.draw_overview()
         else:
             self.draw_map()
+        self.draw_tutorial()
         self.draw_top()
         self.draw_sidebar()
         self.draw_log()
         self.draw_status()
         self.scr.refresh()
+
+    def draw_tutorial(self) -> None:
+        """The instructor's box, in the top-left corner of the map."""
+        box = self.tutorial.box() if self.tutorial else None
+        if box is None:
+            return
+        title, lines = box
+        mw, mh = self.map_size()
+        width = min(mw - 2, max(len(title) + 4, *(len(line) + 4 for line in lines)))
+        if width < 30 or mh < len(lines) + 4:
+            return
+        attr = self.color("white", "sea") if self.rich else curses.A_REVERSE
+        self.put(1, 1, "┌" + "─" * (width - 2) + "┐", attr)
+        self.put(1, 3, title[: width - 6], attr | curses.A_BOLD)
+        for k, line in enumerate(lines):
+            self.put(2 + k, 1, "│ " + line[: width - 4].ljust(width - 4) + " │", attr)
+        self.put(2 + len(lines), 1, "└" + "─" * (width - 2) + "┘", attr)
 
     def cell_glyph(self, cell: int, vis: set[int], path: set[int]) -> tuple[str, int]:
         g = self.g
@@ -1279,6 +1299,10 @@ class UI:
                    "turns": "vince ai punti allo scadere"}[reason]
             lines = [f"{fac.name} {why}.", "",
                      "VITTORIA!" if human_won else "SCONFITTA.", ""]
+            if g.scenario.key == "tutorial" and human_won:
+                lines = ["Tirana è caduta: la Repubblica Ribelle è sconfitta.", "",
+                         "TUTORIAL COMPLETATO! Sei pronto per la guerra vera:",
+                         "prova la Guerra Fredda 1985 o la Terza Guerra Mondiale.", ""]
             for f in sorted(g.factions, key=g.score, reverse=True):
                 lines.append(f"{f.name:24s} punti {g.score(f):5d}  città {len(g.cities_of(f.idx)):3d}  "
                              f"armi DM usate {f.used_wmd}")
@@ -1288,7 +1312,7 @@ class UI:
 
     # ----------------------------------------------------------- input
     VIEW_KEYS = {ord("m"), ord("M"), ord("r"), ord("?"), ord("Q"), ord("T"), ord("n"), ord("B"),
-                 ord("K"), 9}
+                 ord("K"), ord("h"), 9}
 
     def handle(self, key: int) -> None:
         g = self.g
@@ -1378,6 +1402,8 @@ class UI:
             self.diplomacy_menu()
         elif key == ord("K"):
             self.cards_menu()
+        elif key == ord("h") and self.tutorial is not None:
+            self.tutorial.visible = not self.tutorial.visible
         elif key == ord("B"):
             self.read_bulletins(len(self.bulletins) - 1 if self.bulletins else None)
         elif key == ord("T"):
@@ -1451,6 +1477,8 @@ class UI:
             a = self.active
             if a is not None:
                 result = self.order("goto", target=self.cursor)
+                if result == "ok" and self.tutorial is not None:
+                    self.tutorial.goto_given = True
                 if result != "ok":
                     self.status = describe(result)
                     if self.active is not None:
@@ -1603,12 +1631,20 @@ class UI:
                 self.scr.timeout(500)  # wake up to tick the turn timer
         self.sync()
         self.center()
+        if self.g.scenario.key == "tutorial" and not self.session.online and not self.g.over:
+            self.tutorial = Tutorial(self)
+            self.tutorial.start()
         while not self.quit:
             self.draw()
             key = self.scr.getch()
             self.tick_clock()
             if self.session.poll():
                 self.sync()
+            if self.tutorial is not None and key != -1:
+                self.handle(key)
+                key = -1
+                if not self.quit:
+                    self.tutorial.update()
             if self.session.closed and not self.quit:
                 self.dialog("Connessione persa", [self.session.error or "Il server non risponde.",
                                                   "Rilancia con --join per rientrare."])
@@ -1778,6 +1814,9 @@ def setup_menu(scr) -> dict | None:
         if k == len(keys):
             return {"load": SAVE_PATH}
         sc = SCENARIOS[keys[k]]
+        if sc.key == "tutorial":
+            return {"scenario": sc.key, "humans": (sc.factions[0].key,),
+                    "difficulty": "facile", "turn_time": 0}
         f = menu(scr, f"{sc.name}: scegli la tua fazione",
                  [(fd.name, _faction_blurb(fd)) for fd in sc.factions])
         if f is None:

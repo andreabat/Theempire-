@@ -40,6 +40,22 @@ NATO_EAST = ("POL", "CZE", "SVK", "HUN", "ROU", "BGR", "HRV", "SVN", "ALB", "MNE
 
 SCENARIOS: dict[str, Scenario] = {s.key: s for s in (
     Scenario(
+        "tutorial", "Tutorial: la campagna dei Balcani",
+        "Impara a giocare passo per passo: l'Italia contro una piccola Repubblica "
+        "Ribelle in Albania. Un istruttore ti guida dai primi movimenti alla conquista "
+        "di Tirana.",
+        (
+            FactionDef("ita", "Comando Italiano", "blue", ("ITA", "SMR", "VAT"),
+                       doctrine="restrained", warheads=0, chemicals=0, nuclear=False),
+            FactionDef("alb", "Repubblica Ribelle", "red", ("ALB",),
+                       doctrine="restrained", warheads=0, chemicals=0, nuclear=False,
+                       industry=0.4),
+        ),
+        doomsday=10,
+        victory_share=0.9,
+        max_turns=80,
+    ),
+    Scenario(
         "ww3", "Terza Guerra Mondiale",
         "Tre blocchi armati fino ai denti si contendono il pianeta. "
         "Il resto del mondo è neutrale: conquistarlo vuol dire più industria.",
@@ -59,6 +75,7 @@ SCENARIOS: dict[str, Scenario] = {s.key: s for s in (
                        industry=1.35, extras={"I": 12, "S": 4, "A": 4}),
         ),
         doomsday=10,
+        victory_share=0.55,
     ),
     Scenario(
         "coldwar", "Guerra Fredda 1985",

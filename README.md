@@ -21,6 +21,15 @@ coste Natural Earth.
 
 ## Avvio
 
+Se è la prima volta, comincia dal **tutorial**: è il primo scenario del menu
+(oppure `python3 -m theempire --scenario tutorial`). Un istruttore, in un
+riquadro sulla mappa, ti spiega una cosa alla volta e aspetta che tu la
+faccia davvero: guardare la mappa, selezionare e muovere un'unità, dare un
+ordine di marcia, scegliere la produzione e una direttiva, finire il turno
+e leggere il bollettino, conquistare una città, giocare una carta. Alla fine
+ti lascia l'obiettivo: prendere Tirana. `h` nasconde o mostra il riquadro.
+
+
 Serve Python 3.10+ e un terminale UTF-8, meglio se a 256 colori. Il gioco
 usa solo la libreria standard: niente da installare.
 
@@ -199,6 +208,7 @@ python3 -m theempire --join mioserver.example.org:7777 --faction east
 
 | Scenario | Fazioni | Idea |
 |---|---|---|
+| **Tutorial: la campagna dei Balcani** (`tutorial`) | Comando Italiano contro Repubblica Ribelle | Un istruttore ti insegna il gioco passo per passo, fino alla conquista di Tirana |
 | **Terza Guerra Mondiale** (`ww3`) | Alleanza Atlantica, Unione Eurasiatica, Blocco Orientale | Tre blocchi armati; il resto del mondo è neutrale e conquistabile |
 | **Guerra Fredda 1985** (`coldwar`) | NATO, Patto di Varsavia | Il Theatre Europe originale portato su scala mondiale; la Cina resta neutrale |
 | **Empire!** (`empire`) | sei imperi | Come l'Empire classico: una sola capitale a testa, tutto il mondo da prendere, le atomiche vanno costruite |
@@ -214,7 +224,14 @@ della fazione. Ogni città costruisce **una cosa alla volta**, come in Empire.
 Le navi si costruiscono solo nei porti. Le città hanno una **milizia** che le
 difende anche senza truppe.
 
-- Una città appena conquistata passa 5 turni in **disordini** (metà produzione).
+- **Disordini**: una città in disordini **produce la metà** finché dura il
+  conto (lo vedi nel pannello della città, «disordini 3t»). Ci finisce una
+  città appena conquistata (5 turni: la popolazione non ha ancora accettato
+  il nuovo padrone), una città colpita da una carta Sabotaggio o una città
+  che si è appena ribellata o è passata di mano con un colpo di stato
+  (3 turni). Ogni turno il conto scende di uno. Non tocca le unità né la
+  milizia: è un freno all'economia, così una conquista paga davvero solo
+  dopo qualche turno.
 - Il **limite logistico** (lo vedi come `Unità n/limite`) cresce con le città
   possedute. Oltre il limite le città finiscono la produzione e restano in attesa.
 
@@ -376,7 +393,8 @@ dell'altra né colpirla con armi chimiche o nucleari (nel pannello compare
   principale, ma dura poco. Usala per una spallata, non per sempre.
 
 ### Vittoria
-- **Dominio**: controlla il 50% delle città del mondo (55% nella Guerra Fredda).
+- **Dominio**: controlla il 55% delle città del mondo (50% in Empire!, 90% nel
+  tutorial, dove si vince prendendo Tirana).
 - **Conquista**: tutti i rivali senza città.
 - **Ai punti** allo scadere dei turni (300; 400 in Empire!).
 - **Mezzanotte**: nessun vincitore.
