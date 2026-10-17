@@ -189,7 +189,7 @@ def tremolo(samples: list[float], rate: float, depth: float = 0.6) -> list[float
 
 
 def _unit_sounds() -> dict[str, Track]:
-    """Every unit type has its own voice, as in Empire: one sound when it
+    """Every unit type has its own voice: one sound when it
     moves and one when it opens fire."""
     out: dict[str, Track] = {}
     # Infantry: boots on the march / a volley of rifles.

@@ -1,6 +1,6 @@
 """Game rules: units, cities, movement, combat, production, WMD and victory.
 
-The rules follow Empire (one unit per cell outside cities, cities build one
+The rules follow the classic grid conquest games (one unit per cell outside cities, cities build one
 item at a time, transports and carriers carry cargo, air units burn fuel)
 with Theatre Europe's escalation ladder on top: chemical weapons, nuclear
 strikes, retaliation and a Doomsday Clock that ends the game for everybody
@@ -1182,7 +1182,7 @@ class Game:
 
 # --------------------------------------------------------------------- combat
 def fight(a: float, ahp: int, d: float, dhp: int, rng: random.Random) -> tuple[int, int]:
-    """Empire-style duel: each round one side loses a hit point."""
+    """A duel: each round one side loses a hit point."""
     p = a / (a + d) if a + d > 0 else 0.5
     while ahp > 0 and dhp > 0:
         if rng.random() < p:

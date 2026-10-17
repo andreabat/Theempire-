@@ -1,7 +1,7 @@
 """The world grid: terrain, countries, cities, neighbourhoods and distances.
 
 Cells are indexed by a flat integer ``i = y * width + x``. The map wraps
-east-west (a cylinder, like Empire) and is clamped north-south.
+east-west (a cylinder) and is clamped north-south.
 """
 
 from __future__ import annotations

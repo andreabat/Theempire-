@@ -21,7 +21,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(
         prog="theempire",
         description="Gioco di strategia globale a turni nel terminale "
-                    "(ispirato a Theatre Europe ed Empire).")
+                    "(ispirato a Theatre Europe).")
     p.add_argument("--scenario", choices=sorted(SCENARIOS), help="scenario (salta il menu)")
     p.add_argument("--faction", action="append", default=[],
                    help="fazione umana; ripeti per l'hot-seat (es. --faction west --faction east)")

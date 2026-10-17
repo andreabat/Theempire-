@@ -129,7 +129,7 @@ def play(game: "Game", f: int, key: str, cell: int | None = None,
 
 def seat(game: "Game", f: int):
     """The faction's seat of government (Moscow, Washington, Beijing...):
-    the capital of its first country, or its starting capital in Empire!."""
+    the capital of its first country, or its starting capital in "Sei imperi"."""
     fd = game.scenario.factions[f]
     for c in game.cities:
         if fd.capital_city and c.name == fd.capital_city:

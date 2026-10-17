@@ -17,7 +17,7 @@ class FactionDef:
     abm: float = 0.15               # chance to shoot down an incoming warhead
     nuclear: bool = True            # may build warheads
     industry: float = 1.0           # production multiplier (war economy)
-    capital_city: str = ""          # Empire scenario: start with this city only
+    capital_city: str = ""          # "Sei imperi": start with this city only
     extras: dict = field(default_factory=dict)  # extra starting units (type -> n)
 
 
@@ -97,7 +97,7 @@ SCENARIOS: dict[str, Scenario] = {s.key: s for s in (
         victory_share=0.55,
     ),
     Scenario(
-        "empire", "Empire!",
+        "empire", "Sei imperi",
         "Sei imperi partono da una sola capitale; tutto il resto è da "
         "conquistare. Le armi atomiche vanno prima costruite.",
         (

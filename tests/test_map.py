@@ -144,3 +144,27 @@ def test_mouse_drag_when_the_press_is_lost(monkeypatch):
     ui.state = curses.BUTTON1_RELEASED
     ui.mouse()
     assert ui._pan is None
+
+
+def test_click_on_a_panel_label_presses_its_key(monkeypatch):
+    ui = _ui_with_curses(monkeypatch)
+    pressed = []
+    ui.handle = pressed.append
+    ui.hotspots = [(4, 170, 190, "K")]       # "Carte ♠ 0/5 (K)" in the panel
+    ui.mx, ui.my, ui.state = 175, 4, curses.BUTTON1_PRESSED
+    ui.mouse()
+    assert pressed == []                      # nothing happens on the press
+    ui.state = curses.BUTTON1_RELEASED
+    ui.mouse()
+    assert pressed == [ord("K")]
+
+
+def test_stray_release_does_not_click_the_map(monkeypatch):
+    # the release of a click that closed a menu must not move units
+    ui = _ui_with_curses(monkeypatch)
+    clicked = []
+    ui.click = clicked.append
+    ui.hotspots = []
+    ui.mx, ui.my, ui.state = 20, 10, curses.BUTTON1_RELEASED
+    ui.mouse()
+    assert clicked == []

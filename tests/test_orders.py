@@ -1,4 +1,4 @@
-"""Production directives, the local turn timer and Empire-style mouse orders."""
+"""Production directives, the local turn timer and mouse orders."""
 
 import curses
 

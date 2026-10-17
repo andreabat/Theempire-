@@ -133,7 +133,16 @@ class UI:
         curses.mouseinterval(0)
         # The terminfo of most terminals only turns on mode 1000 (clicks):
         # ask for 1002 too, so the terminal reports the drag while it happens.
+        # ncurses switches the mouse on at the first getch, and a later 1000
+        # would cancel 1002: read once now, then ask (draw() asks again).
+        self.scr.nodelay(True)
+        pending = self.scr.getch()
+        self.scr.nodelay(False)
+        if pending != -1:
+            curses.ungetch(pending)
         self._terminal(b"\x1b[?1002h")
+        self.hotspots: list[tuple[int, int, int, object]] = []
+        self.last_mouse = (0, 0, 0)
 
     @property
     def g(self):
@@ -253,6 +262,45 @@ class UI:
         except curses.error:
             pass
 
+    def button(self, y: int, x: int, text: str, action, attr: int = 0) -> None:
+        """Text that can be clicked: ``action`` is a key (as typed) or a
+        function to call."""
+        self.put(y, x, text, attr)
+        self.hotspots.append((y, x, x + len(text), action))
+
+    def hotspot(self, mx: int, my: int):
+        for y, x0, x1, action in reversed(getattr(self, "hotspots", ())):
+            if y == my and x0 <= mx < x1:
+                return action
+        return None
+
+    def press(self, action) -> None:
+        """Do what a clicked label stands for."""
+        if callable(action):
+            action()
+        else:
+            self.handle(ord(action) if isinstance(action, str) else action)
+
+    def read_key(self, win) -> int:
+        """getch for dialogs and menus: the wheel scrolls (↑↓), a click
+        counts when the button comes up (its position is in last_mouse),
+        the press alone is ignored so that it cannot leak elsewhere."""
+        while True:
+            key = win.getch()
+            if key != curses.KEY_MOUSE:
+                return key
+            try:
+                _, mx, my, _, state = curses.getmouse()
+            except curses.error:
+                continue
+            if state & getattr(curses, "BUTTON4_PRESSED", 0):
+                return curses.KEY_UP
+            if state & getattr(curses, "BUTTON5_PRESSED", 0):
+                return curses.KEY_DOWN
+            if state & (curses.BUTTON1_RELEASED | curses.BUTTON1_CLICKED):
+                self.last_mouse = (mx, my, state)
+                return curses.KEY_MOUSE
+
     # ----------------------------------------------------------- drawing
     # ----------------------------------------------------------- sound
     def sounds(self) -> None:
@@ -282,6 +330,7 @@ class UI:
 
     def draw(self) -> None:
         self.sounds()
+        self.hotspots = []
         self.scr.erase()
         if self.mode == "overview":
             self.draw_overview()
@@ -293,6 +342,7 @@ class UI:
         self.draw_log()
         self.draw_status()
         self.scr.refresh()
+        self._terminal(b"\x1b[?1002h")   # in case ncurses reset the mouse mode
 
     def draw_tutorial(self) -> None:
         """The instructor's box, in the top-left corner of the map."""
@@ -463,20 +513,19 @@ class UI:
         if spied is not None:
             effects.append(f"spie su {g.factions[spied].name.split()[-1]}")
         hand = f"Carte ♠ {len(fac.cards)}/{cards.HAND_LIMIT} (K)"
-        self.put(row, x, (hand + ("  " + ", ".join(effects) if effects else ""))[:SIDEBAR - 1],
-                 self.color("cyan") if fac.cards else self.color("dim"))
+        self.button(row, x, (hand + ("  " + ", ".join(effects) if effects else ""))[:SIDEBAR - 1], "K",
+                    self.color("cyan") if fac.cards else self.color("dim"))
         row += 1
-        if fac.directive:
-            label = DIRECTIVES[fac.directive].split(" (")[0]
-            self.put(row, x, f"Direttiva: {label} (P)"[:SIDEBAR - 1], self.color("dim"))
-            row += 1
+        label = DIRECTIVES[fac.directive].split(" (")[0] if fac.directive else "nessuna"
+        self.button(row, x, f"Direttiva: {label} (P)"[:SIDEBAR - 1], "P", self.color("dim"))
+        row += 1
         others = [f for f in g.factions if f.idx != self.viewer]
         names = self.session.player_names()
         for f in others:
             state = f"{len(g.cities_of(f.idx)):3d} città" if f.alive else "  sconfitto"
             mark = "≈" if g.truce_left(self.viewer, f.idx) else " "
             hand = f" ♠{len(f.cards)}" if f.alive and f.cards else ""
-            self.put(row, x, f"{f.name[:21]:21s}{mark}{state}{hand}"[:SIDEBAR - 1], self.color(f.color))
+            self.button(row, x, f"{f.name[:21]:21s}{mark}{state}{hand}"[:SIDEBAR - 1], "O", self.color(f.color))
             row += 1
             if f.idx in names:
                 self.put(row, x, f"  giocatore: {names[f.idx]}"[:SIDEBAR - 1], self.color("dim"))
@@ -486,7 +535,7 @@ class UI:
         self.put(row, x, "─" * (SIDEBAR - 1), self.color("dim"))
         row += 1
         waiting = len(self.needing_orders())
-        self.put(row, x, f"In attesa di ordini: {waiting}", curses.A_BOLD if waiting else self.color("dim"))
+        self.button(row, x, f"In attesa di ordini: {waiting} (n)", "n", curses.A_BOLD if waiting else self.color("dim"))
         row += 1
         a = self.active
         if a is not None and a.id in g.units:
@@ -498,7 +547,30 @@ class UI:
                 row += 1
         self.put(row, x, "─" * (SIDEBAR - 1), self.color("dim"))
         row += 1
-        row = self._cell_lines(self.cursor, row, x, h - 2)
+        bottom = self._command_buttons(x, h - 2)
+        row = self._cell_lines(self.cursor, row, x, bottom)
+
+    COMMANDS = (("E", "Fine turno"), ("B", "Bollettino"), ("O", "Diplomazia"), ("m", "Mondo"),
+                ("M", "Audio"), ("S", "Salva"), ("?", "Aiuto"))
+
+    def _command_buttons(self, x: int, last: int) -> int:
+        """The clickable command bar at the foot of the panel; returns the
+        first row it takes."""
+        rows, line = [], []
+        for key, label in self.COMMANDS:
+            text = f" {label} {key} "
+            if line and sum(len(t) + 1 for t, _ in line) + len(text) > SIDEBAR - 1:
+                rows.append(line)
+                line = []
+            line.append((text, key))
+        rows.append(line)
+        top = last - len(rows) + 1
+        for k, line in enumerate(rows):
+            cx = x
+            for text, key in line:
+                self.button(top + k, cx, text, key, self.color("panel") | curses.A_REVERSE)
+                cx += len(text) + 1
+        return top
 
     def _unit_lines(self, u: Unit, row: int, x: int, active: bool = False) -> int:
         g = self.g
@@ -507,7 +579,11 @@ class UI:
         label = ("▶ " if active else "  ") + t.name
         if not mine:
             label += f" ({g.factions[u.owner].name})"
-        self.put(row, x, label[:SIDEBAR - 1], self.color(self.owner_color(u.owner)) | (curses.A_BOLD if active else 0))
+        attr = self.color(self.owner_color(u.owner)) | (curses.A_BOLD if active else 0)
+        if mine:
+            self.button(row, x, label[:SIDEBAR - 1], lambda: self.take_command(u), attr)
+        else:
+            self.put(row, x, label[:SIDEBAR - 1], attr)
         row += 1
         if mine:
             info = f"    PV {u.hp}/{t.hp}  mosse {u.moves}/{t.move}"
@@ -548,7 +624,7 @@ class UI:
                 rate = g.production_rate(city)
                 eta = "∞" if rate <= 0 else str(max(0, -(-(cost - city.progress) // rate)))
                 hand = " (a mano)" if city.manual and g.factions[self.viewer].directive else ""
-                self.put(row, x, f"  Produce: {PRODUCTION_NAMES[city.production]}{hand}"[:SIDEBAR - 1])
+                self.button(row, x, f"  Produce: {PRODUCTION_NAMES[city.production]}{hand} (p)"[:SIDEBAR - 1], "p")
                 row += 1
                 self.put(row, x, f"  {city.progress:.0f}/{cost} punti, pronto in {eta} turni")
                 row += 1
@@ -601,8 +677,21 @@ class UI:
                     "scegli il bersaglio e premi Invio (Esc annulla)",
             "overview": "PANORAMICA",
         }[self.mode]
-        text = self.status or hint
-        self.put(h - 1, 0, text[: w - 1], curses.A_BOLD if self.status else self.color("dim"))
+        if self.status:
+            self.put(h - 1, 0, self.status[: w - 1], curses.A_BOLD)
+            return
+        # "n prossima · g vai · ...": each hint led by a key can be clicked
+        x = 0
+        for k, part in enumerate(hint.split(" · ")):
+            if k:
+                self.put(h - 1, x, " · ", self.color("dim"))
+                x += 3
+            key = part.split(" ")[0]
+            if len(key) == 1 and len(part) > 1 and x < w - 1:
+                self.button(h - 1, x, part[: w - 1 - x], key, self.color("dim") | curses.A_UNDERLINE)
+            else:
+                self.put(h - 1, x, part, self.color("dim"))
+            x += len(part)
 
     # ----------------------------------------------------------- dialogs
     def dialog(self, title: str, lines: list[str], footer: str = "premi un tasto") -> int:
@@ -622,7 +711,7 @@ class UI:
         except curses.error:
             pass
         win.refresh()
-        key = win.getch()
+        key = self.read_key(win)
         del win
         self.scr.touchwin()
         return key
@@ -681,6 +770,7 @@ class UI:
             win.erase()
             win.box()
             y = 2
+            item_rows = {}
             try:
                 win.addstr(0, 2, f" {title} "[: width - 4], curses.A_BOLD)
                 for line in body:
@@ -696,6 +786,7 @@ class UI:
                         attr = curses.A_REVERSE | curses.A_BOLD if k == sel and j == 0 else \
                             (curses.A_DIM if j else 0)
                         win.addstr(y, 2, text, attr)
+                        item_rows[y] = k
                         y += 1
                 if notes:
                     y += 1
@@ -707,7 +798,17 @@ class UI:
             except curses.error:
                 pass
             win.refresh()
-            key = win.getch()
+            key = self.read_key(win)
+            if key == curses.KEY_MOUSE:
+                mx, my, _ = self.last_mouse
+                wy, wx = win.getbegyx()
+                if not (0 <= my - wy < height and 0 <= mx - wx < width):
+                    result = None            # a click outside closes the menu
+                    break
+                if my - wy in item_rows:
+                    result = ("item", items[item_rows[my - wy]][2])
+                    break
+                continue
             if key in (curses.KEY_UP, curses.KEY_LEFT):
                 sel = (sel - 1) % len(items)
             elif key in (curses.KEY_DOWN, curses.KEY_RIGHT, 9):
@@ -1351,7 +1452,7 @@ class UI:
             except curses.error:
                 pass
             win.refresh()
-            key = win.getch()
+            key = self.read_key(win)
             if key in (curses.KEY_DOWN, ord("j")) and top + body < len(lines):
                 top += 1
             elif key in (curses.KEY_UP, ord("k")) and top > 0:
@@ -1536,6 +1637,15 @@ class UI:
         self.cursor = self.w.idx(x + dx, y)
         self.follow_cursor()
 
+    def take_command(self, u: Unit) -> None:
+        """Clicked in the panel: this unit becomes the active one."""
+        if u.id not in self.g.units or not self.my_turn():
+            return
+        self.skipped.discard(u.id)
+        self.select(u)
+        if u.order in ("sentry", "fortify", "auto"):
+            self.do({"op": "order", "unit": u.id, "order": None})
+
     def select_at_cursor(self) -> None:
         g = self.g
         mine = [u for u in g.units_at(self.cursor) if u.owner == self.viewer]
@@ -1602,7 +1712,7 @@ class UI:
             self.after_action()
 
     def mouse(self) -> None:
-        """Empire-style mouse. Left click: on one of your units selects it;
+        """The mouse. Left click: on one of your units selects it;
         next to the active unit moves (or attacks) there; farther away shows
         the route and a second click on the same cell sends the unit. Drag to
         pan the map, wheel to scroll it, right click to select."""
@@ -1614,19 +1724,28 @@ class UI:
         inside = 1 <= my <= mh and 0 <= mx < mw
         wheel_up = getattr(curses, "BUTTON4_PRESSED", 0)
         wheel_down = getattr(curses, "BUTTON5_PRESSED", 0)
-        if state & wheel_up or state & wheel_down:
+        motion = getattr(curses, "REPORT_MOUSE_POSITION", 0)
+        up = state & (curses.BUTTON1_RELEASED | curses.BUTTON1_CLICKED)
+        if self._pan is not None and state & wheel_up and not up:
+            # old ncurses (no SGR mouse) reads a drag motion as "wheel up"
+            state = motion
+        elif state & wheel_up or state & wheel_down:
             self.view_y = max(0, min(self.view_y + (-3 if state & wheel_up else 3),
                                      max(0, self.w.height - mh)))
             return
+        if up and self._pan is None:
+            action = self.hotspot(mx, my)
+            if action is not None:      # a label of the panel or of the hints
+                self.press(action)
+                return
         if self.mode == "overview":
-            if state & (curses.BUTTON1_PRESSED | curses.BUTTON1_CLICKED) and inside:
+            if up and inside:
                 kx, ky, _, _ = getattr(self, "overview_geom", (2, 2, 0, 0))
                 y = min(self.w.height - 1, (my - 1) * 4 * ky + 2 * ky)
                 self.cursor = self.w.idx(mx * 2 * kx + kx, y)
                 self.mode = "normal"
                 self.center()
             return
-        motion = getattr(curses, "REPORT_MOUSE_POSITION", 0)
         pressed = state & curses.BUTTON1_PRESSED
         # Motion is reported only with a button held (mode 1002): if the press
         # got lost in a burst of events, the first motion starts the drag.
@@ -1646,7 +1765,8 @@ class UI:
                 self.view_y = max(0, min(base_y - (my - py), max(0, self.w.height - mh)))
             return
         if state & (curses.BUTTON1_RELEASED | curses.BUTTON1_CLICKED):
-            dragged = self._pan is not None and getattr(self, "_dragged", False)
+            was_pressed = self._pan is not None
+            dragged = was_pressed and getattr(self, "_dragged", False)
             if self._pan is not None and not dragged and inside:
                 # No motion reports came (old terminal, or a burst over the
                 # network): a release far from the press is still a drag.
@@ -1662,7 +1782,7 @@ class UI:
                 cell = self._cell_at(mx, my) if inside else None
                 if cell is not None:
                     self.cursor = cell   # the cursor lands where the hand let go
-            elif inside:
+            elif inside and (was_pressed or state & curses.BUTTON1_CLICKED):
                 self.click(self._cell_at(mx, my))
             return
         if state & (curses.BUTTON3_PRESSED | curses.BUTTON3_CLICKED) and inside:

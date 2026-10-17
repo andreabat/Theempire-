@@ -1,6 +1,6 @@
 """The Empire — a world-scale turn-based strategy game for the terminal.
 
-Inspired by Theatre Europe (1985) and Walter Bright's Empire (1977); the
+Inspired by Theatre Europe (1985) and the classic grid conquest games; the
 Braille world map is built from Natural Earth data in the style of Terrascope.
 """
 

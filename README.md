@@ -2,10 +2,9 @@
 
 Gioco di strategia globale a turni per il terminale. Prende la **guerra
 totale** di *Theatre Europe* (1985: armate, attacchi aerei, armi chimiche,
-escalation nucleare, l'apocalisse come sconfitta di tutti) e il
-**sistema di conquista** di *Empire* (Walter Bright, 1977: città che
-producono unità, trasporti, portaerei, carburante degli aerei, nebbia di
-guerra) e li porta **sulla scala del mondo intero**.
+escalation nucleare, l'apocalisse come sconfitta di tutti) e un classico
+**sistema di conquista** a griglia (città che producono unità, trasporti,
+portaerei, carburante degli aerei, nebbia di guerra) e li porta **sulla scala del mondo intero**.
 
 La mappa è il mondo reale: viene dai dati Natural Earth ed è disegnata in
 caratteri Braille come in [Terrascope](https://github.com/a-shygun/Terrascope),
@@ -66,7 +65,7 @@ di secondi in `~/.theempire/sounds`.
   - attacco nucleare (sirena, fischio, esplosione), missile intercettato,
     gas, aereo abbattuto;
   - tregua, inizio del tuo turno online, allarmi.
-- **Ogni unità ha la sua voce**, come in Empire: un suono quando si muove e
+- **Ogni unità ha la sua voce**: un suono quando si muove e
   uno quando apre il fuoco.
 
   | Unità | Movimento | Fuoco |
@@ -211,7 +210,7 @@ python3 -m theempire --join mioserver.example.org:7777 --faction east
 | **Tutorial: la campagna dei Balcani** (`tutorial`) | Comando Italiano contro Repubblica Ribelle | Un istruttore ti insegna il gioco passo per passo, fino alla conquista di Tirana |
 | **Terza Guerra Mondiale** (`ww3`) | Alleanza Atlantica, Unione Eurasiatica, Blocco Orientale | Tre blocchi armati; il resto del mondo è neutrale e conquistabile |
 | **Guerra Fredda 1985** (`coldwar`) | NATO, Patto di Varsavia | Il Theatre Europe originale portato su scala mondiale; la Cina resta neutrale |
-| **Empire!** (`empire`) | sei imperi | Come l'Empire classico: una sola capitale a testa, tutto il mondo da prendere, le atomiche vanno costruite |
+| **Sei imperi** (`empire`) | sei imperi | Una sola capitale a testa, tutto il mondo da prendere, le atomiche vanno costruite |
 
 ## Regole
 
@@ -220,7 +219,7 @@ Ci sono 320 città vere: tutte le capitali più le maggiori metropoli, in
 proporzione alla popolazione e all'estensione dei paesi. Ognuna ha una
 **dimensione** da 1 a 3 (popolazione oltre 1 o 5 milioni). Produce
 `dimensione + 1 se capitale` punti a turno, moltiplicati per l'industria
-della fazione. Ogni città costruisce **una cosa alla volta**, come in Empire.
+della fazione. Ogni città costruisce **una cosa alla volta**.
 Le navi si costruiscono solo nei porti. Le città hanno una **milizia** che le
 difende anche senza truppe.
 
@@ -265,7 +264,7 @@ Le città producono anche **testate nucleari** (45 punti, città di dimensione
   Istanbul, Suez...) fa da canale.
 - Gli aerei consumano 1 di carburante per casella e si riforniscono in città
   o su una portaerei. A zero precipitano: il pannello mostra il carburante.
-- **Col mouse, come in Empire**:
+- **Col mouse**:
   - clic su una tua unità: la selezioni (clic di nuovo per passare alla
     successiva nella stessa città);
   - clic su una casella accanto all'unità attiva: si muove lì, o attacca;
@@ -273,7 +272,15 @@ Le città producono anche **testate nucleari** (45 punti, città di dimensione
     stessa casella la manda in marcia (Esc annulla);
   - trascina per spostare la mappa, rotella per scorrerla, tasto destro per
     selezionare. Funziona anche nella web TUI, e sugli schermi touch il dito
-    fa da mouse: un tocco è un clic, trascinando sposti la mappa.
+    fa da mouse: un tocco è un clic, trascinando sposti la mappa;
+  - **il pannello è cliccabile**: «Carte (K)» apre le carte, «Direttiva (P)»
+    le direttive, una fazione la diplomazia, «In attesa di ordini (n)» passa
+    alla prossima unità, «Produce (p)» la produzione della città, un'unità
+    elencata la prende al comando. In fondo al pannello ci sono i pulsanti
+    Fine turno, Bollettino, Diplomazia, Mondo, Audio, Salva, Aiuto, e anche i
+    suggerimenti nella riga in basso («n prossima», «E fine turno»...) si
+    cliccano. Nei menu un clic sceglie la voce, un clic fuori chiude, la
+    rotella scorre.
 
 ### Direttive di produzione
 Con `P` dai un ordine unico a tutta l'economia di guerra e tutte le città
@@ -306,7 +313,7 @@ altre restano dove sono. Il riepilogo animato delle mosse avversarie non
 consuma il tuo tempo.
 
 ### Combattimento
-Per attaccare muovi un'unità contro un nemico. Lo scontro è quello di Empire:
+Per attaccare muovi un'unità contro un nemico. Lo scontro è un duello a round:
 a ogni round uno dei due perde un punto vita, con probabilità
 `attacco / (attacco + difesa)`, finché uno dei due non muore. Il pannello
 mostra la **probabilità di vittoria** prima che tu attacchi.
@@ -397,10 +404,10 @@ dell'altra né colpirla con armi chimiche o nucleari (nel pannello compare
   principale, ma dura poco. Usala per una spallata, non per sempre.
 
 ### Vittoria
-- **Dominio**: controlla il 55% delle città del mondo (50% in Empire!, 90% nel
+- **Dominio**: controlla il 55% delle città del mondo (50% in Sei imperi, 90% nel
   tutorial, dove si vince prendendo Tirana).
 - **Conquista**: tutti i rivali senza città.
-- **Ai punti** allo scadere dei turni (300; 400 in Empire!).
+- **Ai punti** allo scadere dei turni (300; 400 in Sei imperi).
 - **Mezzanotte**: nessun vincitore.
 
 ## Comandi
@@ -490,11 +497,11 @@ Dove c'erano dubbi è stata fatta una scelta, segnata qui insieme
 all'alternativa, così si può cambiare strada.
 
 1. **Turni contro tempo reale.** Theatre Europe era semi-real-time; qui i
-   turni sono simultanei per fazione, come in Empire, perché a scala
+   turni sono a fazioni alterne, perché a scala
    mondiale servono tempo e riflessione. Alternativa: turni a tempo limitato
    (es. 60 secondi).
 2. **Griglia contro province.** Una griglia regolare (360×72) mantiene la
-   geografia vera e la regola "un'unità per casella" di Empire. Alternativa:
+   geografia vera e la regola "un'unità per casella". Alternativa:
    province/regioni stile Risiko, più leggibili ma meno tattiche.
 3. **Neutrali passivi, diplomazia minima.** I paesi neutrali difendono le
    città con la milizia ma non hanno eserciti. Tra le fazioni ci sono solo
@@ -550,7 +557,7 @@ pip install numpy Pillow && python3 tools/build_world.py --source /tmp/ne   # ri
 
 ## Crediti
 
-- *Theatre Europe* (PSS, 1985) ed *Empire* (Walter Bright, 1977) per l'ispirazione.
+- *Theatre Europe* (PSS, 1985) e i classici giochi di conquista a griglia per l'ispirazione.
 - [Terrascope](https://github.com/a-shygun/Terrascope) (MIT) per la tecnica di
   resa della mappa in Braille.
 - Dati geografici [Natural Earth](https://www.naturalearthdata.com/) (pubblico dominio).
