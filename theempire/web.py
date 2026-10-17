@@ -152,6 +152,10 @@ class WebGateway:
 
         class Handler(BaseHTTPRequestHandler):
             server_version = "TheEmpire"
+            # RFC 6455 requires the 101 upgrade response in HTTP/1.1 (or higher).
+            # The BaseHTTPRequestHandler default (HTTP/1.0) makes strict clients
+            # like Firefox refuse the WebSocket handshake.
+            protocol_version = "HTTP/1.1"
 
             def log_message(self, fmt, *args):  # keep the console quiet
                 pass
