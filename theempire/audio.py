@@ -22,7 +22,7 @@ from array import array
 from pathlib import Path
 
 RATE = 22050
-VERSION = "v1"
+VERSION = "v2"  # bump whenever a sound changes, so caches are rebuilt
 CACHE = Path.home() / ".theempire" / "sounds" / VERSION
 SETTINGS = Path.home() / ".theempire" / "settings.json"
 LOOPING = {"menu", "war", "tension", "cossack", "anthem"}
@@ -171,8 +171,107 @@ def drums(track: Track, bpm: float, bars: int, start: float = 0.0, pattern: str 
 
 
 # -------------------------------------------------------------- the sounds
-def _sfx() -> dict[str, Track]:
+def tremolo(samples: list[float], rate: float, depth: float = 0.6) -> list[float]:
+    return [v * (1 - depth / 2 + depth / 2 * math.sin(2 * math.pi * rate * i / RATE))
+            for i, v in enumerate(samples)]
+
+
+def _unit_sounds() -> dict[str, Track]:
+    """Every unit type has its own voice, as in Empire: one sound when it
+    moves and one when it opens fire."""
     out: dict[str, Track] = {}
+    # Infantry: boots on the march / a volley of rifles.
+    t = Track(0.45)
+    for k in range(2):
+        t.add(k * 0.2, noise(0.09, vol=0.5, cutoff=0.25, seed=21 + k, decay=0.02, sustain=0.0))
+        t.add(k * 0.2, sine_sweep(110, 70, 0.07, vol=0.4, release=0.03))
+    out["move_I"] = t
+    t = Track(0.6)
+    for k, at in enumerate((0.0, 0.09, 0.15, 0.3)):
+        t.add(at, noise(0.08, vol=0.55, cutoff=0.9, seed=31 + k, attack=0.001, decay=0.015, sustain=0.0))
+    out["fire_I"] = t
+    # Armour: diesel rumble and clanking tracks / the main gun.
+    t = Track(0.7)
+    t.add(0, tremolo(square(55, 0.7, vol=0.25, duty=0.3, attack=0.05, release=0.15), 14))
+    for k in range(5):
+        t.add(0.05 + k * 0.12, noise(0.03, vol=0.25, cutoff=0.95, seed=41 + k, sustain=0.0, decay=0.008))
+    out["move_A"] = t
+    t = Track(0.9)
+    t.add(0, sine_sweep(140, 35, 0.6, vol=1.0, attack=0.001, decay=0.15, sustain=0.0))
+    t.add(0, noise(0.7, vol=0.7, cutoff=0.3, seed=51, attack=0.001, decay=0.12, sustain=0.0))
+    out["fire_A"] = t
+    # Fighter: a jet streaking past / cannon bursts.
+    t = Track(0.8)
+    t.add(0, noise(0.8, vol=0.45, cutoff=0.5, seed=61, attack=0.25, release=0.45))
+    t.add(0, sine_sweep(900, 500, 0.8, vol=0.12, attack=0.25, release=0.45))
+    out["move_F"] = t
+    t = Track(0.6)
+    for k in range(8):
+        t.add(k * 0.06, noise(0.035, vol=0.5, cutoff=0.8, seed=71 + k, sustain=0.0, decay=0.01))
+    out["fire_F"] = t
+    # Bomber: heavy droning engines / falling bombs and explosions.
+    t = Track(1.0)
+    t.add(0, tremolo(square(82, 1.0, vol=0.18, duty=0.4, attack=0.2, release=0.3), 7, 0.8))
+    t.add(0, tremolo(square(87, 1.0, vol=0.12, duty=0.4, attack=0.2, release=0.3), 6, 0.8))
+    out["move_B"] = t
+    t = Track(1.6)
+    t.add(0, sine_sweep(1400, 500, 0.6, vol=0.2))
+    for k, at in enumerate((0.6, 0.8, 1.0)):
+        t.add(at, noise(0.5, vol=0.8, cutoff=0.25, seed=81 + k, attack=0.001, decay=0.12, sustain=0.0))
+        t.add(at, sine_sweep(90, 30, 0.4, vol=0.6, decay=0.1, sustain=0.0))
+    out["fire_B"] = t
+    # Destroyer: fast screws and a short whistle / quick-firing guns.
+    t = Track(0.6)
+    t.add(0, square(523, 0.18, vol=0.15, duty=0.5, release=0.05))
+    t.add(0.1, tremolo(noise(0.5, vol=0.3, cutoff=0.15, seed=91, attack=0.05, release=0.2), 18))
+    out["move_D"] = t
+    t = Track(0.7)
+    for k, at in enumerate((0.0, 0.25)):
+        t.add(at, sine_sweep(200, 60, 0.25, vol=0.7, attack=0.001, decay=0.06, sustain=0.0))
+        t.add(at, noise(0.3, vol=0.5, cutoff=0.4, seed=95 + k, attack=0.001, decay=0.06, sustain=0.0))
+    out["fire_D"] = t
+    # Submarine: the sonar ping / a torpedo run and its hit.
+    t = Track(1.2)
+    t.add(0, bell(1318.5, 1.1, vol=0.3))
+    t.add(0.5, bell(1318.5, 0.6, vol=0.08))
+    out["move_S"] = t
+    t = Track(1.6)
+    t.add(0, tremolo(noise(0.9, vol=0.3, cutoff=0.2, seed=101, attack=0.05, release=0.1), 25, 0.9))
+    t.add(0.9, sine_sweep(80, 25, 0.7, vol=0.9, attack=0.001, decay=0.2, sustain=0.0))
+    t.add(0.9, noise(0.6, vol=0.6, cutoff=0.15, seed=103, attack=0.001, decay=0.15, sustain=0.0))
+    out["fire_S"] = t
+    # Transport: slow engine chugging and a low horn.
+    t = Track(1.0)
+    t.add(0, square(98, 0.45, vol=0.18, duty=0.5, attack=0.03, release=0.1))
+    t.add(0, square(147, 0.45, vol=0.1, duty=0.5, attack=0.03, release=0.1))
+    for k in range(4):
+        t.add(0.45 + k * 0.13, noise(0.07, vol=0.3, cutoff=0.1, seed=111 + k, sustain=0.0, decay=0.03))
+    out["move_T"] = t
+    out["fire_T"] = out["move_T"]
+    # Cruiser: a deep horn / a broadside of heavy guns.
+    t = Track(0.9)
+    t.add(0, square(65.4, 0.8, vol=0.2, duty=0.5, attack=0.05, release=0.2))
+    t.add(0, square(98, 0.8, vol=0.12, duty=0.5, attack=0.05, release=0.2))
+    out["move_R"] = t
+    t = Track(1.2)
+    for k, at in enumerate((0.0, 0.18, 0.36)):
+        t.add(at, sine_sweep(120, 30, 0.6, vol=0.9, attack=0.001, decay=0.15, sustain=0.0))
+        t.add(at, noise(0.6, vol=0.6, cutoff=0.25, seed=121 + k, attack=0.001, decay=0.12, sustain=0.0))
+    out["fire_R"] = t
+    # Carrier: the horn, then aircraft launching / a strike group taking off.
+    t = Track(1.2)
+    t.add(0, square(73.4, 0.5, vol=0.18, duty=0.5, attack=0.04, release=0.1))
+    t.add(0.5, noise(0.7, vol=0.35, cutoff=0.5, seed=131, attack=0.2, release=0.4))
+    out["move_C"] = t
+    t = Track(1.0)
+    for k in range(3):
+        t.add(k * 0.2, noise(0.5, vol=0.3, cutoff=0.5, seed=141 + k, attack=0.15, release=0.3))
+    out["fire_C"] = t
+    return out
+
+
+def _sfx() -> dict[str, Track]:
+    out: dict[str, Track] = _unit_sounds()
     t = Track(0.7)  # cannon fire and explosions
     t.add(0, sine_sweep(90, 30, 0.4, vol=0.9, release=0.2))
     for k, at in enumerate((0.0, 0.12, 0.3)):
@@ -322,36 +421,57 @@ def _music() -> dict[str, Track]:
     sequence(t, bass, bpm, triangle, vol=0.22, release=0.03)
     drums(t, bpm, 16, pattern="k..sk..s")
     out["cossack"] = t
-    # Inno sovietico (Aleksandrov): «Союз нерушимый», solenne, in sol
-    # maggiore — strofa e ritornello («Славься, Отечество»), 8 righi.
-    bpm = 84
+    # State Anthem of the USSR (A. V. Alexandrov, 1939-1944; public domain).
+    # Melody in C major as in the official score: pickup, the verse
+    # «Союз нерушимый республик свободных» and the refrain «Славься,
+    # Отечество наше свободное» with its two endings. Beats are quarters.
+    bpm = 76
     melody = [
-        # «Союз нерушимый республик свободных»
-        ("G4", 1), ("A4", 1), ("B4", 1), ("C5", 1), ("D5", 1.5), ("C5", 0.5), ("B4", 1), ("A4", 1),
-        # «Сплотила навеки Великая Русь»
-        ("G4", 1), ("A4", 1), ("B4", 1), ("C5", 1), ("D5", 3), ("R", 1),
-        # «Да здравствует созданный волей народов»
-        ("B4", 1), ("C5", 1), ("D5", 1), ("E5", 1), ("D5", 1.5), ("C5", 0.5), ("B4", 1), ("A4", 1),
-        # «Единый, могучий Советский Союз»
-        ("G4", 2), ("F#4", 1), ("G4", 1), ("A4", 1), ("B4", 2), ("R", 1),
-        # «Славься, Отечество наше свободное»
-        ("G4", 1), ("A4", 1), ("B4", 1), ("C5", 1), ("D5", 1.5), ("C5", 0.5), ("B4", 1), ("A4", 1),
-        # «Дружбы народов надёжный оплот»
-        ("B4", 1), ("C5", 1), ("D5", 1), ("E5", 1), ("E5", 1.5), ("D5", 0.5), ("C5", 1), ("B4", 1),
-        # «Знамя советское, знамя народное»
-        ("F#4", 1), ("G4", 1), ("A4", 1), ("B4", 1), ("C5", 1.5), ("B4", 0.5), ("A4", 1), ("G4", 1),
-        # «Пусть от победы к победе ведёт»
-        ("G4", 1.5), ("A4", 0.5), ("B4", 1), ("C5", 1), ("D5", 2), ("G4", 2),
+        ("G4", 0.5),
+        # «Союз нерушимый республик свободных / Сплотила навеки Великая Русь»
+        ("C5", 1), ("G4", 0.75), ("A4", 0.25), ("B4", 1), ("E4", 0.5), ("E4", 0.5),
+        ("A4", 1), ("G4", 0.75), ("F4", 0.25), ("G4", 1), ("C4", 0.5), ("C4", 0.5),
+        ("D4", 1), ("D4", 0.75), ("E4", 0.25), ("F4", 1), ("F4", 0.75), ("G4", 0.25),
+        ("A4", 1), ("B4", 0.5), ("C5", 0.5), ("D5", 1.5), ("G4", 0.5),
+        # «Да здравствует созданный волей народов / Единый, могучий Советский Союз»
+        ("E5", 1), ("D5", 0.75), ("C5", 0.25), ("D5", 1), ("B4", 0.5), ("G4", 0.5),
+        ("C5", 1), ("B4", 0.75), ("A4", 0.25), ("B4", 1), ("E4", 0.5), ("E4", 0.5),
+        ("A4", 1), ("G4", 0.75), ("F4", 0.25), ("G4", 1), ("C4", 0.5), ("C4", 0.5),
+        ("C5", 1), ("B4", 0.75), ("A4", 0.25), ("G4", 1.5), ("R", 0.5),
+        # «Славься, Отечество наше свободное, / Дружбы народов надёжный оплот!»
+        ("E5", 2), ("D5", 0.5), ("C5", 0.5), ("B4", 0.5), ("C5", 0.5),
+        ("D5", 1.5), ("G4", 0.5), ("G4", 1), ("R", 1),
+        ("C5", 2), ("B4", 0.5), ("A4", 0.5), ("G4", 0.5), ("A4", 0.5),
+        ("B4", 1.5), ("E4", 0.5), ("E4", 0.5), ("G4", 0.5), ("A4", 0.5), ("B4", 0.5),
+        # «Знамя советское, знамя народное / Пусть от победы к победе ведёт!»
+        ("C5", 1), ("A4", 0.75), ("B4", 0.25), ("C5", 1), ("A4", 0.75), ("B4", 0.25),
+        ("C5", 1), ("A4", 0.5), ("C5", 0.5), ("F5", 2),
+        ("F5", 2), ("E5", 0.5), ("D5", 0.5), ("C5", 0.5), ("D5", 0.5),
+        ("E5", 1.5), ("C5", 0.5), ("C5", 2),
+        ("D5", 2), ("C5", 0.5), ("B4", 0.5), ("A4", 0.5), ("B4", 0.5),
+        ("C5", 1.5), ("A4", 0.5), ("A4", 2),
+        ("C5", 1), ("B4", 0.75), ("A4", 0.25), ("G4", 1), ("C4", 0.5), ("C4", 0.5),
+        # last ending: «...ведёт!» broadening to the tonic
+        ("C5", 1), ("B4", 0.75), ("A4", 0.25), ("G4", 2),
+        ("G4", 2), ("A4", 1), ("B4", 1), ("C5", 3), ("R", 1),
     ]
-    bass = [
-        ("G2", 4), ("D2", 4), ("C3", 4), ("G2", 4),
-        ("G2", 4), ("D2", 4), ("C3", 4), ("D2", 4),
-        ("D2", 4), ("G2", 4), ("D2", 4), ("C3", 4),
-        ("G2", 4), ("D2", 4), ("C3", 4), ("G2", 4),
-    ]
-    t = Track(64 * 60 / bpm + 0.3)
-    sequence(t, melody, bpm, square, vol=0.19, duty=0.4, release=0.05)
-    sequence(t, bass, bpm, triangle, vol=0.3, release=0.1)
+    # One chord per half bar (root, fifth), following the official harmony.
+    chords = ["C", "E", "F", "C", "D", "G", "F", "G",       # verse, line 1
+              "C", "G", "A", "E", "F", "C", "F", "G",       # verse, line 2
+              "C", "C", "G", "G", "A", "A", "E", "E",       # refrain
+              "F", "F", "F", "F", "D", "G", "C", "C",
+              "G", "G", "A", "A", "F", "C", "F", "G",
+              "G", "G", "C", "C"]
+    fifth = {"C": "G", "D": "A", "E": "B", "F": "C", "G": "D", "A": "E"}
+    bass = [("G2", 0.5)]
+    for root in chords:
+        low = "1" if root in "AB" else "2"
+        bass += [(root + low, 1), (fifth[root] + ("2" if root in "FGAB" else low), 1)]
+    beats = sum(b for _, b in melody)
+    t = Track(beats * 60 / bpm + 0.5)
+    sequence(t, melody, bpm, square, vol=0.2, duty=0.25, release=0.04)
+    sequence(t, melody, bpm, square, vol=0.06, duty=0.5, release=0.04)  # chorus doubling
+    sequence(t, bass, bpm, triangle, vol=0.32, release=0.05)
     out["anthem"] = t
     return out
 
@@ -375,8 +495,10 @@ def generate(cache: Path = CACHE) -> None:
             tmp.replace(path)
 
 
+UNIT_KINDS = "IAFBDSTRC"
 _SFX_NAMES = ("battle", "capture", "loss", "fall", "nuke", "intercept", "gas", "crash",
-              "truce", "turn", "alert")
+              "truce", "turn", "alert") + tuple(
+    f"{what}_{k}" for k in UNIT_KINDS for what in ("move", "fire"))
 _MUSIC_NAMES = ("menu", "war", "tension", "victory", "defeat", "midnight",
                  "cossack", "anthem")
 

@@ -111,7 +111,8 @@ class UI:
         self.territory_source = self._territory_sources()
         curses.curs_set(0)
         self.scr.keypad(True)
-        curses.mousemask(curses.ALL_MOUSE_EVENTS)
+        # Motion reports are needed to drag the map while the button is held.
+        curses.mousemask(curses.ALL_MOUSE_EVENTS | curses.REPORT_MOUSE_POSITION)
         curses.mouseinterval(0)
 
     @property
@@ -750,8 +751,26 @@ class UI:
         target = self.w.step_dir(a.cell, dx, dy)
         if target is None:
             return
-        self.status = describe(self.do({"op": "move", "unit": a.id, "cell": target}))
+        kind = a.kind
+        result = self.do({"op": "move", "unit": a.id, "cell": target})
+        self.status = describe(result)
+        self._unit_sound(kind, result)
         self.after_action()
+
+    def _unit_sound(self, kind: str, result: str) -> None:
+        """Our own unit's voice: its engine or boots when it moves, its guns
+        when it fights (the outcome of the fight follows in the events)."""
+        g = self.g
+        if result == "moved":
+            self.audio.sfx(f"move_{kind}")
+        elif result in ("won", "lost", "captured"):
+            self.audio.sfx(f"fire_{kind}", force=True)
+            if result == "captured":
+                self.audio.sfx("capture")
+            elif result == "lost":
+                self.audio.sfx("loss")
+            if g.events:  # already heard: don't ring them again
+                self.last_seq = max(self.last_seq, max(e.seq for e in g.events))
 
     def order(self, order: str | None, **extra) -> str:
         a = self.active
@@ -811,8 +830,37 @@ class UI:
         if op == "capture":
             return "loss" if act["old"] == me else None
         if op == "attack":
-            return "battle"
+            return f"fire_{act['glyph']}" if act.get("glyph") else "battle"
+        if op == "move" and act.get("new_unit"):
+            return f"move_{act['glyph']}"
         return None
+
+    MAX_REEL_MOVES = 120
+
+    def _visible_acts(self, acts: list[dict]) -> list[dict]:
+        """Keep what this player could know: strikes and captures are news
+        for everybody; moves and battles only where our forces see, or when
+        they touch us. Each unit's march is cut to its visible steps, and a
+        very long reel keeps the battles but thins out the marching."""
+        g = self.g
+        vis = g.visible(self.viewer)
+        me = self.viewer
+        kept = []
+        for act in acts:
+            op = act["op"]
+            if op in ("nuke", "chem", "capture", "fall"):
+                kept.append(act)
+            elif op == "attack":
+                if act.get("defender") == me or act["cell"] in vis:
+                    kept.append(act)
+            elif act["cell"] in vis:
+                kept.append(act)
+        moves = [a for a in kept if a["op"] == "move"]
+        if len(moves) > self.MAX_REEL_MOVES:
+            step = len(moves) / self.MAX_REEL_MOVES
+            keep = {id(moves[int(k * step)]) for k in range(self.MAX_REEL_MOVES)}
+            kept = [a for a in kept if a["op"] != "move" or id(a) in keep]
+        return kept
 
     def _replay_ai_turn(self) -> None:
         """Show what the AI did this round, Theatre-Europe style: the camera
@@ -823,6 +871,9 @@ class UI:
         if not acts or self.session.online or g.over:
             return
         g.replay = []
+        acts = self._visible_acts(acts)
+        if not acts:
+            return
         if g.events:  # the frames play the sounds; don't replay them after
             self.last_seq = max(self.last_seq, max(e.seq for e in g.events))
         saved_status = self.status
@@ -839,6 +890,7 @@ class UI:
                 if act["op"] == "move":
                     self.phantom = {cell: (act["glyph"], act["owner"])}
                     same = act.get("unit") == last_unit
+                    act = {**act, "new_unit": not same}
                     pause = 0.015 if same else 0.04   # walking vs new army
                     last_unit = act.get("unit")
                 else:
@@ -1080,9 +1132,14 @@ class UI:
             _, mx, my, _, state = curses.getmouse()
         except curses.error:
             return
+        clicks = curses.BUTTON1_PRESSED | curses.BUTTON1_RELEASED | curses.BUTTON1_CLICKED | \
+            curses.BUTTON3_PRESSED | curses.BUTTON3_CLICKED
+        if self._pan is None and not state & clicks:
+            return  # the pointer just passing over the map
         if self.mode == "overview":
             mw, mh = self.map_size()
-            if 1 <= my <= mh and 0 <= mx < mw:
+            if state & (curses.BUTTON1_PRESSED | curses.BUTTON1_CLICKED) and \
+                    1 <= my <= mh and 0 <= mx < mw:
                 kx, ky, _, _ = getattr(self, "overview_geom", (2, 2, 0, 0))
                 y = min(self.w.height - 1, (my - 1) * 4 * ky + 2 * ky)
                 self.cursor = self.w.idx(mx * 2 * kx + kx, y)
@@ -1117,7 +1174,7 @@ class UI:
             return
         self.cursor = self.w.idx(self.view_x + mx, y)
         if self.mode == "normal" and self.my_turn() and \
-                state & (curses.BUTTON1_DOUBLE_CLICKED | curses.BUTTON3_CLICKED):
+                state & (curses.BUTTON3_PRESSED | curses.BUTTON3_CLICKED):
             self.select_at_cursor()
 
     def save(self) -> None:
@@ -1193,6 +1250,7 @@ def pick_sound(g, viewer: int, events) -> str | None:
     loss, and other people's distant wars stay quiet."""
     me = g.factions[viewer].name
     heard = set()
+    fire: list[str] = []
     for e in events:
         sound = e.sound
         if sound == "capture":
@@ -1204,9 +1262,15 @@ def pick_sound(g, viewer: int, events) -> str | None:
             heard.add("loss" if e.actor == viewer else "fall")
         elif sound == "truce" and me not in e.text:
             continue
+        elif sound == "battle" and e.kind:
+            heard.add("battle")
+            fire.append(f"fire_{e.kind}")
         elif sound:
             heard.add(sound)
-    return next((n for n in SOUND_PRIORITY if n in heard), None)
+    best = next((n for n in SOUND_PRIORITY if n in heard), None)
+    if best == "battle" and fire:
+        return fire[-1]   # the guns of whoever attacked last
+    return best
 
 
 def defcon(minutes: int) -> int:

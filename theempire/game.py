@@ -108,6 +108,7 @@ class Event:
     sound: str = ""                     # effect the interface may play
     actor: int | None = None            # faction that caused it
     seq: int = 0                        # increasing id, to spot new events
+    kind: str = ""                      # unit type behind it, for its own sound
 
 
 class Game:
@@ -212,9 +213,9 @@ class Game:
             self.replay.append({"op": op, "cell": cell, **extra})
 
     def log(self, text: str, audience: list[int] | None = None, level: str = "info",
-            sound: str = "", actor: int | None = None) -> None:
+            sound: str = "", actor: int | None = None, kind: str = "") -> None:
         self.event_seq += 1
-        self.events.append(Event(self.turn, text, audience, level, sound, actor, self.event_seq))
+        self.events.append(Event(self.turn, text, audience, level, sound, actor, self.event_seq, kind))
         if len(self.events) > 400:
             del self.events[:100]
 
@@ -650,7 +651,7 @@ class Game:
                 self.factions[u.owner].kills += 1
                 self.log(f"{self.factions[u.owner].name}: {u.type.name} distrugge "
                          f"{d.type.name}{where} ({self.faction_name(d.owner)}).",
-                         [u.owner, d.owner], "combat", "battle", u.owner)
+                         [u.owner, d.owner], "combat", "battle", u.owner, u.kind)
                 self.kill(d)
                 result = "won"
             else:
@@ -658,7 +659,7 @@ class Game:
                 self.factions[d.owner].kills += 1
                 self.log(f"{self.factions[u.owner].name}: {u.type.name} distrutto attaccando "
                          f"{d.type.name}{where} ({self.faction_name(d.owner)}).",
-                         [u.owner, d.owner], "combat", "battle", u.owner)
+                         [u.owner, d.owner], "combat", "battle", u.owner, u.kind)
                 self.kill(u)
                 return "lost"
         elif city is not None:
@@ -669,7 +670,7 @@ class Game:
                 self.log(f"{u.type.name} ({self.factions[u.owner].name}) respinto dalla "
                          f"milizia di {city.name}.",
                          [u.owner] + ([defender_owner] if defender_owner is not None else []), "combat",
-                         "battle", u.owner)
+                         "battle", u.owner, u.kind)
                 self.kill(u)
                 return "lost"
             u.hp = ahp

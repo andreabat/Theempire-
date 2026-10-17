@@ -110,3 +110,23 @@ def test_pick_sound_point_of_view():
     assert pick_sound(g, 0, [theirs]) == "loss"
     assert pick_sound(g, 0, [far]) is None
     assert pick_sound(g, 0, [ours, boom, theirs]) == "nuke"
+
+
+def test_every_unit_has_its_voice():
+    from theempire.units import UNIT_TYPES
+    for kind in UNIT_TYPES:
+        assert f"move_{kind}" in audio._SFX_NAMES and f"fire_{kind}" in audio._SFX_NAMES
+
+
+def test_battles_sound_like_the_attackers_guns():
+    g = Game("coldwar", humans=("nato",), seed=1, world=load_world())
+    shot = Event(1, "...", [0, 1], "combat", "battle", 1, kind="S")
+    assert pick_sound(g, 0, [shot]) == "fire_S"
+    boom = Event(1, "☢ ...", None, "wmd", "nuke", 1)
+    assert pick_sound(g, 0, [shot, boom]) == "nuke"
+
+
+def test_anthem_voices_line_up():
+    tracks = audio._music()
+    # melody and bass of the anthem end together (no dangling bass bar)
+    assert len(tracks["anthem"].buf) > audio.RATE * 60
