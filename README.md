@@ -382,7 +382,9 @@ in the tutorial), where the arsenal is that of the 1980s.
   the coastline is redrawn from a land map 4 times finer
   (`assets/land_hd.bin`, from Natural Earth). The cursor becomes the whole
   block, and units and cities sit at the centre of their block. To see more of the
-  world there is the overview (`m`).
+  world there is the overview (`m`). With **Ctrl+wheel**, or a pinch on a
+  phone, the zoom happens around that point: what is under the pointer or
+  between your fingers stays there.
 - **With the mouse**:
   - click on one of your units: you select it (click again to move to the
     next one in the same city);
@@ -391,7 +393,9 @@ in the tutorial), where the arsenal is that of the 1980s.
     same square sends it marching (Esc cancels);
   - drag to move the map, wheel to scroll it, right button to
     select. It also works in the web TUI, and on touch screens your finger
-    acts as the mouse: a tap is a click, dragging moves the map;
+    acts as the mouse: a tap is a click (even with a slightly shaky finger),
+    dragging moves the map, a two-finger pinch zooms without clicking
+    anything, and the page neither zooms nor reloads when you pull it;
   - **the panel is clickable**: "Cards (K)" opens the cards, "Directive (P)"
     the directives, a faction the diplomacy, "Awaiting orders (n)" goes
     to the next unit, "Produces (p)" the city's production, a listed

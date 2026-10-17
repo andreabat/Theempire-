@@ -302,14 +302,26 @@ class UI:
         zx, zy = self.zoom_factor()
         return max(1, mw // zx), max(1, mh // zy)
 
-    def set_zoom(self, step: int) -> None:
+    def set_zoom(self, step: int, at: tuple[int, int] | None = None) -> None:
+        """Zoom in (step > 0) or out. With ``at`` (a point on the screen, as
+        with Ctrl+wheel or a pinch) the cell under it stays under it;
+        otherwise the view centres on the cursor."""
         zoom = max(0, min(len(self.ZOOMS) - 1, getattr(self, "zoom", 0) + step))
         if zoom == getattr(self, "zoom", 0):
             self.status = tr("Zoom massimo.") if step > 0 else tr("Zoom minimo: m mostra il mondo intero.")
             return
+        anchor = self._cell_at(*at) if at is not None else None
         self.zoom = zoom
-        self.center()
         self.status = tr("Zoom ×{factor}.", factor=self.ZOOMS[zoom])
+        if anchor is None:
+            self.center()
+            return
+        mx, my = at
+        zx, zy = self.zoom_factor()
+        cx, cy = self.w.xy(anchor)
+        rows = self.view_size()[1]
+        self.view_x = (cx - mx // zx) % self.w.width
+        self.view_y = max(0, min(cy - (my - 1) // zy, max(0, self.w.height - rows)))
 
     def follow_cursor(self) -> None:
         mw, mh = self.view_size()
@@ -2060,6 +2072,10 @@ class UI:
         if self._pan is not None and state & wheel_up and not up:
             # old ncurses (no SGR mouse) reads a drag motion as "wheel up"
             state = motion
+        elif (state & wheel_up or state & wheel_down) and state & getattr(curses, "BUTTON_CTRL", 0):
+            # Ctrl+wheel, or a pinch on a touch screen: zoom around that point
+            self.set_zoom(1 if state & wheel_up else -1, (mx, my) if inside else None)
+            return
         elif state & wheel_up or state & wheel_down:
             rows = self.view_size()[1]
             self.view_y = max(0, min(self.view_y + (-3 if state & wheel_up else 3),

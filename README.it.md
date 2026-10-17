@@ -382,7 +382,9 @@ Fredda 1985** (né nel tutorial), dove l'arsenale è quello degli anni '80.
   la costa viene ridisegnata da una mappa della terraferma 4 volte più fine
   (`assets/land_hd.bin`, da Natural Earth). Il cursore diventa il blocco
   intero, e unità e città stanno al centro del loro blocco. Per vedere più
-  mondo c'è la panoramica (`m`).
+  mondo c'è la panoramica (`m`). Con **Ctrl+rotella** del mouse, o col
+  pizzico sul telefono, lo zoom avviene attorno al punto indicato: quello
+  che hai sotto il puntatore o tra le dita resta lì.
 - **Col mouse**:
   - clic su una tua unità: la selezioni (clic di nuovo per passare alla
     successiva nella stessa città);
@@ -391,7 +393,9 @@ Fredda 1985** (né nel tutorial), dove l'arsenale è quello degli anni '80.
     stessa casella la manda in marcia (Esc annulla);
   - trascina per spostare la mappa, rotella per scorrerla, tasto destro per
     selezionare. Funziona anche nella web TUI, e sugli schermi touch il dito
-    fa da mouse: un tocco è un clic, trascinando sposti la mappa;
+    fa da mouse: un tocco è un clic (anche se il dito trema un po'),
+    trascinando sposti la mappa, il pizzico con due dita fa zoom senza
+    cliccare nulla, e la pagina non si ingrandisce né si ricarica tirando;
   - **il pannello è cliccabile**: «Carte (K)» apre le carte, «Direttiva (P)»
     le direttive, una fazione la diplomazia, «In attesa di ordini (n)» passa
     alla prossima unità, «Produce (p)» la produzione della città, un'unità

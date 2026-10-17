@@ -195,3 +195,17 @@ def test_zoom_redraws_the_coast_in_detail():
     tile = zoom_tile(w, coast, 4)
     assert len(tile) == 4 and all(len(row) == 4 for row in tile)
     assert len(set("".join(tile))) > 2          # real detail, not one repeated character
+
+
+def test_ctrl_wheel_zooms_around_the_pointer(monkeypatch):
+    ui = _ui_with_curses(monkeypatch)
+    ui.status = ""
+    ui.mx, ui.my = 30, 12
+    under = ui._cell_at(30, 12)
+    ui.state = curses.BUTTON4_PRESSED | curses.BUTTON_CTRL      # a pinch outwards
+    ui.mouse()
+    assert ui.zoom == 1
+    assert ui._cell_at(30, 12) == under                          # the same place under the fingers
+    ui.state = curses.BUTTON5_PRESSED | curses.BUTTON_CTRL
+    ui.mouse()
+    assert ui.zoom == 0 and ui._cell_at(30, 12) == under
