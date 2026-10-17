@@ -618,6 +618,9 @@ numero a fianco di ogni voce la sceglie subito, ed Esc annulla.
 | `E` | fine turno (segue il riepilogo animato delle mosse avversarie) |
 | `S`, `Q`, `?` | salva, esci (salvando), aiuto |
 
+L'unità attiva (quella che riceve gli ordini) **lampeggia** sulla mappa,
+così la ritrovi a colpo d'occhio anche quando sposti il cursore.
+
 A inizio partita la fanteria è fortificata e il resto è di sentinella. Le
 unità si svegliano da sole quando il nemico si avvicina, così a ogni turno
 ti chiede ordini solo il fronte. Un'unità nuova chiede subito ordini.

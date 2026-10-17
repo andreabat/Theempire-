@@ -618,6 +618,9 @@ number next to each entry chooses it at once, and Esc cancels.
 | `E` | end turn (followed by the animated summary of the opponents' moves) |
 | `S`, `Q`, `?` | save, quit (saving), help |
 
+The active unit (the one taking orders) **blinks** on the map, so you
+spot it at a glance even when you move the cursor away.
+
 At the start of the game infantry is fortified and the rest is on sentry. Units
 wake up by themselves when the enemy approaches, so each turn
 only the front asks you for orders. A new unit asks for orders immediately.

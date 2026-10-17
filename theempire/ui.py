@@ -22,6 +22,7 @@ from theempire.units import (ASAT, CHEMICAL, PRODUCTION_NAMES, SATELLITE, UNIT_T
 from theempire.world import load_hd
 
 SIDEBAR = 36
+BLINK_MS = 200          # the screen wakes this often; the active unit blinks twice as slowly
 LOG_ROWS = 6
 SAVE_PATH = Path.home() / ".theempire" / "save.json"
 
@@ -464,7 +465,8 @@ class UI:
             kind, owner = self.phantom[cell]
             return kind, self.color(self.owner_color(owner), bg) | curses.A_BOLD
         if self.active is not None and self.active.cell == cell and self.active.id in g.units:
-            return self.active.kind, self.color(self.owner_color(self.active.owner), bg) | curses.A_BOLD | curses.A_REVERSE
+            lit = curses.A_REVERSE if self.blink_on() else 0      # the active unit blinks
+            return self.active.kind, self.color(self.owner_color(self.active.owner), bg) | curses.A_BOLD | lit
         if city is not None:
             glyph = "★" if city.capital else "◉" if city.size == 3 else "●" if city.size == 2 else "•"
             attr = self.color(self.owner_color(city.owner) if city.owner is not None else "white", bg) | curses.A_BOLD
@@ -495,6 +497,11 @@ class UI:
         if dots:
             return chr(0x2800 + dots), self.color("coast", bg) | dim
         return " ", self.color("white", bg)
+
+    @staticmethod
+    def blink_on() -> bool:
+        """The phase of the active unit's blinking."""
+        return int(time.monotonic() * 1000 / BLINK_MS / 2) % 2 == 0
 
     def zoom_attrs(self, cell: int, seen: bool) -> tuple[int, int]:
         """Colours of a zoomed cell: (solid land, land against the sea).
@@ -532,6 +539,9 @@ class UI:
                 mark = 0
                 if cell == self.cursor:
                     mark = curses.A_REVERSE if self.mode == "normal" else -1
+                    if mark == curses.A_REVERSE and self.active is not None \
+                            and self.active.cell == cell and not self.blink_on():
+                        mark = 0         # the cursor on the active unit blinks with it
                     if self.mode in ("nuke", "chem"):
                         ch = "✕"
                 elif self.mode in ("nuke", "chem") and self.w.dist(cell, self.cursor) == 1:
@@ -2196,8 +2206,9 @@ class UI:
                 return
         else:
             self.session.start(self._progress)
-            if getattr(self.session, "turn_time", 0):
-                self.scr.timeout(500)  # wake up to tick the turn timer
+        # wake up a few times a second: the active unit blinks and the turn
+        # timer ticks
+        self.scr.timeout(BLINK_MS)
         self.sync()
         self.center()
         if self.g.scenario.key == "tutorial" and not self.session.online and not self.g.over:
