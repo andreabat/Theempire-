@@ -10,10 +10,11 @@ import time
 from collections import Counter, deque
 from pathlib import Path
 
-from theempire import cards, events, missions, regions
+from theempire import cards, events, i18n, missions, regions
 from theempire.audio import Audio, music_keys, music_name
 from theempire.commands import describe
 from theempire.game import CHEM_RANGE, DIRECTIVES, Unit
+from theempire.i18n import N, tr, word
 from theempire.scenarios import SCENARIOS
 from theempire.tutorial import Tutorial
 from theempire.units import (CHEMICAL, PRODUCTION_NAMES, UNIT_TYPES, WARHEAD,
@@ -56,7 +57,7 @@ COLORS_8 = {"blue": curses.COLOR_BLUE, "red": curses.COLOR_RED, "yellow": curses
             "dim": curses.COLOR_WHITE, "alert": curses.COLOR_RED,
             "wmd": curses.COLOR_MAGENTA, "good": curses.COLOR_GREEN, "panel": curses.COLOR_WHITE}
 
-HELP = """\
+HELP = N("""\
 MENU              ↑↓ per scegliere, Invio per confermare (o la lettera/il numero), Esc
 MOVIMENTO UNITÀ   q w e / a · d / z x c  (o tastierino 7 8 9 4 6 1 2 3)
 CURSORE           frecce, PagSu/PagGiù, mouse (trascina o rotella per scorrere)
@@ -83,6 +84,7 @@ m                 mappa del mondo (panoramica)
 r                 centra la vista sul cursore
 o                 obiettivo segreto, regioni (bonus) ed eventi mondiali
 M                 audio: scegli musica ed effetti
+L                 lingua dell'interfaccia (language)
 N                 ☢ attacco nucleare sulla casella del cursore
 C                 ☣ attacco chimico (entro 4 caselle dalle tue forze)
 E                 fine turno
@@ -92,7 +94,10 @@ Attaccare: muovi un'unità su una casella nemica. Solo fanteria e corazzati
 conquistano le città. Le navi entrano solo nei porti amici; gli aerei
 consumano carburante e si riforniscono in città o sulle portaerei.
 Ogni arma di distruzione di massa avvicina l'Orologio dell'Apocalisse
-alla mezzanotte: a 0 minuti la guerra nucleare totale distrugge tutti."""
+alla mezzanotte: a 0 minuti la guerra nucleare totale distrugge tutti.""")
+
+# Month abbreviations for the date in the title bar (one key, split after translation).
+MONTHS = N("gen feb mar apr mag giu lug ago set ott nov dic")
 
 
 BRAILLE_DOTS = ((0x01, 0x02, 0x04, 0x40), (0x08, 0x10, 0x20, 0x80))  # [column][row]
@@ -112,18 +117,18 @@ def zoom_tile(world, cell: int, k: int) -> tuple[str, ...]:
         for i in range(k):
             bits = 0
             for tc in range(2):
-                for tr in range(4):
+                for tw in range(4):
                     if hd is not None and hd.zoom % k == 0:
                         s = hd.zoom // k                     # samples per dot, each way
                         x0 = cx * 2 * hd.zoom + (i * 2 + tc) * s
-                        y0 = cy * 4 * hd.zoom + (j * 4 + tr) * s
+                        y0 = cy * 4 * hd.zoom + (j * 4 + tw) * s
                         land = sum(hd.land(x0 + a, y0 + b) for a in range(s) for b in range(s))
                         on = land * 2 >= s * s
                     else:
                         dots = world.dots[cell] or (0xFF if world.land[cell] else 0)
-                        on = bool(dots & BRAILLE_DOTS[(i * 2 + tc) // k][(j * 4 + tr) // k])
+                        on = bool(dots & BRAILLE_DOTS[(i * 2 + tc) // k][(j * 4 + tw) // k])
                     if on:
-                        bits |= BRAILLE_DOTS[tc][tr]
+                        bits |= BRAILLE_DOTS[tc][tw]
             row += chr(0x2800 + bits) if bits else " "
         rows.append(row)
     return tuple(rows)
@@ -288,11 +293,11 @@ class UI:
     def set_zoom(self, step: int) -> None:
         zoom = max(0, min(len(self.ZOOMS) - 1, getattr(self, "zoom", 0) + step))
         if zoom == getattr(self, "zoom", 0):
-            self.status = "Zoom massimo." if step > 0 else "Zoom minimo: m mostra il mondo intero."
+            self.status = tr("Zoom massimo.") if step > 0 else tr("Zoom minimo: m mostra il mondo intero.")
             return
         self.zoom = zoom
         self.center()
-        self.status = f"Zoom ×{self.ZOOMS[zoom]}."
+        self.status = tr("Zoom ×{factor}.", factor=self.ZOOMS[zoom])
 
     def follow_cursor(self) -> None:
         mw, mh = self.view_size()
@@ -313,9 +318,12 @@ class UI:
     def date_text(self) -> str:
         start = START_DATES.get(self.g.scenario.key)
         if start is None:
-            return f"Anno {1 + (self.g.turn - 1) // 52}, sett. {1 + (self.g.turn - 1) % 52}"
+            return tr("Anno {year}, sett. {week}", year=1 + (self.g.turn - 1) // 52,
+                      week=1 + (self.g.turn - 1) % 52)
         d = start + dt.timedelta(weeks=self.g.turn - 1)
-        months = "gen feb mar apr mag giu lug ago set ott nov dic".split()
+        months = tr(MONTHS).split()
+        if len(months) != 12:      # a broken translation
+            months = MONTHS.split()
         return f"{d.day} {months[d.month - 1]} {d.year}"
 
     def put(self, y: int, x: int, text: str, attr: int = 0) -> None:
@@ -578,21 +586,24 @@ class UI:
                 if cx // (2 * kx) == sx and cy // (4 * ky) == sy:
                     attr |= curses.A_REVERSE
                 self.put(1 + sy, sx, ch, attr)
-        self.put(1 + min(rows, mh), 0, "Panoramica: clic o frecce per scegliere, Invio/m per tornare",
+        self.put(1 + min(rows, mh), 0, tr("Panoramica: clic o frecce per scegliere, Invio/m per tornare"),
                  self.color("dim"))
 
     def draw_top(self) -> None:
         g = self.g
         h, w = self.scr.getmaxyx()
         self.put(0, 0, " " * (w - 1), curses.A_REVERSE)
-        title = f" THE EMPIRE · {g.scenario.name} · {self.date_text()} · turno {g.turn} "
+        title = " " + tr("THE EMPIRE · {scenario} · {date} · turno {turn}", scenario=g.scenario.name,
+                         date=self.date_text(), turn=g.turn) + " "
         self.put(0, 0, title, curses.A_REVERSE | curses.A_BOLD)
         minutes = max(0, g.doomsday)
-        clock = f" ☢ 23:{60 - minutes:02d}  {minutes} MIN A MEZZANOTTE  DEFCON {defcon(minutes)} "
+        clock = " " + tr("☢ 23:{minute:02d}  {minutes} MIN A MEZZANOTTE  DEFCON {defcon}",
+                         minute=60 - minutes, minutes=minutes, defcon=defcon(minutes)) + " "
         level = "alert" if minutes <= 3 else "fallout" if minutes <= 6 else "good"
         self.put(0, max(len(title) + 1, w - len(clock) - 1), clock, self.color(level) | curses.A_REVERSE | curses.A_BOLD)
         if g.current != self.viewer and not g.over:
-            self.put(0, len(title), f" ⌛ tocca a {g.faction.name} ", curses.A_REVERSE)
+            self.put(0, len(title), " " + tr("⌛ tocca a {faction}", faction=g.faction.name) + " ",
+                     curses.A_REVERSE)
         left = self.session.seconds_left()
         if left is not None and not g.over:
             self.put(0, max(len(title) + 1, w - len(clock) - 12), f" ⏱ {left // 60}:{left % 60:02d} ",
@@ -606,29 +617,31 @@ class UI:
             self.put(y, x - 1, "│", self.color("dim"))
         fac = g.factions[self.viewer]
         row = 1
-        self.put(row, x, fac.name.upper()[:SIDEBAR - 1], self.color(fac.color) | curses.A_BOLD)
+        self.put(row, x, word(fac.name).upper()[:SIDEBAR - 1], self.color(fac.color) | curses.A_BOLD)
         row += 1
         cities = g.cities_of(self.viewer)
         industry = sum(g.production_rate(c) for c in cities)
         units = g.units_of(self.viewer)
-        self.put(row, x, f"Città {len(cities):3d}  industria {industry:5.1f}/turno")
+        self.put(row, x, tr("Città {n:3d}  industria {rate:5.1f}/turno", n=len(cities), rate=industry))
         row += 1
-        self.put(row, x, f"Unità {len(units):3d}/{g.supply_limit(self.viewer)}  ☢ {fac.warheads:2d}  ☣ {fac.chemicals}")
+        self.put(row, x, tr("Unità {n:3d}/{limit}  ☢ {warheads:2d}  ☣ {chemicals}", n=len(units),
+                            limit=g.supply_limit(self.viewer), warheads=fac.warheads, chemicals=fac.chemicals))
         row += 1
         effects = []
         if cards.active(g, self.viewer, "plan"):
-            effects.append("piano")
+            effects.append(tr("piano"))
         if cards.active(g, self.viewer, "shield"):
-            effects.append("scudo")
+            effects.append(tr("scudo"))
         spied = cards.spied(g, self.viewer)
         if spied is not None:
-            effects.append(f"spie su {g.factions[spied].name.split()[-1]}")
-        hand = f"Carte ♠ {len(fac.cards)}/{cards.HAND_LIMIT} (K)"
+            effects.append(tr("spie su {faction}", faction=word(g.factions[spied].name).split()[-1]))
+        hand = tr("Carte ♠ {n}/{limit} (K)", n=len(fac.cards), limit=cards.HAND_LIMIT)
         self.button(row, x, (hand + ("  " + ", ".join(effects) if effects else ""))[:SIDEBAR - 1], "K",
                     self.color("cyan") if fac.cards else self.color("dim"))
         row += 1
-        label = DIRECTIVES[fac.directive].split(" (")[0] if fac.directive else "nessuna"
-        self.button(row, x, f"Direttiva: {label} (P)"[:SIDEBAR - 1], "P", self.color("dim"))
+        label = word(DIRECTIVES[fac.directive]).split(" (")[0] if fac.directive else tr("nessuna")
+        self.button(row, x, tr("Direttiva: {directive} (P)", directive=label)[:SIDEBAR - 1], "P",
+                    self.color("dim"))
         row += 1
         if fac.mission.get("kind") in ("regions", "eliminate", "cities", "capitals"):
             self.button(row, x, f"◎ {missions.progress(g, self.viewer)} (o)"[:SIDEBAR - 1], "o",
@@ -637,11 +650,13 @@ class UI:
         held = regions.held_by(g, self.viewer)
         if held:
             pct = int(round(regions.production_bonus(g, self.viewer) * 100))
-            text = "⚑ " + ", ".join(regions.REGIONS[k].short for k in held) + f" +{pct}%"
+            text = tr("⚑ {regions} +{pct}%", regions=", ".join(word(regions.REGIONS[k].short) for k in held),
+                      pct=pct)
         else:
             near = next(((k, n, t) for k, n, t in regions.progress(g, self.viewer) if n < t), None)
-            text = f"⚑ {regions.REGIONS[near[0]].short} {near[1]}/{near[2]} città" if near else "⚑ Regioni"
-        self.button(row, x, f"{text} (o)"[:SIDEBAR - 1], "o", self.color("dim"))
+            text = tr("⚑ {region} {n}/{total} città", region=regions.REGIONS[near[0]].short,
+                      n=near[1], total=near[2]) if near else tr("⚑ Regioni")
+        self.button(row, x, (text + " (o)")[:SIDEBAR - 1], "o", self.color("dim"))
         row += 1
         world = events.describe_active(g)
         if world:
@@ -650,27 +665,30 @@ class UI:
         others = [f for f in g.factions if f.idx != self.viewer]
         names = self.session.player_names()
         for f in others:
-            state = f"{len(g.cities_of(f.idx)):3d} città" if f.alive else "  sconfitto"
+            state = tr("{n:3d} città", n=len(g.cities_of(f.idx))) if f.alive else tr("  sconfitto")
             mark = "≈" if g.truce_left(self.viewer, f.idx) else " "
             hand = f" ♠{len(f.cards)}" if f.alive and f.cards else ""
-            self.button(row, x, f"{f.name[:21]:21s}{mark}{state}{hand}"[:SIDEBAR - 1], "O", self.color(f.color))
+            self.button(row, x, f"{word(f.name)[:21]:21s}{mark}{state}{hand}"[:SIDEBAR - 1], "O",
+                        self.color(f.color))
             row += 1
             if f.idx in names:
-                self.put(row, x, f"  giocatore: {names[f.idx]}"[:SIDEBAR - 1], self.color("dim"))
+                self.put(row, x, tr("  giocatore: {name}", name=names[f.idx])[:SIDEBAR - 1], self.color("dim"))
                 row += 1
-        self.put(row, x, f"{'Neutrali':22s}{len(g.cities_of(None)):3d} città", self.color("neutral"))
+        self.put(row, x, f"{word(g.faction_name(None)):22s}" + tr("{n:3d} città", n=len(g.cities_of(None))),
+                 self.color("neutral"))
         row += 1
         self.put(row, x, "─" * (SIDEBAR - 1), self.color("dim"))
         row += 1
         waiting = len(self.needing_orders())
-        self.button(row, x, f"In attesa di ordini: {waiting} (n)", "n", curses.A_BOLD if waiting else self.color("dim"))
+        self.button(row, x, tr("In attesa di ordini: {n} (n)", n=waiting), "n",
+                    curses.A_BOLD if waiting else self.color("dim"))
         row += 1
         a = self.active
         if a is not None and a.id in g.units:
             row = self._unit_lines(a, row, x, active=True)
             odds = g.odds(a, self.cursor) if self.cursor in self.w.neighbors[a.cell] else None
             if odds is not None:
-                self.put(row, x, f"⚔ Probabilità di vittoria: {odds * 100:3.0f}%",
+                self.put(row, x, tr("⚔ Probabilità di vittoria: {pct:3.0f}%", pct=odds * 100),
                          self.color("good" if odds >= 0.6 else "fallout" if odds >= 0.35 else "alert") | curses.A_BOLD)
                 row += 1
         self.put(row, x, "─" * (SIDEBAR - 1), self.color("dim"))
@@ -678,15 +696,15 @@ class UI:
         bottom = self._command_buttons(x, h - 2)
         row = self._cell_lines(self.cursor, row, x, bottom)
 
-    COMMANDS = (("E", "Fine turno"), ("B", "Bollettino"), ("O", "Diplomazia"), ("m", "Mondo"),
-                ("+", "Zoom"), ("-", "Zoom"), ("M", "Audio"), ("S", "Salva"), ("?", "Aiuto"))
+    COMMANDS = (("E", N("Fine turno")), ("B", N("Bollettino")), ("O", N("Diplomazia")), ("m", N("Mondo")),
+                ("+", N("Zoom")), ("-", N("Zoom")), ("M", N("Audio")), ("S", N("Salva")), ("?", N("Aiuto")))
 
     def _command_buttons(self, x: int, last: int) -> int:
         """The clickable command bar at the foot of the panel; returns the
         first row it takes."""
         rows, line = [], []
         for key, label in self.COMMANDS:
-            text = f" {label} {key} "
+            text = f" {tr(label)} {key} "
             if line and sum(len(t) + 1 for t, _ in line) + len(text) > SIDEBAR - 1:
                 rows.append(line)
                 line = []
@@ -704,9 +722,9 @@ class UI:
         g = self.g
         t = u.type
         mine = u.owner == self.viewer
-        label = ("▶ " if active else "  ") + t.name
+        label = ("▶ " if active else "  ") + word(t.name)
         if not mine:
-            label += f" ({g.factions[u.owner].name})"
+            label += f" ({word(g.factions[u.owner].name)})"
         attr = self.color(self.owner_color(u.owner)) | (curses.A_BOLD if active else 0)
         if mine:
             self.button(row, x, label[:SIDEBAR - 1], lambda: self.take_command(u), attr)
@@ -714,16 +732,19 @@ class UI:
             self.put(row, x, label[:SIDEBAR - 1], attr)
         row += 1
         if mine:
-            info = f"    PV {u.hp}/{t.hp}  mosse {u.moves}/{t.move}"
+            info = "    " + tr("PV {hp}/{max_hp}  mosse {moves}/{max_moves}", hp=u.hp, max_hp=t.hp,
+                                  moves=u.moves, max_moves=t.move)
             if t.domain == "air":
-                info += f"  carb. {u.fuel}"
+                info += "  " + tr("carb. {fuel}", fuel=u.fuel)
             self.put(row, x, info)
             row += 1
-            extra = {"sentry": "sentinella", "fortify": "fortificata", "goto": "in marcia",
-                     "auto": "automatica"}.get(u.order or "", "")
+            extra = {"sentry": N("sentinella"), "fortify": N("fortificata"), "goto": N("in marcia"),
+                     "auto": N("automatica")}.get(u.order or "", "")
+            extra = tr(extra) if extra else ""
             if u.cargo:
                 kinds = Counter(g.units[c].kind for c in u.cargo if c in g.units)
-                extra += f" carico {len(u.cargo)}/{t.capacity}: " + " ".join(f"{n}{k}" for k, n in kinds.items())
+                extra += " " + tr("carico {n}/{capacity}: {kinds}", n=len(u.cargo), capacity=t.capacity,
+                                  kinds=" ".join(f"{n}{k}" for k, n in kinds.items()))
             if extra:
                 self.put(row, x, "    " + extra.strip(), self.color("dim"))
                 row += 1
@@ -733,41 +754,45 @@ class UI:
         g = self.g
         lon, lat = self.w.lonlat(cell)
         country = self.w.country_of(cell)
-        terrain = "terra" if self.w.land[cell] else "mare"
+        terrain = tr("terra") if self.w.land[cell] else tr("mare")
         where = f"{abs(lat):.0f}°{'N' if lat >= 0 else 'S'} {abs(lon):.0f}°{'E' if lon >= 0 else 'W'}"
-        self.put(row, x, f"{where} · {terrain}" + (f" · {country['name']}" if country else ""))
+        self.put(row, x, f"{where} · {terrain}" + (f" · {word(country['name'])}" if country else ""))
         row += 1
         if cell in g.fallout:
-            self.put(row, x, f"☢ ricaduta radioattiva ({g.fallout[cell]} turni)", self.color("fallout"))
+            self.put(row, x, tr("☢ ricaduta radioattiva ({turns} turni)", turns=g.fallout[cell]),
+                     self.color("fallout"))
             row += 1
         city = g.city(cell)
         if city is not None:
-            tag = " ★ capitale" if city.capital else ""
+            tag = " " + tr("★ capitale") if city.capital else ""
             self.put(row, x, f"{city.name}{tag}"[:SIDEBAR - 1], self.color(self.owner_color(city.owner)) | curses.A_BOLD)
             row += 1
-            self.put(row, x, f"  {g.faction_name(city.owner)} · dimensione {city.size} · milizia {city.militia}")
+            self.put(row, x, "  " + tr("{faction} · dimensione {size} · milizia {militia}",
+                                       faction=g.faction_name(city.owner), size=city.size, militia=city.militia))
             row += 1
             if city.owner == self.viewer:
                 cost = production_cost(city.production)
                 rate = g.production_rate(city)
                 eta = "∞" if rate <= 0 else str(max(0, -(-(cost - city.progress) // rate)))
-                hand = " (a mano)" if city.manual and g.factions[self.viewer].directive else ""
-                self.button(row, x, f"  Produce: {PRODUCTION_NAMES[city.production]}{hand} (p)"[:SIDEBAR - 1], "p")
+                hand = " " + tr("(a mano)") if city.manual and g.factions[self.viewer].directive else ""
+                self.button(row, x, ("  " + tr("Produce: {production}", production=PRODUCTION_NAMES[city.production])
+                                     + hand + " (p)")[:SIDEBAR - 1], "p")
                 row += 1
-                self.put(row, x, f"  {city.progress:.0f}/{cost} punti, pronto in {eta} turni")
+                self.put(row, x, "  " + tr("{progress:.0f}/{cost} punti, pronto in {eta} turni",
+                                           progress=city.progress, cost=cost, eta=eta))
                 row += 1
                 notes = []
                 if city.irradiated:
-                    notes.append(f"irradiata {city.irradiated}t")
+                    notes.append(tr("irradiata {turns}t", turns=city.irradiated))
                 if city.unrest:
-                    notes.append(f"disordini {city.unrest}t")
+                    notes.append(tr("disordini {turns}t", turns=city.unrest))
                 if notes:
                     self.put(row, x, "  " + ", ".join(notes), self.color("alert"))
                     row += 1
         units = [u for u in g.units_at(cell) if g.sees(self.viewer, u)]
         if city is not None and units and len(units) > 4:
             kinds = Counter((u.owner, u.kind) for u in units)
-            text = "  Guarnigione: " + " ".join(f"{n}{k}" for (_, k), n in kinds.items())
+            text = "  " + tr("Guarnigione: {units}", units=" ".join(f"{n}{k}" for (_, k), n in kinds.items()))
             self.put(row, x, text[:SIDEBAR - 1])
             row += 1
             return row
@@ -783,29 +808,30 @@ class UI:
         top = h - LOG_ROWS - 1
         self.put(top, 0, "─" * mw, self.color("dim"))
         if self.ticker is not None:   # the bulletin's chronicle, line by line
-            self.put(top, 2, " BOLLETTINO DI GUERRA ", self.color("alert") | curses.A_REVERSE | curses.A_BOLD)
+            self.put(top, 2, " " + tr("BOLLETTINO DI GUERRA") + " ",
+                     self.color("alert") | curses.A_REVERSE | curses.A_BOLD)
             for k, line in enumerate(self.ticker[-(LOG_ROWS - 1):]):
-                attr = curses.A_BOLD if "NOI" in line or "PERSA" in line or "☢" in line else 0
+                attr = curses.A_BOLD if loud(line) or "☢" in line else 0
                 self.put(top + 1 + k, 0, f" {line}"[:mw].ljust(mw), self.color("panel") | attr)
             return
         events = [e for e in self.g.events if e.audience is None or self.viewer in e.audience]
         colors = {"info": "panel", "combat": "orange", "alert": "alert", "wmd": "wmd", "chat": "cyan",
                   "world": "cyan"}
         for k, e in enumerate(events[-(LOG_ROWS - 1):]):
-            self.put(top + 1 + k, 0, f"[{e.turn:3d}] {e.text}"[:mw].ljust(mw),
+            self.put(top + 1 + k, 0, f"[{e.turn:3d}] {e.shown()}"[:mw].ljust(mw),
                      self.color(colors.get(e.level, "panel")) | (curses.A_BOLD if e.level in ("wmd", "alert", "world") else 0))
 
     def draw_status(self) -> None:
         h, w = self.scr.getmaxyx()
         hint = {
-            "normal": "qweadzxc muovi · frecce cursore · n prossima · g vai · p produzione · E fine turno · ? aiuto",
-            "goto": "VAI A: sposta il cursore e premi Invio (Esc annulla)",
-            "nuke": "☢ BERSAGLIO NUCLEARE: sposta il cursore e premi Invio (Esc annulla)",
-            "chem": "☣ BERSAGLIO CHIMICO: sposta il cursore e premi Invio (Esc annulla)",
-            "card": f"♠ {cards.CARDS[self.pending_card].name if self.pending_card else ''}: "
-                    "scegli il bersaglio e premi Invio (Esc annulla)",
-            "overview": "PANORAMICA",
+            "normal": N("qweadzxc muovi · frecce cursore · n prossima · g vai · p produzione · E fine turno · ? aiuto"),
+            "goto": N("VAI A: sposta il cursore e premi Invio (Esc annulla)"),
+            "nuke": N("☢ BERSAGLIO NUCLEARE: sposta il cursore e premi Invio (Esc annulla)"),
+            "chem": N("☣ BERSAGLIO CHIMICO: sposta il cursore e premi Invio (Esc annulla)"),
+            "card": N("♠ {card}: scegli il bersaglio e premi Invio (Esc annulla)"),
+            "overview": N("PANORAMICA"),
         }[self.mode]
+        hint = tr(hint, card=cards.CARDS[self.pending_card].name if self.pending_card else "")
         if self.status:
             self.put(h - 1, 0, self.status[: w - 1], curses.A_BOLD)
             return
@@ -823,7 +849,8 @@ class UI:
             x += len(part)
 
     # ----------------------------------------------------------- dialogs
-    def dialog(self, title: str, lines: list[str], footer: str = "premi un tasto") -> int:
+    def dialog(self, title: str, lines: list[str], footer: str = "") -> int:
+        footer = footer or tr("premi un tasto")
         h, w = self.scr.getmaxyx()
         width = min(w - 4, max(len(title) + 4, len(footer) + 4, *(len(l) + 4 for l in lines)))
         height = min(h - 2, len(lines) + 4)
@@ -894,7 +921,7 @@ class UI:
         height = min(h - 2, len(body) + sum(len(r) for r in rows) + len(notes) + (1 if notes else 0) + 4)
         win = curses.newwin(height, width, (h - height) // 2, (w - width) // 2)
         win.keypad(True)
-        footer = footer or "↑↓ scegli · Invio conferma · lettera o numero diretti · Esc annulla"
+        footer = footer or tr("↑↓ scegli · Invio conferma · lettera o numero diretti · Esc annulla")
         while True:
             win.erase()
             win.box()
@@ -967,9 +994,10 @@ class UI:
         self.scr.touchwin()
         return result
 
-    def confirm(self, title: str, lines: list[str], yes: str = "Sì", no: str = "No") -> bool:
+    def confirm(self, title: str, lines: list[str], yes: str = "", no: str = "") -> bool:
         """A yes/no question; No is preselected."""
-        picked = self.choose(title, [("s", yes, True), ("n", no, False)], header=lines, current=False)
+        picked = self.choose(title, [("s", yes or tr("Sì"), True), ("n", no or tr("No"), False)],
+                             header=lines, current=False)
         return picked == ("item", True)
 
     def production_menu(self, city) -> None:
@@ -982,28 +1010,31 @@ class UI:
             eta = "∞" if rate <= 0 else f"{-(-cost // rate):.0f}"
             if k in UNIT_TYPES:
                 t = UNIT_TYPES[k]
-                stats = f"att {t.attack} dif {t.defense} PV {t.hp} mosse {t.move}"
+                stats = tr("att {attack} dif {defense} PV {hp} mosse {moves}", attack=t.attack,
+                           defense=t.defense, hp=t.hp, moves=t.move)
             else:
-                stats = "scorta strategica"
-            lines.append(f"{PRODUCTION_NAMES[k]:20s} costo {cost:3d}  {eta:>3s} turni  {stats}")
+                stats = tr("scorta strategica")
+            lines.append(tr("{production:20s} costo {cost:3d}  {eta:>3s} turni  {stats}",
+                            production=PRODUCTION_NAMES[k], cost=cost, eta=eta, stats=stats))
         items = [(k, line, k) for k, line in zip(keys, lines)]
         directive = g.factions[self.viewer].directive
         notes = []
         if directive and city.manual:
-            items.append(("X", f"torna alla direttiva: {DIRECTIVES[directive].split(' (')[0]}", "X"))
+            items.append(("X", tr("torna alla direttiva: {directive}",
+                                  directive=word(DIRECTIVES[directive]).split(" (")[0]), "X"))
         elif directive:
-            notes = ["Scegliendo a mano, questa città non seguirà più la direttiva."]
-        picked = self.choose(f"Produzione di {city.name} ({rate:.1f} punti/turno)", items,
-                             notes=notes, current=city.production)
+            notes = [tr("Scegliendo a mano, questa città non seguirà più la direttiva.")]
+        picked = self.choose(tr("Produzione di {city} ({rate:.1f} punti/turno)", city=city.name, rate=rate),
+                             items, notes=notes, current=city.production)
         if picked is None:
             return
         ch = picked[1]
         if ch == "X" and directive and city.manual:
             self.do({"op": "release", "city": city.id})
-            self.status = f"{city.name} torna a seguire la direttiva."
+            self.status = tr("{city} torna a seguire la direttiva.", city=city.name)
             return
         if ch in keys and self.do({"op": "produce", "city": city.id, "key": ch}) == "ok":
-            self.status = f"{city.name} ora produce {PRODUCTION_NAMES[ch]}."
+            self.status = tr("{city} ora produce {production}.", city=city.name, production=PRODUCTION_NAMES[ch])
 
     DIRECTIVE_KEYS = {"0": "", "1": "auto", "2": "land", "3": "air", "4": "sea",
                       "5": "amphibious", "6": "defense", "7": "nuclear"}
@@ -1011,47 +1042,47 @@ class UI:
     def directive_menu(self) -> None:
         """One order for every city: what the whole war economy builds."""
         fac = self.g.factions[self.viewer]
-        items = [(key, DIRECTIVES[name], name) for key, name in self.DIRECTIVE_KEYS.items()]
+        items = [(key, word(DIRECTIVES[name]), name) for key, name in self.DIRECTIVE_KEYS.items()]
         manual = sum(1 for c in self.g.cities_of(self.viewer) if c.manual)
-        notes = ["Le città che hai impostato a mano restano come sono."]
+        notes = [tr("Le città che hai impostato a mano restano come sono.")]
         if manual:
-            notes.append(f"Città scelte a mano: {manual}. Premi T per includere anche quelle.")
-        picked = self.choose("Direttiva di produzione", items,
-                             header=["Una direttiva cambia subito la produzione di tutte le città"],
+            notes.append(tr("Città scelte a mano: {n}. Premi T per includere anche quelle.", n=manual))
+        picked = self.choose(tr("Direttiva di produzione"), items,
+                             header=[tr("Una direttiva cambia subito la produzione di tutte le città")],
                              notes=notes, current=fac.directive, extra_keys="Tt" if manual else "")
         if picked is None:
             return
         include_all = picked[0] == "key"
         if include_all:
-            picked = self.choose("Direttiva per TUTTE le città, anche quelle scelte a mano",
+            picked = self.choose(tr("Direttiva per TUTTE le città, anche quelle scelte a mano"),
                                  items, current=fac.directive)
             if picked is None:
                 return
         name = picked[1]
         changed = self.do({"op": "directive", "name": name, "all": include_all})
-        label = DIRECTIVES[name].split(" (")[0]
-        self.status = f"Direttiva: {label}. Città riconvertite: {changed}." if name else \
-            "Produzione manuale: ogni città continua con quello che sta costruendo."
+        label = word(DIRECTIVES[name]).split(" (")[0]
+        self.status = tr("Direttiva: {directive}. Città riconvertite: {n}.", directive=label, n=changed) if name else \
+            tr("Produzione manuale: ogni città continua con quello che sta costruendo.")
 
     def cards_menu(self) -> None:
         """The hand: read your cards and play one."""
         g = self.g
         hand = g.factions[self.viewer].cards
         if not hand:
-            self.dialog("Carte", ["Non hai carte.", "",
-                                  "Ne peschi una a fine turno se nel turno hai conquistato una città,",
-                                  f"e una ogni {cards.BRIEFING_EVERY} turni dai servizi segreti "
-                                  f"(massimo {cards.HAND_LIMIT} in mano)."])
+            self.dialog(tr("Carte"), [tr("Non hai carte."), "",
+                                      tr("Ne peschi una a fine turno se nel turno hai conquistato una città,"),
+                                      tr("e una ogni {every} turni dai servizi segreti (massimo {limit} in mano).",
+                                         every=cards.BRIEFING_EVERY, limit=cards.HAND_LIMIT)])
             return
         letters = "abcde"
         items = []
         for k, key in enumerate(hand):
             c = cards.CARDS[key]
-            odds = f" · riesce nel {int(c.chance * 100)}% dei casi" if c.chance < 1 else ""
-            items.append((letters[k], [f"♠ {c.name}{odds}", c.text], k))
+            odds = " · " + tr("riesce nel {pct}% dei casi", pct=int(c.chance * 100)) if c.chance < 1 else ""
+            items.append((letters[k], [f"♠ {word(c.name)}{odds}", word(c.text)], k))
         playing = self.my_turn()
-        picked = self.choose(f"Le tue carte ({len(hand)}/{cards.HAND_LIMIT})", items,
-                             notes=[] if playing else ["Le carte si giocano nel tuo turno."])
+        picked = self.choose(tr("Le tue carte ({n}/{limit})", n=len(hand), limit=cards.HAND_LIMIT), items,
+                             notes=[] if playing else [tr("Le carte si giocano nel tuo turno.")])
         if picked is None or not playing:
             return
         card = cards.CARDS[hand[picked[1]]]
@@ -1059,32 +1090,35 @@ class UI:
             self.play_card(card.key)
         elif card.target == "faction":
             rivals = [f for f in g.factions if f.alive and f.idx != self.viewer]
-            picked = self.choose(f"♠ {card.name}: su quale fazione?",
-                                 [(str(k + 1), f.name, f.idx) for k, f in enumerate(rivals)])
+            picked = self.choose(tr("♠ {card}: su quale fazione?", card=card.name),
+                                 [(str(k + 1), word(f.name), f.idx) for k, f in enumerate(rivals)])
             if picked is not None:
                 self.play_card(card.key, target=picked[1])
         else:
             self.pending_card = card.key
             self.mode = "card"
-            hint = {"own_city": "una tua città", "enemy_unit": "un'unità nemica fuori dalle città",
-                    "enemy_city": "una città nemica", "neutral_city": "una città neutrale"}[card.target]
-            self.status = f"♠ {card.name}: porta il cursore su {hint} e premi Invio."
+            hint = {"own_city": N("♠ {card}: porta il cursore su una tua città e premi Invio."),
+                    "enemy_unit": N("♠ {card}: porta il cursore su un'unità nemica fuori dalle città e premi Invio."),
+                    "enemy_city": N("♠ {card}: porta il cursore su una città nemica e premi Invio."),
+                    "neutral_city": N("♠ {card}: porta il cursore su una città neutrale e premi Invio.")
+                    }[card.target]
+            self.status = tr(hint, card=card.name)
 
     def play_card(self, key: str, cell: int | None = None, target: int | None = None) -> None:
         result = self.do({"op": "card", "card": key, "cell": cell, "target": target})
         name = cards.CARDS[key].name
         if result == "ok":
             self.audio.sfx("spy" if key == "spy" else "card")
-            self.status = f"♠ {name}: fatto!"
+            self.status = tr("♠ {card}: fatto!", card=name)
             if key == "spy":
-                report = [e.text.lstrip("◈ ") for e in self.g.events if e.text.startswith("◈")][-6:]
-                self.dialog("◈ RAPPORTO DEI SERVIZI SEGRETI", report)
+                report = [e.shown().lstrip("◈ ") for e in self.g.events if intel_line(e)][-6:]
+                self.dialog(tr("◈ RAPPORTO DEI SERVIZI SEGRETI"), report)
         elif result == "failed":
             self.audio.sfx("loss")
-            self.status = f"♠ {name}: il tentativo è fallito, la carta è persa."
+            self.status = tr("♠ {card}: il tentativo è fallito, la carta è persa.", card=name)
         else:
-            self.status = f"♠ {name}: " + (describe(result) or "non si può giocare così.") + \
-                " La carta resta in mano."
+            self.status = tr("♠ {card}: {reason} La carta resta in mano.", card=name,
+                             reason=describe(result) or tr("non si può giocare così."))
         self.last_seq = max([self.last_seq] + [e.seq for e in self.g.events])
 
     def diplomacy_menu(self) -> None:
@@ -1095,24 +1129,25 @@ class UI:
         for f in others:
             left = g.truce_left(self.viewer, f.idx)
             if left:
-                state = f"tregua ({left} turni)"
+                state = tr("tregua ({turns} turni)", turns=left)
             elif f.idx in offers:
-                state = "TI PROPONE UNA TREGUA"
+                state = tr("TI PROPONE UNA TREGUA")
             elif [self.viewer, f.idx] in g.proposals:
-                state = "proposta inviata"
+                state = tr("proposta inviata")
             else:
-                state = "in guerra"
-            lines.append(f"{f.name:24s} {state}")
-        picked = self.choose("Diplomazia", [(str(k), line, f) for k, (line, f)
-                                            in enumerate(zip(lines, others), 1)],
-                             notes=["Scegli una fazione per proporle una tregua o rispondere.",
-                                    "Durante la tregua le due fazioni non possono attaccarsi."])
+                state = tr("in guerra")
+            lines.append(f"{word(f.name):24s} {state}")
+        picked = self.choose(tr("Diplomazia"), [(str(k), line, f) for k, (line, f)
+                                                in enumerate(zip(lines, others), 1)],
+                             notes=[tr("Scegli una fazione per proporle una tregua o rispondere."),
+                                    tr("Durante la tregua le due fazioni non possono attaccarsi.")])
         if picked is None:
             return
         f = picked[1]
         if f.idx in offers:
-            accept = self.confirm("Tregua", [f"{f.name} propone una tregua di 15 turni.", "Accetti?"],
-                                  "Accetto la tregua", "Rifiuto")
+            accept = self.confirm(tr("Tregua"), [tr("{faction} propone una tregua di 15 turni.", faction=f.name),
+                                                 tr("Accetti?")],
+                                  tr("Accetto la tregua"), tr("Rifiuto"))
             result = self.do({"op": "truce_answer", "target": f.idx, "accept": accept})
         elif not g.truce_left(self.viewer, f.idx):
             result = self.do({"op": "truce", "target": f.idx})
@@ -1123,22 +1158,35 @@ class UI:
     def music_menu(self) -> None:
         """Choose the background music and mute or unmute the effects."""
         a = self.audio
-        items = [(key, music_name(choice), choice) for key, choice in music_keys().items()]
-        items.append(("e", f"effetti sonori: {'attivi (premi per spegnerli)' if a.effects else 'muti (premi per accenderli)'}",
-                      "effects"))
-        picked = self.choose("Audio: musica ed effetti", items, current=a.music_choice)
+        items = [(key, word(music_name(choice)), choice) for key, choice in music_keys().items()]
+        items.append(("e", tr("effetti sonori: attivi (premi per spegnerli)") if a.effects
+                      else tr("effetti sonori: muti (premi per accenderli)"), "effects"))
+        picked = self.choose(tr("Audio: musica ed effetti"), items, current=a.music_choice)
         if picked is None:
             return
         if picked[1] == "effects":
             on = a.toggle_effects()
-            self.status = f"Effetti sonori: {'attivi' if on else 'muti'}."
+            self.status = tr("Effetti sonori: attivi.") if on else tr("Effetti sonori: muti.")
             return
         a.select_music(picked[1])
-        note = "" if a.available else " (nessun lettore audio trovato: solo il beep)"
-        self.status = f"Musica: {music_name(picked[1])}{note}."
+        if a.available:
+            self.status = tr("Musica: {music}.", music=music_name(picked[1]))
+        else:
+            self.status = tr("Musica: {music} (nessun lettore audio trovato: solo il beep).",
+                             music=music_name(picked[1]))
+
+    def language_menu(self) -> None:
+        """Choose the language of the interface; it changes at once."""
+        picked = self.choose("Lingua / Language", [(str(k), name, code) for k, (code, name)
+                                                   in enumerate(i18n.LANGS.items(), 1)],
+                             current=i18n.language())
+        if picked is None:
+            return
+        i18n.save_language(i18n.set_language(picked[1]))
+        self.status = tr("Lingua: {language}.", language=i18n.LANGS[i18n.language()])
 
     def chat(self) -> None:
-        text = self.ask("Messaggio", ["Scrivi un messaggio per tutti i giocatori."], "> ", 120)
+        text = self.ask(tr("Messaggio"), [tr("Scrivi un messaggio per tutti i giocatori.")], "> ", 120)
         if text:
             self.do({"op": "chat", "text": text})
 
@@ -1147,12 +1195,12 @@ class UI:
         """Send one command through the session (local game or server)."""
         result = self.session.do(self.viewer, cmd, progress=self._progress)
         if result == "disconnected":
-            self.status = "Connessione con il server perduta."
+            self.status = tr("Connessione con il server perduta.")
         self.sync()
         return result
 
     def _progress(self, who: str) -> None:
-        self.status = f"⌛ {who} sta muovendo..."
+        self.status = tr("⌛ {faction} sta muovendo...", faction=who)
         self.draw()
 
     def sync(self) -> None:
@@ -1174,7 +1222,7 @@ class UI:
         else:
             self.active = None
             if self.session.started:
-                self.status = f"⌛ Tocca a {g.faction.name}: aspetta il tuo turno."
+                self.status = tr("⌛ Tocca a {faction}: aspetta il tuo turno.", faction=g.faction.name)
 
     def needing_orders(self) -> list[Unit]:
         g = self.g
@@ -1199,7 +1247,7 @@ class UI:
             self.select(pending[0])
         else:
             self.active = None
-            self.status = "Tutte le unità hanno ricevuto ordini. Premi E per finire il turno."
+            self.status = tr("Tutte le unità hanno ricevuto ordini. Premi E per finire il turno.")
 
     def select(self, u: Unit) -> None:
         self.active = u
@@ -1217,7 +1265,7 @@ class UI:
     def move_active(self, dx: int, dy: int) -> None:
         a = self.active
         if a is None:
-            self.status = "Nessuna unità selezionata (n per la prossima)."
+            self.status = tr("Nessuna unità selezionata (n per la prossima).")
             return
         target = self.w.step_dir(a.cell, dx, dy)
         if target is None:
@@ -1258,12 +1306,12 @@ class UI:
         if not self.session.online and sum(1 for f in g.factions if f.human and f.alive) > 1:
             self.scr.erase()
             self.scr.refresh()
-            self.dialog("Passaggio di consegne", [f"Tocca a: {g.faction.name}",
-                                                  "Gli altri giocatori distolgano lo sguardo."])
+            self.dialog(tr("Passaggio di consegne"), [tr("Tocca a: {faction}", faction=g.faction.name),
+                                                      tr("Gli altri giocatori distolgano lo sguardo.")])
         reel = self.session.take_reel(self.viewer) if hasattr(self.session, "take_reel") else []
         if reel:
             self.last_reel = reel
-            title = f"BOLLETTINO DI GUERRA · {self.date_text()} · turno {g.turn}"
+            title = tr("BOLLETTINO DI GUERRA · {date} · turno {turn}", date=self.date_text(), turn=g.turn)
             self.bulletins.append((title, self.bulletin_text(reel), reel))
             del self.bulletins[:-30]
             self.play_bulletin(reel)
@@ -1273,7 +1321,7 @@ class UI:
         if self.active is None:
             self.cursor = self._home_cell()
             self.center()
-        self.status = f"Turno {g.turn}: ai tuoi ordini."
+        self.status = tr("Turno {turn}: ai tuoi ordini.", turn=g.turn)
         self.warned = False
         if hasattr(self.session, "start_clock"):
             self.session.start_clock()
@@ -1289,11 +1337,11 @@ class UI:
         shown.add(self.viewer)
         self.audio.sfx("card")
         self.draw()
-        self.dialog("◎ IL TUO OBIETTIVO SEGRETO", [
+        self.dialog(tr("◎ IL TUO OBIETTIVO SEGRETO"), [
             missions.text(g, self.viewer), "",
-            "Se lo completi vinci subito. Gli altri non lo conoscono, e tu non",
-            "conosci il loro (solo una carta Spionaggio lo rivela).",
-            "Il pannello mostra a che punto sei; o lo rilegge in ogni momento."])
+            *textwrap.wrap(tr("Se lo completi vinci subito. Gli altri non lo conoscono, e tu non "
+                              "conosci il loro (solo una carta Spionaggio lo rivela)."), 66),
+            tr("Il pannello mostra a che punto sei; o lo rilegge in ogni momento.")])
 
     def announce_world_events(self) -> None:
         """World events since this player's last turn, one dialog each."""
@@ -1303,7 +1351,7 @@ class UI:
         if g.events:
             self.world_seen = max(seen, max(e.seq for e in g.events))
         for e in fresh:
-            name, _, rest = e.text.partition(": ")
+            name, _, rest = e.shown().partition(": ")
             self.audio.sfx("alert")
             self.draw()
             self.dialog("✦ " + name, textwrap.wrap(rest, 64))
@@ -1316,22 +1364,23 @@ class UI:
         me = self.viewer
         lines = []
         if g.factions[me].mission.get("kind") in ("regions", "eliminate", "cities", "capitals"):
-            lines += ["◎ OBIETTIVO SEGRETO", "  " + missions.text(g, me),
-                      "  A che punto sei: " + missions.progress(g, me),
-                      "  Chi completa il suo obiettivo vince subito.", ""]
-        lines += ["⚑ REGIONI: chi ne tiene tutte le città ha un bonus di produzione in tutto l'impero", ""]
+            lines += [tr("◎ OBIETTIVO SEGRETO"), "  " + missions.text(g, me),
+                      "  " + tr("A che punto sei: {progress}", progress=missions.progress(g, me)),
+                      "  " + tr("Chi completa il suo obiettivo vince subito."), ""]
+        lines += [tr("⚑ REGIONI: chi ne tiene tutte le città ha un bonus di produzione in tutto l'impero"), ""]
         mine = {k: (n, t) for k, n, t in regions.progress(g, me)}
         for key, region in regions.REGIONS.items():
             n, t = mine.get(key, (0, len(regions.cities_in(g, key))))
             owner = g.region_holders.get(key)
-            who = f"  ← {g.factions[owner].name}" if owner is not None else ""
-            lines.append(f"  {region.name:34s} {n:3d}/{t:<3d} +{int(regions.bonus_of(g, key) * 100):2d}%{who}")
-        lines += ["", "✦ EVENTI MONDIALI (uno ogni 5-8 turni)"]
+            who = f"  ← {word(g.factions[owner].name)}" if owner is not None else ""
+            lines.append(f"  {word(region.name):34s} {n:3d}/{t:<3d} +{int(regions.bonus_of(g, key) * 100):2d}%{who}")
+        lines += ["", tr("✦ EVENTI MONDIALI (uno ogni 5-8 turni)")]
         active = events.describe_active(g)
-        lines += [f"  In corso: {', '.join(active)}"] if active else ["  Nessun effetto in corso."]
+        lines += ["  " + tr("In corso: {effects}", effects=", ".join(active))] if active \
+            else ["  " + tr("Nessun effetto in corso.")]
         for e in [e for e in g.events if e.level == "world"][-5:]:
-            lines += textwrap.wrap(f"[{e.turn}] {e.text}", 76, initial_indent="  ", subsequent_indent="    ")
-        self.pager("Obiettivo, regioni ed eventi mondiali", lines, "↑↓ scorri · un tasto chiude")
+            lines += textwrap.wrap(f"[{e.turn}] {e.shown()}", 76, initial_indent="  ", subsequent_indent="    ")
+        self.pager(tr("Obiettivo, regioni ed eventi mondiali"), lines, tr("↑↓ scorri · un tasto chiude"))
 
     def end_human_turn(self) -> None:
         self.active = None
@@ -1382,7 +1431,7 @@ class UI:
                     last_unit = act.get("unit")
                     if new_unit:
                         self.audio.sfx(f"move_{act['glyph']}")
-                    self.status = f"▶ Bollettino: {self._who(act)} in movimento"
+                    self.status = tr("▶ Bollettino: {who} in movimento", who=self._who(act))
                     self._focus(cell)
                     self.draw()
                     time.sleep(self.REEL_PACE["walk" if not new_unit else "march"])
@@ -1400,16 +1449,17 @@ class UI:
                 if op == "capture":
                     lost = act.get("old") == self.viewer
                     self.fx = {cell: ("⚑", self.owner_color(act.get("new")), curses.A_REVERSE)}
-                    self.status = (f"▶ {self._faction(act.get('new'))} conquista {act.get('name', '')}"
-                                   + (" — LA PERDIAMO!" if lost else ""))
+                    who, city = self._faction(act.get("new")), act.get("name", "")
+                    self.status = tr("▶ {faction} conquista {city} — LA PERDIAMO!", faction=who, city=city) \
+                        if lost else tr("▶ {faction} conquista {city}", faction=who, city=city)
                     if lost:
                         self.audio.sfx("loss", force=True)
                 elif op == "fall":
-                    self.status = f"▶ {self._faction(act.get('old'))} è caduta!"
+                    self.status = tr("▶ {faction} è caduta!", faction=self._faction(act.get("old")))
                     self.audio.sfx("fall", force=True)
                 elif op == "nuke":
                     self.fx = {c: ("☢", "fallout", curses.A_REVERSE) for c in self.w.ring(cell, 1)}
-                    self.status = f"▶ ☢ Attacco nucleare su {act.get('name', '')}"
+                    self.status = tr("▶ ☢ Attacco nucleare su {place}", place=act.get("name", ""))
                     self.audio.sfx("nuke", force=True)
                 elif op == "card":
                     self.fx = {cell: ("♠", "magenta", curses.A_REVERSE)}
@@ -1417,7 +1467,7 @@ class UI:
                     self.audio.sfx("card", force=act.get("victim") == self.viewer)
                 elif op == "chem":
                     self.fx = {c: ("☣", "green", 0) for c in self.w.ring(cell, 1)}
-                    self.status = f"▶ ☣ Armi chimiche su {act.get('name', '')}"
+                    self.status = tr("▶ ☣ Armi chimiche su {place}", place=act.get("name", ""))
                     self.audio.sfx("gas", force=True)
                 self.draw()
                 time.sleep(self.REEL_PACE.get(op, 0.2))
@@ -1442,8 +1492,8 @@ class UI:
 
     def _who(self, act: dict) -> str:
         kind = act.get("glyph", "")
-        name = UNIT_TYPES[kind].name if kind in UNIT_TYPES else "unità"
-        return f"{name} ({self._faction(act.get('owner'))})"
+        name = UNIT_TYPES[kind].name if kind in UNIT_TYPES else N("unità")
+        return f"{word(name)} ({word(self._faction(act.get('owner')))})"
 
     def _centre(self, cell: int) -> None:
         mw, mh = self.view_size()
@@ -1459,9 +1509,10 @@ class UI:
         kind = act.get("glyph", "")
         colour = self.owner_color(act.get("attacker"))
         tgt = act.get("target") or ""
-        tname = UNIT_TYPES[tgt].name.lower() if tgt in UNIT_TYPES else "la città"
-        head = "⚔ ATTACCO CONTRO DI NOI" if on_us else "⚔ Scontro"
-        self.status = f"{head}: {self._who(act)} attacca {tname} ({self._faction(act.get('defender'))})"
+        tname = word(UNIT_TYPES[tgt].name).lower() if tgt in UNIT_TYPES else tr("la città")
+        head = N("⚔ ATTACCO CONTRO DI NOI: {who} attacca {target} ({defender})") if on_us else \
+            N("⚔ Scontro: {who} attacca {target} ({defender})")
+        self.status = tr(head, who=self._who(act), target=tname, defender=self._faction(act.get("defender")))
         self._centre(target)
         self.reveal = {target, frm}
         slow = 1.0 if on_us else 0.6
@@ -1488,13 +1539,14 @@ class UI:
         if result == "lost":
             self.phantom = {}
             self.fx = {frm: ("✕", colour, curses.A_REVERSE)}
-            outcome = "l'attaccante è distrutto" + (" — la difesa tiene!" if on_us else "")
+            outcome = tr("l'attaccante è distrutto — la difesa tiene!") if on_us else \
+                tr("l'attaccante è distrutto")
         elif result == "captured":
             self.fx = {target: ("⚑", colour, curses.A_REVERSE)}
-            outcome = "la città cade"
+            outcome = tr("la città cade")
         else:
             self.fx = {target: ("✕", "alert", curses.A_REVERSE)}
-            outcome = "il bersaglio è distrutto" if tgt else "le difese della città crollano"
+            outcome = tr("il bersaglio è distrutto") if tgt else tr("le difese della città crollano")
             if on_us:
                 self.audio.sfx("loss")
         self.status += f" → {outcome}"
@@ -1503,17 +1555,19 @@ class UI:
         return self._skip_key()
 
     # ------------------------------------------------- written bulletin
-    def _place(self, cell: int) -> str:
-        """'a Vilnius', 'presso Vilnius' or coordinates, for the chronicle."""
+    def _place(self, cell: int, bare: bool = False) -> str:
+        """'a Vilnius', 'presso Vilnius' or coordinates, for the chronicle
+        (``bare``: only the name of the place)."""
         g = self.g
         city = g.city(cell)
         if city is not None:
-            return f"a {city.name}"
+            return city.name if bare else tr("a {place}", place=city.name)
         near = min(g.cities, key=lambda c: self.w.dist(c.cell, cell))
         if self.w.dist(near.cell, cell) <= 4:
-            return f"presso {near.name}"
+            return near.name if bare else tr("presso {place}", place=near.name)
         lon, lat = self.w.lonlat(cell)
-        return f"a {abs(lat):.0f}°{'N' if lat >= 0 else 'S'} {abs(lon):.0f}°{'E' if lon >= 0 else 'W'}"
+        where = f"{abs(lat):.0f}°{'N' if lat >= 0 else 'S'} {abs(lon):.0f}°{'E' if lon >= 0 else 'W'}"
+        return where if bare else tr("a {place}", place=where)
 
     def scene_line(self, act: dict) -> str:
         """One line of chronicle for a bulletin scene (moves have none)."""
@@ -1521,35 +1575,44 @@ class UI:
         op = act["op"]
         if op == "attack":
             kind = act.get("glyph", "")
-            who = UNIT_TYPES[kind].name if kind in UNIT_TYPES else "Unità"
+            who = UNIT_TYPES[kind].name if kind in UNIT_TYPES else N("Unità")
             tgt = act.get("target") or ""
             result = act.get("result")
             city = self.g.city(act["cell"])
             if tgt in UNIT_TYPES:
-                where = f"su {UNIT_TYPES[tgt].name} {self._place(act['cell'])}"
+                where = tr("su {unit} {place}", unit=UNIT_TYPES[tgt].name, place=self._place(act["cell"]))
             else:
-                where = f"sulla città di {city.name}" if city else f"{self._place(act['cell'])}"
+                where = tr("sulla città di {city}", city=city.name) if city else self._place(act["cell"])
             if act.get("defender") == me:
-                outcome = {"lost": "RESPINTO", "captured": "LA CITTÀ CADE"}.get(
-                    result, "PERDIAMO l'unità" if tgt in UNIT_TYPES else "difese a terra")
-                return (f"⚔ CONTRO DI NOI · {who} ({self._faction(act.get('attacker'))}) "
-                        f"{where} → {outcome}")
-            outcome = {"lost": "fallisce", "captured": "la città cade"}.get(result, "bersaglio distrutto")
-            return (f"⚔ {who} ({self._faction(act.get('attacker'))}) {where} "
-                    f"({self._faction(act.get('defender'))}) → {outcome}")
+                outcome = {"lost": N("RESPINTO"), "captured": N("LA CITTÀ CADE")}.get(
+                    result, N("PERDIAMO l'unità") if tgt in UNIT_TYPES else N("difese a terra"))
+                return tr("⚔ CONTRO DI NOI · {unit} ({attacker}) {where} → {outcome}", unit=who,
+                          attacker=self._faction(act.get("attacker")), where=where, outcome=outcome)
+            outcome = {"lost": N("fallisce"), "captured": N("la città cade")}.get(result, N("bersaglio distrutto"))
+            return tr("⚔ {unit} ({attacker}) {where} ({defender}) → {outcome}", unit=who,
+                      attacker=self._faction(act.get("attacker")), where=where,
+                      defender=self._faction(act.get("defender")), outcome=outcome)
         if op == "capture":
-            lost = " — PERSA" if act.get("old") == me else ""
-            return (f"⚑ {act.get('name', '?')} conquistata da {self._faction(act.get('new'))} "
-                    f"(prima: {self._faction(act.get('old'))}){lost}")
+            params = dict(city=act.get("name", "?"), new=self._faction(act.get("new")),
+                          old=self._faction(act.get("old")))
+            if act.get("old") == me:
+                return tr("⚑ {city} conquistata da {new} (prima: {old}) — PERSA", **params)
+            return tr("⚑ {city} conquistata da {new} (prima: {old})", **params)
         if op == "fall":
-            return f"✖ {self._faction(act.get('old'))} ha perso l'ultima città: è fuori dalla guerra"
+            return tr("✖ {faction} ha perso l'ultima città: è fuori dalla guerra",
+                      faction=self._faction(act.get("old")))
         if op == "nuke":
-            return f"☢ {self._faction(act.get('actor'))} colpisce {act.get('name', '?')} con un'arma nucleare"
+            return tr("☢ {faction} colpisce {place} con un'arma nucleare",
+                      faction=self._faction(act.get("actor")), place=act.get("name", "?"))
         if op == "chem":
-            return f"☣ {self._faction(act.get('actor'))} usa armi chimiche su {act.get('name', '?')}"
+            return tr("☣ {faction} usa armi chimiche su {place}",
+                      faction=self._faction(act.get("actor")), place=act.get("name", "?"))
         if op == "card":
-            us = " — CONTRO DI NOI" if act.get("victim") == me else ""
-            return f"♠ {self._faction(act.get('actor'))} gioca «{act.get('name', '?')}»: {act.get('text', '')}{us}"
+            params = dict(faction=self._faction(act.get("actor")), card=act.get("name", "?"),
+                          text=act.get("text", ""))
+            if act.get("victim") == me:
+                return tr("♠ {faction} gioca «{card}»: {text} — CONTRO DI NOI", **params)
+            return tr("♠ {faction} gioca «{card}»: {text}", **params)
         return ""
 
     def bulletin_text(self, reel: list[dict]) -> list[str]:
@@ -1568,41 +1631,43 @@ class UI:
                 moves[a["unit"]] = a          # last seen position of each unit
         out: list[str] = []
         if wmd:
-            out += ["ARMI DI DISTRUZIONE DI MASSA"] + [self.scene_line(a) for a in wmd] + [""]
+            out += [tr("ARMI DI DISTRUZIONE DI MASSA")] + [self.scene_line(a) for a in wmd] + [""]
         if played:
-            out += ["CARTE E COLPI DI MANO"] + [self.scene_line(a) for a in played] + [""]
+            out += [tr("CARTE E COLPI DI MANO")] + [self.scene_line(a) for a in played] + [""]
         if on_us:
             held = sum(1 for a in on_us if a.get("result") == "lost")
-            out.append(f"IL NOSTRO FRONTE · {len(on_us)} attacchi subiti, {held} respinti")
+            out.append(tr("IL NOSTRO FRONTE · {attacks} attacchi subiti, {held} respinti",
+                          attacks=len(on_us), held=held))
             out += [self.scene_line(a) for a in on_us] + [""]
         if cities:
             lost = sum(1 for a in cities if a["op"] == "capture" and a.get("old") == me)
-            out.append("CITTÀ CHE HANNO CAMBIATO BANDIERA" + (f" · ne perdiamo {lost}" if lost else ""))
+            out.append(tr("CITTÀ CHE HANNO CAMBIATO BANDIERA · ne perdiamo {n}", n=lost) if lost
+                       else tr("CITTÀ CHE HANNO CAMBIATO BANDIERA"))
             out += [self.scene_line(a) for a in cities] + [""]
         if others:
-            out.append(f"ALTRI SCONTRI AVVISTATI · {len(others)}")
+            out.append(tr("ALTRI SCONTRI AVVISTATI · {n}", n=len(others)))
             out += [self.scene_line(a) for a in others] + [""]
         if moves:
             by_kind = Counter(UNIT_TYPES[a["glyph"]].name for a in moves.values() if a["glyph"] in UNIT_TYPES)
             by_side = Counter(self._faction(a["owner"]) for a in moves.values())
-            out.append(f"MOVIMENTI OSSERVATI · {len(moves)} unità")
-            out.append("  " + ", ".join(f"{n} {k.lower()}" for k, n in by_kind.most_common()))
-            out.append("  " + ", ".join(f"{side}: {n}" for side, n in by_side.most_common()))
-            near = Counter(self._place(a["cell"]) for a in moves.values()).most_common(3)
-            out.append("  Zone più attive: " + ", ".join(f"{p.split(' ', 1)[1]} ({n})" for p, n in near))
-        return out or ["Nessuna novità di rilievo sul fronte."]
+            out.append(tr("MOVIMENTI OSSERVATI · {n} unità", n=len(moves)))
+            out.append("  " + ", ".join(f"{n} {word(k).lower()}" for k, n in by_kind.most_common()))
+            out.append("  " + ", ".join(f"{word(side)}: {n}" for side, n in by_side.most_common()))
+            near = Counter(self._place(a["cell"], bare=True) for a in moves.values()).most_common(3)
+            out.append("  " + tr("Zone più attive: {places}", places=", ".join(f"{p} ({n})" for p, n in near)))
+        return out or [tr("Nessuna novità di rilievo sul fronte.")]
 
     def read_bulletins(self, index: int | None) -> None:
         """Read the written bulletins: ←/→ older and newer turns, ↑/↓ scroll,
         R replays the animation, any other key closes."""
         if index is None or not self.bulletins:
-            self.status = "Nessun bollettino ancora: arriverà a fine turno."
+            self.status = tr("Nessun bollettino ancora: arriverà a fine turno.")
             return
         while True:
             title, lines, reel = self.bulletins[index]
             nav = f"{index + 1}/{len(self.bulletins)}"
             key = self.pager(f"{title} ({nav})", lines,
-                             "↑↓ scorri · ←→ turni precedenti/successivi · R rivedi l'animazione · Esc chiudi")
+                             tr("↑↓ scorri · ←→ turni precedenti/successivi · R rivedi l'animazione · Esc chiudi"))
             if key == curses.KEY_LEFT and index > 0:
                 index -= 1
             elif key == curses.KEY_RIGHT and index < len(self.bulletins) - 1:
@@ -1629,7 +1694,7 @@ class UI:
             try:
                 win.addstr(0, 2, f" {title} "[: width - 4], curses.A_BOLD)
                 for k, line in enumerate(lines[top: top + body]):
-                    attr = curses.A_BOLD if line.isupper() or "NOI" in line or "PERSA" in line else 0
+                    attr = curses.A_BOLD if line.isupper() or loud(line) else 0
                     win.addstr(2 + k, 2, line[: width - 4], attr)
                 more = "▼" if top + body < len(lines) else " "
                 win.addstr(height - 1, 2, f" {footer} {more} "[: width - 4], curses.A_DIM)
@@ -1657,41 +1722,41 @@ class UI:
         self.draw()
         winner, reason = g.over
         if reason == "armageddon":
-            lines = ["Gli arsenali si sono svuotati in pochi minuti.",
-                     "Le città del mondo sono in fiamme; l'inverno nucleare scende.",
-                     "", "NESSUNO HA VINTO.", "",
-                     "« Strano gioco. L'unica mossa vincente è non giocare. »"]
-            title = "MEZZANOTTE"
+            lines = [tr("Gli arsenali si sono svuotati in pochi minuti."),
+                     tr("Le città del mondo sono in fiamme; l'inverno nucleare scende."),
+                     "", tr("NESSUNO HA VINTO."), "",
+                     tr("« Strano gioco. L'unica mossa vincente è non giocare. »")]
+            title = tr("MEZZANOTTE")
         else:
             fac = g.factions[winner]
             if self.session.online:
                 human_won = winner == self.viewer
             else:
                 human_won = fac.human
-            why = {"conquest": "ha sconfitto tutti i rivali",
-                   "domination": "domina il mondo",
-                   "turns": "vince ai punti allo scadere",
-                   "mission": "ha completato il suo obiettivo segreto"}[reason]
-            lines = [f"{fac.name} {why}.", "",
-                     "VITTORIA!" if human_won else "SCONFITTA.", ""]
+            why = {"conquest": N("{faction} ha sconfitto tutti i rivali."),
+                   "domination": N("{faction} domina il mondo."),
+                   "turns": N("{faction} vince ai punti allo scadere."),
+                   "mission": N("{faction} ha completato il suo obiettivo segreto.")}[reason]
+            lines = [tr(why, faction=fac.name), "",
+                     tr("VITTORIA!") if human_won else tr("SCONFITTA."), ""]
             if any(f.mission.get("kind") in ("regions", "eliminate", "cities", "capitals") for f in g.factions):
-                lines += ["Gli obiettivi segreti erano:"]
-                lines += [f"  {f.name}: {missions.text(g, f.idx)}" for f in g.factions if f.mission]
+                lines += [tr("Gli obiettivi segreti erano:")]
+                lines += [f"  {word(f.name)}: {missions.text(g, f.idx)}" for f in g.factions if f.mission]
                 lines.append("")
             if g.scenario.key == "tutorial" and human_won:
-                lines = ["Tirana è caduta: la Repubblica Ribelle è sconfitta.", "",
-                         "TUTORIAL COMPLETATO! Sei pronto per la guerra vera:",
-                         "prova la Guerra Fredda 1985 o la Terza Guerra Mondiale.", ""]
+                lines = [tr("Tirana è caduta: la Repubblica Ribelle è sconfitta."), "",
+                         tr("TUTORIAL COMPLETATO! Sei pronto per la guerra vera:"),
+                         tr("prova la Guerra Fredda 1985 o la Terza Guerra Mondiale."), ""]
             for f in sorted(g.factions, key=g.score, reverse=True):
-                lines.append(f"{f.name:24s} punti {g.score(f):5d}  città {len(g.cities_of(f.idx)):3d}  "
-                             f"armi DM usate {f.used_wmd}")
-            title = "FINE DELLA GUERRA"
-        self.dialog(title, lines, "premi un tasto per uscire")
+                lines.append(tr("{faction:24s} punti {score:5d}  città {cities:3d}  armi DM usate {wmd}",
+                                faction=f.name, score=g.score(f), cities=len(g.cities_of(f.idx)), wmd=f.used_wmd))
+            title = tr("FINE DELLA GUERRA")
+        self.dialog(title, lines, tr("premi un tasto per uscire"))
         self.quit = True
 
     # ----------------------------------------------------------- input
     VIEW_KEYS = {ord("m"), ord("M"), ord("r"), ord("?"), ord("Q"), ord("T"), ord("n"), ord("B"),
-                 ord("K"), ord("h"), 9, ord("+"), ord("="), ord("-"), ord("o")}
+                 ord("K"), ord("h"), 9, ord("+"), ord("="), ord("-"), ord("o"), ord("L")}
 
     def handle(self, key: int) -> None:
         g = self.g
@@ -1734,9 +1799,9 @@ class UI:
             return
         if not self.my_turn() and key not in self.VIEW_KEYS and key != -1:
             if not self.session.started:
-                self.status = "In attesa che arrivino tutti i giocatori..."
+                self.status = tr("In attesa che arrivino tutti i giocatori...")
             elif not g.over:
-                self.status = f"Attendi il tuo turno: ora tocca a {g.faction.name}."
+                self.status = tr("Attendi il tuo turno: ora tocca a {faction}.", faction=g.faction.name)
             return
         if key in DIRECTIONS:
             self.move_active(*DIRECTIONS[key])
@@ -1754,32 +1819,34 @@ class UI:
             if self.active.type.domain == "land":
                 self.order("fortify")
             else:
-                self.status = "Solo le unità di terra possono fortificarsi."
+                self.status = tr("Solo le unità di terra possono fortificarsi.")
         elif key == ord("A") and self.active:
             self.order("auto")
-            self.status = "Unità affidata all'IA (Invio sull'unità per riprenderla)."
+            self.status = tr("Unità affidata all'IA (Invio sull'unità per riprenderla).")
         elif key == ord("P"):
             self.directive_menu()
         elif key == ord("g") and self.active:
             self.mode = "goto"
         elif key == ord("v"):
             woke = self.do({"op": "wake", "cell": self.cursor})
-            self.status = f"{woke} unità sveglie."
+            self.status = tr("{n} unità sveglie.", n=woke)
             self.skipped.clear()
         elif key == ord("l") and self.active:
             n = self.do({"op": "load", "unit": self.active.id})
-            self.status = f"Caricate {n} unità." if n not in ("0", "illegal") else "Niente da caricare (serve una nave in città)."
+            self.status = tr("Caricate {n} unità.", n=n) if n not in ("0", "illegal") else \
+                tr("Niente da caricare (serve una nave in città).")
         elif key == ord("u") and self.active:
             n = self.do({"op": "unload", "unit": self.active.id})
-            self.status = f"Scaricate {n} unità." if n not in ("0", "illegal") else "Si scarica solo in città."
+            self.status = tr("Scaricate {n} unità.", n=n) if n not in ("0", "illegal") else \
+                tr("Si scarica solo in città.")
         elif key == ord("p"):
             city = g.city(self.cursor)
             if city is not None and city.owner == self.viewer:
                 self.production_menu(city)
             else:
-                self.status = "Metti il cursore su una tua città."
+                self.status = tr("Metti il cursore su una tua città.")
         elif key == ord("D") and self.active:
-            if self.confirm("Congedo", [f"Congedare {self.active.type.name}?"]):
+            if self.confirm(tr("Congedo"), [tr("Congedare {unit}?", unit=self.active.type.name)]):
                 self.do({"op": "disband", "unit": self.active.id})
                 self.active = None
                 self.select_next()
@@ -1797,21 +1864,23 @@ class UI:
             if self.session.online:
                 self.chat()
             else:
-                self.status = "La chat serve nelle partite online."
+                self.status = tr("La chat serve nelle partite online.")
         elif key == ord("m"):
             self.mode = "overview"
         elif key == ord("M"):
             self.music_menu()
+        elif key == ord("L"):
+            self.language_menu()
         elif key == ord("r"):
             self.center()
         elif key == ord("N"):
             if g.factions[self.viewer].warheads <= 0:
-                self.status = "Nessuna testata nucleare disponibile."
+                self.status = tr("Nessuna testata nucleare disponibile.")
             else:
                 self.mode = "nuke"
         elif key == ord("C"):
             if g.factions[self.viewer].chemicals <= 0:
-                self.status = "Nessuna arma chimica disponibile."
+                self.status = tr("Nessuna arma chimica disponibile.")
             else:
                 self.mode = "chem"
         elif key == ord("E"):
@@ -1819,14 +1888,14 @@ class UI:
         elif key == ord("S"):
             self.save()
         elif key == ord("Q"):
-            note = "Il server tiene la partita: potrai rientrare." if self.session.online \
-                else "La partita verrà salvata."
-            if self.confirm("Uscire?", [note], "Esci", "Resta"):
+            note = tr("Il server tiene la partita: potrai rientrare.") if self.session.online \
+                else tr("La partita verrà salvata.")
+            if self.confirm(tr("Uscire?"), [note], tr("Esci"), tr("Resta")):
                 if not self.session.online:
                     self.save()
                 self.quit = True
         elif key == ord("?"):
-            self.dialog("Comandi", HELP.splitlines())
+            self.dialog(tr("Comandi"), tr(HELP).splitlines())
 
     def move_cursor(self, dx: int, dy: int) -> None:
         x, y = self.w.xy(self.cursor)
@@ -1882,29 +1951,29 @@ class UI:
                         self.cursor = self.active.cell
             return
         city = g.city(self.cursor)
-        place = city.name if city else "la casella selezionata"
+        place = city.name if city else tr("la casella selezionata")
         if mode == "chem":
             if not g.can_chemical(self.viewer, self.cursor):
-                self.status = f"Bersaglio fuori portata (max {CHEM_RANGE} caselle dalle tue forze)."
+                self.status = tr("Bersaglio fuori portata (max {cells} caselle dalle tue forze).", cells=CHEM_RANGE)
                 return
-            if self.confirm("☣ Armi chimiche", [f"Colpire {place} con gas nervino?",
-                                                "Orologio dell'Apocalisse: -1 minuto."],
-                            "Lancia il gas", "Annulla"):
+            if self.confirm(tr("☣ Armi chimiche"), [tr("Colpire {place} con gas nervino?", place=place),
+                                                    tr("Orologio dell'Apocalisse: -1 minuto.")],
+                            tr("Lancia il gas"), tr("Annulla")):
                 self.status = describe(self.do({"op": "chem", "cell": self.cursor}))
         else:
             if city is not None and city.owner == self.viewer:
-                self.status = "Non puoi colpire una tua città."
+                self.status = tr("Non puoi colpire una tua città.")
                 return
             code = f"{random.randint(0, 9999):04d}"
-            lines = [f"Bersaglio: {place}",
-                     f"Testate disponibili: {g.factions[self.viewer].warheads}",
-                     f"Orologio dell'Apocalisse: {g.doomsday} minuti (-2/-3 dopo il lancio)",
-                     "Il nemico potrebbe rispondere con tutto il suo arsenale.", "",
-                     f"CODICE DI AUTORIZZAZIONE: {code}"]
-            if self.ask("☢ AUTORIZZAZIONE AL LANCIO", lines, "Digita il codice (Invio):", 4) == code:
+            lines = [tr("Bersaglio: {place}", place=place),
+                     tr("Testate disponibili: {n}", n=g.factions[self.viewer].warheads),
+                     tr("Orologio dell'Apocalisse: {minutes} minuti (-2/-3 dopo il lancio)", minutes=g.doomsday),
+                     tr("Il nemico potrebbe rispondere con tutto il suo arsenale."), "",
+                     tr("CODICE DI AUTORIZZAZIONE: {code}", code=code)]
+            if self.ask(tr("☢ AUTORIZZAZIONE AL LANCIO"), lines, tr("Digita il codice (Invio):"), 4) == code:
                 self.status = describe(self.do({"op": "nuke", "cell": self.cursor}))
             else:
-                self.status = "Codice errato: lancio annullato."
+                self.status = tr("Codice errato: lancio annullato.")
         if self.active is not None:
             self.after_action()
 
@@ -2020,7 +2089,7 @@ class UI:
                 self.confirm_target()        # second click on the target: go
             else:
                 self.cursor = cell
-                self.status = "Clicca di nuovo sulla stessa casella per confermare."
+                self.status = tr("Clicca di nuovo sulla stessa casella per confermare.")
             return
         self.cursor = cell
         if not self.my_turn():
@@ -2045,18 +2114,18 @@ class UI:
             self.move_active(dx, cy - ay)
             return
         if g.path(a, cell) is None:
-            self.status = "Destinazione irraggiungibile per questa unità."
+            self.status = tr("Destinazione irraggiungibile per questa unità.")
             return
         self.mode = "goto"                   # show the route; a second click sends it
-        self.status = "Percorso mostrato: clicca di nuovo sulla casella per partire (Esc annulla)."
+        self.status = tr("Percorso mostrato: clicca di nuovo sulla casella per partire (Esc annulla).")
 
     def save(self) -> None:
         result = self.session.do(self.viewer, {"op": "save"})
         if self.session.online:
-            self.status = "Partita salvata sul server." if result == "saved" else \
-                "Il server non salva questa partita."
+            self.status = tr("Partita salvata sul server.") if result == "saved" else \
+                tr("Il server non salva questa partita.")
         else:
-            self.status = f"Partita salvata in {self.session.save_path}"
+            self.status = tr("Partita salvata in {path}", path=str(self.session.save_path))
 
     # ----------------------------------------------------------- loop
     def run(self) -> None:
@@ -2091,8 +2160,8 @@ class UI:
                 if not self.quit:
                     self.tutorial.update()
             if self.session.closed and not self.quit:
-                self.dialog("Connessione persa", [self.session.error or "Il server non risponde.",
-                                                  "Rilancia con --join per rientrare."])
+                self.dialog(tr("Connessione persa"), [self.session.error or tr("Il server non risponde."),
+                                                      tr("Rilancia con --join per rientrare.")])
                 return
             if key != -1:
                 self.handle(key)
@@ -2106,10 +2175,10 @@ class UI:
         if left <= 10 and not getattr(self, "warned", False):
             self.warned = True
             self.audio.sfx("alert")
-            self.status = f"⏱ Restano {left} secondi!"
+            self.status = tr("⏱ Restano {seconds} secondi!", seconds=left)
         if left == 0 and not self.session.online and self.mode in ("normal", "overview"):
             self.mode = "normal"
-            self.status = "⏱ Tempo scaduto: turno finito."
+            self.status = tr("⏱ Tempo scaduto: turno finito.")
             self.end_human_turn()
 
     def lobby(self) -> bool:
@@ -2121,18 +2190,18 @@ class UI:
             self.scr.erase()
             h, w = self.scr.getmaxyx()
             g = self.g
-            lines = [f"THE EMPIRE · partita online · {g.scenario.name}", "",
-                     f"Server: {self.session.address}",
-                     f"Tu giochi con: {g.factions[self.viewer].name}", "",
-                     "Posti:"]
+            lines = [tr("THE EMPIRE · partita online · {scenario}", scenario=g.scenario.name), "",
+                     tr("Server: {address}", address=str(self.session.address)),
+                     tr("Tu giochi con: {faction}", faction=g.factions[self.viewer].name), "",
+                     tr("Posti:")]
             for seat in self.session.lobby:
-                who = seat["name"] if seat["taken"] else "— libero —"
-                state = "" if not seat["taken"] else (" ●" if seat["online"] else " (offline)")
-                lines.append(f"  {g.factions[seat['faction']].name:24s} {who}{state}")
-            ai = [f.name for f in g.factions if not f.human]
+                who = seat["name"] if seat["taken"] else tr("— libero —")
+                state = "" if not seat["taken"] else (" ●" if seat["online"] else " " + tr("(offline)"))
+                lines.append(f"  {word(g.factions[seat['faction']].name):24s} {who}{state}")
+            ai = [word(f.name) for f in g.factions if not f.human]
             if ai:
-                lines += ["", "Guidati dall'IA: " + ", ".join(ai)]
-            lines += ["", "In attesa degli altri giocatori...  (Q per uscire)"]
+                lines += ["", tr("Guidati dall'IA: {factions}", factions=", ".join(ai))]
+            lines += ["", tr("In attesa degli altri giocatori...  (Q per uscire)")]
             for k, line in enumerate(lines):
                 self.put(2 + k, 4, line, curses.A_BOLD if k == 0 else 0)
             self.scr.refresh()
@@ -2142,11 +2211,40 @@ class UI:
                 return False
             if key == ord("M"):
                 self.music_menu()
+            elif key == ord("L"):
+                self.language_menu()
         return True
 
 
 SOUND_PRIORITY = ("nuke", "fall", "capture", "loss", "intercept", "gas", "crash",
                   "card", "spy", "truce", "alert", "battle")
+
+
+def _names(e) -> list[str]:
+    """The words of an event that can name a faction: the parameters of its
+    message (whatever the language), else its text."""
+    if not e.msg:
+        return [e.text]
+    out = []
+    for v in e.msg[1].values():
+        if isinstance(v, str):
+            out.append(v)
+        elif isinstance(v, list) and len(v) == 2 and isinstance(v[1], dict):
+            out += [w for w in v[1].values() if isinstance(w, str)]
+    return out
+
+
+def intel_line(e) -> bool:
+    """A line of a spy report (it starts with ◈ in every language)."""
+    return (e.msg[0] if e.msg else e.text).startswith("◈")
+
+
+# Words that make a line of the bulletin stand out (bold).
+LOUD = (N("NOI"), N("PERSA"))
+
+
+def loud(line: str) -> bool:
+    return any(w in line or tr(w) in line for w in LOUD)
 
 
 def pick_sound(g, viewer: int, events) -> str | None:
@@ -2161,11 +2259,11 @@ def pick_sound(g, viewer: int, events) -> str | None:
         if sound == "capture":
             if e.actor == viewer:
                 heard.add("capture")
-            elif f"(prima: {me})" in e.text:
-                heard.add("loss")
+            elif (me in _names(e)) if e.msg else f"(prima: {me})" in e.text:
+                heard.add("loss")      # the conqueror is someone else: we were the old owner
         elif sound == "fall":
             heard.add("loss" if e.actor == viewer else "fall")
-        elif sound == "truce" and me not in e.text:
+        elif sound == "truce" and not any(me in w for w in _names(e)):
             continue
         elif sound == "battle" and e.kind:
             heard.add("battle")
@@ -2233,7 +2331,7 @@ def menu(scr, title: str, options: list[tuple[str, str]], intro: list[str] | Non
                 pass
             y += 3 if desc else 1
         try:
-            scr.addstr(h - 1, 2, "↑↓ scegli · Invio conferma · Esc indietro"[: w - 3], curses.A_DIM)
+            scr.addstr(h - 1, 2, tr("↑↓ scegli · Invio conferma · Esc indietro")[: w - 3], curses.A_DIM)
         except curses.error:
             pass
         scr.refresh()
@@ -2248,40 +2346,52 @@ def menu(scr, title: str, options: list[tuple[str, str]], intro: list[str] | Non
             return None
 
 
+def language_menu(scr) -> None:
+    """Choose the language of the interface (and remember it)."""
+    codes = list(i18n.LANGS)
+    k = menu(scr, "Lingua / Language", [(i18n.LANGS[c], "") for c in codes])
+    if k is not None:
+        i18n.save_language(i18n.set_language(codes[k]))
+
+
 def setup_menu(scr) -> dict | None:
     while True:
         keys = list(SCENARIOS)
-        k = menu(scr, "Scegli lo scenario",
-                 [(SCENARIOS[s].name, SCENARIOS[s].description) for s in keys]
-                 + [("Carica la partita salvata", str(SAVE_PATH)),
-                    ("Ospita una partita online...",
-                     "configura un server: posti, IA, timer, web TUI, password")])
+        k = menu(scr, tr("Scegli lo scenario"),
+                 [(word(SCENARIOS[s].name), word(SCENARIOS[s].description)) for s in keys]
+                 + [(tr("Carica la partita salvata"), str(SAVE_PATH)),
+                    (tr("Ospita una partita online..."),
+                     tr("configura un server: posti, IA, timer, web TUI, password")),
+                    (tr("Lingua / Language"), i18n.LANGS[i18n.language()])])
         if k is None:
             return None
         if k == len(keys):
             return {"load": SAVE_PATH}
         if k == len(keys) + 1:
             return {"serve": True}
+        if k == len(keys) + 2:
+            language_menu(scr)
+            continue                 # the menu is drawn again in the new language
         sc = SCENARIOS[keys[k]]
         if sc.key == "tutorial":
             return {"scenario": sc.key, "humans": (sc.factions[0].key,),
                     "difficulty": "facile", "turn_time": 0}
-        f = menu(scr, f"{sc.name}: scegli la tua fazione",
-                 [(fd.name, _faction_blurb(fd)) for fd in sc.factions])
+        f = menu(scr, tr("{scenario}: scegli la tua fazione", scenario=sc.name),
+                 [(word(fd.name), _faction_blurb(fd)) for fd in sc.factions])
         if f is None:
             continue
-        d = menu(scr, "Difficoltà", [("facile", "IA con industria al 75%"),
-                                     ("normale", "IA alla pari"),
-                                     ("difficile", "IA con industria al 130%")])
+        d = menu(scr, tr("Difficoltà"), [(tr("facile"), tr("IA con industria al 75%")),
+                                         (tr("normale"), tr("IA alla pari")),
+                                         (tr("difficile"), tr("IA con industria al 130%"))])
         if d is None:
             continue
         times = (0, 60, 120, 180, 300)
-        t = menu(scr, "Tempo per turno", [
-            ("Nessun limite", "pensa quanto vuoi"),
-            ("1 minuto", "guerra lampo: decisioni di istinto"),
-            ("2 minuti", "ritmo serrato"),
-            ("3 minuti", "il giusto equilibrio"),
-            ("5 minuti", "per imperi grandi")])
+        t = menu(scr, tr("Tempo per turno"), [
+            (tr("Nessun limite"), tr("pensa quanto vuoi")),
+            (tr("1 minuto"), tr("guerra lampo: decisioni di istinto")),
+            (tr("2 minuti"), tr("ritmo serrato")),
+            (tr("3 minuti"), tr("il giusto equilibrio")),
+            (tr("5 minuti"), tr("per imperi grandi"))])
         if t is None:
             continue
         return {"scenario": sc.key, "humans": (sc.factions[f].key,),
@@ -2289,13 +2399,13 @@ def setup_menu(scr) -> dict | None:
 
 
 def _faction_blurb(fd) -> str:
-    doctrine = {"restrained": "dottrina prudente", "balanced": "dottrina equilibrata",
-                "aggressive": "dottrina aggressiva"}[fd.doctrine]
-    parts = [doctrine]
+    doctrine = {"restrained": N("dottrina prudente"), "balanced": N("dottrina equilibrata"),
+                "aggressive": N("dottrina aggressiva")}[fd.doctrine]
+    parts = [tr(doctrine)]
     if fd.warheads:
-        parts.append(f"{fd.warheads} testate")
+        parts.append(tr("{n} testate", n=fd.warheads))
     if fd.industry != 1.0:
-        parts.append(f"economia di guerra ×{fd.industry:g}")
+        parts.append(tr("economia di guerra ×{factor:g}", factor=fd.industry))
     if fd.capital_city:
-        parts.append(f"capitale {fd.capital_city}")
+        parts.append(tr("capitale {city}", city=fd.capital_city))
     return ", ".join(parts)
