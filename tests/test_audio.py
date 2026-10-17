@@ -55,22 +55,22 @@ def test_effects_and_looping_music(tmp_path, monkeypatch):
     a.close()
 
 
-def test_cossack_loops_when_selected(tmp_path, monkeypatch):
+def test_kalinka_loops_when_selected(tmp_path, monkeypatch):
     monkeypatch.setattr(audio, "SETTINGS", tmp_path / "settings.json")
     player, log = fake_player(tmp_path)
     a = audio.Audio(mode="all", cache=tmp_path / "snd")
     a.player = player
     assert a.ready.wait(30)
-    a.select_music("cossack")
-    assert wait_for(lambda: log.exists() and log.read_text().count("cossack.wav") >= 2)
+    a.select_music("kalinka")
+    assert wait_for(lambda: log.exists() and log.read_text().count("kalinka.wav") >= 2)
     a.close()
 
 
 def test_music_choice_persisted(tmp_path, monkeypatch):
     monkeypatch.setattr(audio, "SETTINGS", tmp_path / "settings.json")
     a = audio.Audio(cache=tmp_path / "snd")
-    a.select_music("cossack")
-    assert audio.load_music() == "cossack"
+    a.select_music("kalinka")
+    assert audio.load_music() == "kalinka"
     a.toggle_effects()
     assert audio.load_effects() is False
     a.close()

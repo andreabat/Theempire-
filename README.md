@@ -57,8 +57,8 @@ di secondi in `~/.theempire/sounds`.
   i 5 minuti un tema di tensione con battito cardiaco e ticchettio. A fine
   partita c'è una fanfara di vittoria, un lamento per la sconfitta o il vento
   sul mondo morto a mezzanotte. Con il tasto `M` puoi scegliere la musica:
-  automatica, nessuna, **Cossack Patrol** (la canzone dei cosacchi, con il
-  galoppo), l'**inno sovietico** (il «Союз нерушимый» di Aleksandrov,
+  automatica, nessuna, **Kalinka** (il ritornello veloce e la strofa lenta
+  «Ах, под сосною», ricavati dall'arrangiamento MIDI di riferimento), l'**inno sovietico** (il «Союз нерушимый» di Aleksandrov,
   trascritto dalla partitura ufficiale: strofa e ritornello completi), la
   Toccata, la marcia, la tensione, la vittoria, la sconfitta o la mezzanotte.
 - **Effetti**:
@@ -122,7 +122,7 @@ di secondi in `~/.theempire/sounds`.
   esplosioni nella nebbia di guerra restano mute. Le atomiche si sentono in
   tutto il mondo.
 - Il tasto `M` apre il menu audio: scegli la musica (automatica, nessuna,
-  Cossack Patrol, inno sovietico, Toccata di Bach, marcia di guerra,
+  Kalinka, inno sovietico, Toccata di Bach, marcia di guerra,
   tensione, vittoria, sconfitta, mezzanotte) e attiva o disattiva gli
   effetti. La scelta resta per le partite successive. Da riga di comando:
   `--audio all|sfx|off` oppure `--muto`.

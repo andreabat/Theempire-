@@ -22,18 +22,18 @@ from array import array
 from pathlib import Path
 
 RATE = 22050
-VERSION = "v3"  # bump whenever a sound changes, so caches are rebuilt
+VERSION = "v4"  # bump whenever a sound changes, so caches are rebuilt
 CACHE = Path.home() / ".theempire" / "sounds" / VERSION
 SETTINGS = Path.home() / ".theempire" / "settings.json"
-LOOPING = {"menu", "war", "tension", "cossack", "anthem"}
+LOOPING = {"menu", "war", "tension", "kalinka", "anthem"}
 # What the player can pick as background music: "auto" follows the moment
 # (menu, war, tension, victory, defeat, midnight), "off" means no music at
 # all, anything else is a specific tune played on a loop.
-MUSIC_CHOICES = ("auto", "off", "cossack", "anthem", "menu", "war", "tension",
+MUSIC_CHOICES = ("auto", "off", "kalinka", "anthem", "menu", "war", "tension",
                  "victory", "defeat", "midnight")
 MUSIC_NAMES = {"auto": "automatica (a seconda del momento)",
                "off": "nessuna musica (restano gli effetti)",
-               "cossack": "Cossack Patrol",
+               "kalinka": "Kalinka",
                "anthem": "inno sovietico",
                "menu": "Toccata di Bach (menu)",
                "war": "marcia di guerra",
@@ -41,7 +41,7 @@ MUSIC_NAMES = {"auto": "automatica (a seconda del momento)",
                "victory": "vittoria",
                "defeat": "sconfitta",
                "midnight": "mezzanotte"}
-MUSIC_KEYS = {"a": "auto", "o": "off", "c": "cossack", "s": "anthem",
+MUSIC_KEYS = {"a": "auto", "o": "off", "k": "kalinka", "s": "anthem",
               "m": "menu", "w": "war", "t": "tension", "v": "victory",
               "d": "defeat", "n": "midnight"}
 
@@ -146,17 +146,29 @@ def bell(f: float, seconds: float, vol: float = 0.3) -> list[float]:
             for i in range(n)]
 
 
-def sequence(track: Track, notes: list[tuple[str, float]], bpm: float, voice,
-             start: float = 0.0, **kw) -> float:
-    """Play (note, beats) pairs one after another; returns the end time."""
-    t = start
-    beat = 60.0 / bpm
-    for note, beats in notes:
-        d = beats * beat
-        if note != "R":
-            track.add(t, voice(freq(note), d * 0.95, **kw))
-        t += d
+def beat_time(tempo: list[tuple[float, float]], beat: float) -> float:
+    """Seconds from the start to ``beat`` under a tempo map of (beat, bpm)."""
+    t = 0.0
+    for k, (b0, bpm) in enumerate(tempo):
+        b1 = tempo[k + 1][0] if k + 1 < len(tempo) else math.inf
+        if beat <= b0:
+            break
+        t += (min(beat, b1) - b0) * 60.0 / bpm
     return t
+
+
+def sequence(track: Track, notes: list[tuple[str, float]], bpm, voice,
+             start: float = 0.0, **kw) -> float:
+    """Play (note, beats) pairs one after another; returns the end time.
+    ``bpm`` is a number or a tempo map of (beat, bpm) changes."""
+    tempo = bpm if isinstance(bpm, list) else [(0, bpm)]
+    b = 0.0
+    for note, beats in notes:
+        t0, t1 = beat_time(tempo, b), beat_time(tempo, b + beats)
+        if note != "R":
+            track.add(start + t0, voice(freq(note), (t1 - t0) * 0.95, **kw))
+        b += beats
+    return start + beat_time(tempo, b)
 
 
 def drums(track: Track, bpm: float, bars: int, start: float = 0.0, pattern: str = "k.s.k.s.") -> None:
@@ -402,35 +414,69 @@ def _music() -> dict[str, Track]:
     t.add(0, noise(9.0, vol=0.5, cutoff=0.04, seed=99, attack=2.0, release=3.0))
     t.add(0, sine_sweep(110, 30, 9.0, vol=0.35, attack=1.0, release=3.0))
     out["midnight"] = t
-    # Cossack Patrol (Polyushko Polye): the cavalry song with a galloping
-    # bass, in the dotted rhythm of the march. A A B A, the B rises high.
-    bpm = 120
-    verse = [("D5", 1.5), ("A4", 0.5), ("Bb4", 0.5), ("A4", 0.5), ("G4", 1), ("A4", 1),
-             ("Bb4", 0.5), ("A4", 0.5), ("G4", 1), ("F4", 1), ("G4", 1), ("A4", 1),
-             ("F4", 1), ("D4", 3), ("R", 2)]
-    chorus = [("F5", 1), ("E5", 1), ("D5", 0.5), ("C5", 0.5), ("D5", 1), ("E5", 1), ("F5", 1),
-              ("E5", 0.5), ("D5", 0.5), ("C5", 1), ("D5", 1), ("E5", 1), ("C5", 1),
-              ("A4", 2), ("R", 3)]
-    melody = verse + verse + chorus + verse
-    gallop = {"D": [("D2", 0.5), ("D2", 0.5), ("A2", 0.5), ("A2", 0.5),
-                     ("D3", 0.5), ("D3", 0.5), ("A2", 0.5), ("A2", 0.5)],
-              "Bb": [("Bb1", 0.5), ("Bb1", 0.5), ("F2", 0.5), ("F2", 0.5),
-                      ("Bb2", 0.5), ("Bb2", 0.5), ("F2", 0.5), ("F2", 0.5)],
-              "A": [("A1", 0.5), ("A1", 0.5), ("E2", 0.5), ("E2", 0.5),
-                     ("A2", 0.5), ("A2", 0.5), ("E2", 0.5), ("E2", 0.5)],
-              "F": [("F2", 0.5), ("F2", 0.5), ("C3", 0.5), ("C3", 0.5),
-                     ("F3", 0.5), ("F3", 0.5), ("C3", 0.5), ("C3", 0.5)],
-              "C": [("C2", 0.5), ("C2", 0.5), ("G2", 0.5), ("G2", 0.5),
-                     ("C3", 0.5), ("C3", 0.5), ("G2", 0.5), ("G2", 0.5)]}
-    bass = []
-    for chord in ("D", "Bb", "A", "D", "D", "Bb", "A", "D",
-                  "F", "C", "A", "A", "D", "Bb", "A", "D"):
-        bass += gallop[chord]
-    t = Track(16 * 16 * 60 / bpm / 4 + 0.3)
-    sequence(t, melody, bpm, square, vol=0.2, duty=0.25, release=0.03)
-    sequence(t, bass, bpm, triangle, vol=0.22, release=0.03)
-    drums(t, bpm, 16, pattern="k..sk..s")
-    out["cossack"] = t
+    # Kalinka (I. Larionov, 1860; public domain), from the MIDI arrangement
+    # by V. Diomin that the player supplied: the fast refrain «Калинка, калинка, калинка
+    # моя» (trumpet line) and the slow verse «Ах, под сосною, под зелёною»
+    # (accordion line) over the original bass. Beats are quarters; the
+    # tempo changes as in the arrangement: the refrain runs, then a pause
+    # and the broad verse, and the loop starts again from the refrain.
+    refrain = [
+        ("C#5", 0.75), ("R", 0.25), ("B4", 0.5), ("R", 0.5), ("G#4", 0.25), ("R", 0.25),
+        ("A4", 0.25), ("R", 0.25), ("B4", 0.5), ("R", 0.5), ("G#4", 0.25), ("R", 0.25),
+        ("A4", 0.25), ("R", 0.25), ("B4", 0.5), ("C#5", 0.25), ("B4", 0.25), ("A4", 0.25),
+        ("R", 0.25), ("G#4", 0.25), ("R", 0.25), ("F#4", 0.75), ("R", 0.25), ("C#5", 0.25),
+        ("R", 0.25), ("C#5", 0.25), ("R", 0.25), ("B4", 0.5), ("R", 0.25), ("A4", 0.25),
+        ("G#4", 0.25), ("R", 0.25), ("A4", 0.25), ("R", 0.25), ("B4", 0.75), ("R", 0.25),
+        ("G#4", 0.25), ("R", 0.25), ("A4", 0.25), ("R", 0.25), ("B4", 0.5), ("C#5", 0.25),
+        ("B4", 0.25), ("R", 0.5), ("G#4", 0.25), ("R", 0.25), ("F#4", 0.75), ("R", 0.25),
+        ("C#5", 0.25), ("R", 0.25), ("C#5", 0.25), ("R", 0.25), ("B4", 0.75), ("R", 0.25),
+        ("G#4", 0.25), ("R", 0.25), ("A4", 0.25), ("R", 0.25), ("B4", 0.75), ("R", 0.25),
+        ("G#4", 0.25), ("R", 0.25), ("A4", 0.25), ("R", 0.25), ("B4", 0.5), ("C#5", 0.25),
+        ("B4", 0.25), ("R", 0.5), ("G#4", 0.25), ("R", 0.25), ("F#4", 0.25), ("R", 0.75),
+        ("C#5", 0.25), ("R", 0.25), ("C#5", 0.25), ("R", 0.25), ("B4", 0.5), ("R", 0.25),
+        ("A4", 0.25), ("G#4", 0.25), ("R", 0.25), ("A4", 0.25), ("R", 0.25), ("B4", 0.5),
+        ("R", 0.5), ("G#4", 0.25), ("R", 0.25), ("A4", 0.25), ("R", 0.25), ("B4", 0.5),
+        ("C#5", 0.25), ("B4", 0.25), ("R", 0.5), ("G#4", 0.25), ("R", 0.25)]
+    verse = [
+        ("F#5", 1.5), ("R", 0.25), ("G#5", 0.25), ("E5", 2), ("C#6", 1), ("R", 0.25),
+        ("E6", 0.75), ("R", 0.25), ("D6", 0.25), ("D6", 0.5), ("C#6", 0.5), ("B5", 0.5),
+        ("A5", 1.5), ("B5", 0.25), ("A5", 0.25), ("R", 2), ("C#6", 1), ("E6", 1), ("D6", 0.75),
+        ("E6", 0.25), ("C#6", 0.5), ("B5", 0.5), ("A5", 1.5), ("R", 0.25), ("B5", 0.25),
+        ("E5", 1.5), ("R", 0.5), ("F#5", 1.75), ("R", 0.25), ("F#5", 1), ("G#5", 1), ("B5", 1),
+        ("R", 0.25), ("A5", 1), ("G#5", 0.25), ("A5", 0.25), ("G#5", 0.25), ("F#5", 0.25),
+        ("R", 0.25), ("G#5", 0.25), ("F#5", 0.25), ("E5", 2), ("R", 2), ("E6", 1), ("E5", 1),
+        ("F#5", 1), ("G#5", 0.5), ("R", 0.5), ("C#6", 1), ("E6", 1), ("D6", 0.5), ("E6", 0.25),
+        ("D6", 0.25), ("C#6", 0.5), ("B5", 0.5), ("A5", 1.5), ("B5", 0.25), ("A5", 0.25),
+        ("E5", 2), ("C#6", 1), ("E6", 1), ("D6", 0.75), ("E6", 0.25), ("C#6", 0.5),
+        ("B5", 0.5), ("A5", 2), ("E5", 1.5), ("R", 0.5), ("F#5", 1.75), ("R", 0.25),
+        ("F#5", 1), ("G#5", 1), ("B5", 1), ("A5", 1), ("G#5", 0.5), ("R", 0.25), ("A5", 0.25),
+        ("F#5", 0.5), ("R", 0.5)]
+    bass = [
+        ("R", 1), ("C#2", 0.75), ("R", 0.25), ("G#2", 0.5), ("R", 0.5), ("C#2", 0.5),
+        ("R", 0.5), ("G#2", 0.5), ("R", 0.5), ("C#2", 0.75), ("R", 0.25), ("G#2", 0.5),
+        ("R", 0.5), ("F#2", 0.5), ("R", 0.5), ("F#2", 0.5), ("R", 0.5), ("C#2", 0.75),
+        ("R", 0.25), ("G#2", 0.5), ("R", 0.5), ("C#2", 0.75), ("R", 0.25), ("G#2", 0.5),
+        ("R", 0.5), ("C#2", 0.75), ("R", 0.25), ("G#2", 0.75), ("R", 0.25), ("F#2", 0.5),
+        ("R", 0.5), ("F#2", 0.75), ("R", 0.25), ("C#2", 0.75), ("R", 0.25), ("G#2", 0.75),
+        ("R", 0.25), ("C#2", 0.75), ("R", 0.25), ("G#2", 0.5), ("R", 0.5), ("C#2", 0.75),
+        ("R", 0.25), ("G#2", 0.5), ("R", 0.5), ("F#2", 0.75), ("R", 0.25), ("F#2", 0.5),
+        ("R", 0.5), ("C#2", 0.75), ("R", 0.25), ("G#2", 0.5), ("R", 0.5), ("C#2", 0.75),
+        ("R", 0.25), ("G#2", 0.5), ("R", 0.5), ("C#2", 0.75), ("R", 0.25), ("G#2", 0.5),
+        ("R", 0.5), ("F#2", 1.75), ("R", 0.25), ("E2", 1.75), ("R", 0.25), ("A2", 1.75),
+        ("R", 0.25), ("E2", 2), ("A2", 2), ("E2", 2), ("A2", 2), ("E2", 2), ("A2", 1.75),
+        ("R", 0.25), ("E2", 2), ("D2", 1.75), ("R", 0.25), ("D2", 1), ("C#2", 1), ("B1", 4),
+        ("E2", 3.75), ("R", 0.25), ("E2", 1), ("D2", 1), ("C#2", 1), ("B1", 1), ("A2", 1.75),
+        ("R", 0.25), ("E2", 2), ("A2", 2), ("E2", 2), ("A2", 2), ("E2", 2), ("A2", 2),
+        ("E2", 2), ("D2", 1.75), ("R", 0.25), ("D2", 1), ("C#2", 1), ("B1", 2), ("G#1", 2)]
+    tempo = [(0, 174), (31, 99), (33, 59), (35, 119)]   # (beat, bpm)
+    beats = sum(b for _, b in bass)
+    t = Track(beat_time(tempo, beats) + 0.3)
+    sequence(t, refrain + verse, tempo, square, vol=0.2, duty=0.25, release=0.03)
+    sequence(t, refrain, tempo, square, vol=0.07, duty=0.5, release=0.03)  # doubled refrain
+    sequence(t, bass, tempo, triangle, vol=0.24, release=0.03)
+    # the refrain is danced: kick and snare on the beats (bars start at beat 1)
+    drums(t, 174, 7, start=beat_time(tempo, 1), pattern="k.s.k.s.")
+    out["kalinka"] = t
     # State Anthem of the USSR (A. V. Alexandrov, 1939-1944; public domain).
     # Melody in C major as in the official score: pickup, the verse
     # «Союз нерушимый республик свободных» and the refrain «Славься,
@@ -510,7 +556,7 @@ _SFX_NAMES = ("battle", "capture", "loss", "fall", "nuke", "intercept", "gas", "
               "truce", "turn", "alert", "card", "spy") + tuple(
     f"{what}_{k}" for k in UNIT_KINDS for what in ("move", "fire"))
 _MUSIC_NAMES = ("menu", "war", "tension", "victory", "defeat", "midnight",
-                 "cossack", "anthem")
+                 "kalinka", "anthem")
 
 
 # ----------------------------------------------------------------- playback
@@ -549,7 +595,8 @@ def load_music() -> str:
     """The chosen background music, or "auto" when nothing was chosen yet."""
     data = _settings()
     if "music" in data:
-        return data["music"] if data["music"] in MUSIC_CHOICES else "auto"
+        music = {"cossack": "kalinka"}.get(data["music"], data["music"])  # renamed tune
+        return music if music in MUSIC_CHOICES else "auto"
     mode = data.get("audio", "all")  # legacy: the old all/sfx/off mode
     return "off" if mode in ("sfx", "off") else "auto"
 
