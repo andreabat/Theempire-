@@ -288,7 +288,8 @@ class UI:
 
     def draw_tutorial(self) -> None:
         """The instructor's box, in the top-left corner of the map."""
-        box = self.tutorial.box() if self.tutorial else None
+        tutorial = getattr(self, "tutorial", None)
+        box = tutorial.box() if tutorial else None
         if box is None:
             return
         title, lines = box
@@ -1477,8 +1478,9 @@ class UI:
             a = self.active
             if a is not None:
                 result = self.order("goto", target=self.cursor)
-                if result == "ok" and self.tutorial is not None:
-                    self.tutorial.goto_given = True
+                tutorial = getattr(self, "tutorial", None)
+                if result == "ok" and tutorial is not None:
+                    tutorial.goto_given = True
                 if result != "ok":
                     self.status = describe(result)
                     if self.active is not None:
