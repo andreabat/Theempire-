@@ -111,6 +111,7 @@ def test_truce_blocks_attacks():
     assert g.classify(a, n) is None
     assert g.nuclear_strike(0, n) == "truce"
     g.turn += 20
+    g.next_event = 10 ** 6          # no UN summit to bring the truce back
     g._new_round()
     assert g.truce_left(0, 1) == 0 and g.classify(a, n) == "attack"
 

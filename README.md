@@ -415,7 +415,63 @@ dell'altra né colpirla con armi chimiche o nucleari (nel pannello compare
 - Strategia: una tregua sul fronte secondario ti libera le truppe per quello
   principale, ma dura poco. Usala per una spallata, non per sempre.
 
+### Obiettivi segreti (alla Risiko)
+A inizio partita ogni fazione riceve un **obiettivo segreto**: chi lo
+completa **vince subito**, prima del dominio del mondo. Il tuo compare in un
+riquadro al primo turno e nel pannello (`◎ Obiettivo`, con il punto a cui
+sei); `o` lo rilegge. Gli obiettivi possibili:
+
+- **due regioni**: conquista tutte le città di due regioni (vedi sotto);
+- **eliminare una fazione**: devi prendere tu la sua ultima città. Se la
+  elimina qualcun altro, l'obiettivo diventa «controlla N città»;
+- **N città**: le tue città di partenza più un quinto di quelle del mondo
+  (sempre meno di quante ne servono per il dominio);
+- **N capitali nemiche**: conquista e tieni quasi metà delle capitali che
+  all'inizio erano dei tuoi rivali (al massimo 12); quelle neutrali non
+  contano.
+
+Gli obiettivi degli altri sono segreti, anche online: li rivela solo una
+carta **Spionaggio**, e si scoprono tutti a fine partita. L'IA insegue il
+suo e non firma tregue con la fazione che deve eliminare. Nel tutorial gli
+obiettivi non ci sono.
+
+### Regioni (bonus continentali)
+Il mondo è diviso in 13 regioni: Nord America, America Centrale e Caraibi,
+Sud America, Europa Occidentale, Europa Orientale e Balcani, Russia-Caucaso-
+Asia Centrale, Medio Oriente, Nord Africa, Africa Subsahariana, Asia
+Meridionale, Asia Orientale, Sud-Est Asiatico, Oceania. Chi tiene **tutte**
+le città di una regione ha un **bonus di produzione in tutte le sue città**,
+dal +10% (Nord Africa, 8 città) al +30% (Africa Subsahariana, 51 città). I
+bonus si sommano; perdere anche una sola città della regione li toglie, e
+l'acquisto e la perdita vengono annunciati a tutti.
+
+Il pannello mostra le regioni che tieni (`⚑`) o quella che ti manca meno;
+`o` apre la tabella completa: tue città per regione, bonus e chi la tiene.
+Strategia: una città nemica isolata dentro la tua regione vale più della sua
+dimensione, e strapparne una all'avversario gli toglie il bonus.
+
+### Eventi mondiali
+Ogni 5-8 turni succede qualcosa che tocca tutti, annunciato con un riquadro
+all'inizio del tuo turno e nel registro (in azzurro):
+
+| Evento | Effetto |
+|---|---|
+| Crisi petrolifera | per 3 turni aerei e navi hanno metà delle mosse |
+| Carestia | per 3 turni le città di dimensione 3 producono il 30% in meno |
+| Boom economico | per 3 turni +25% di produzione per tutti |
+| Inverno rigido | per 3 turni le unità di terra oltre il 45° parallelo nord muovono di 1 in meno |
+| Vertice dell'ONU | tregua imposta di 6 turni tra le due potenze più forti in guerra |
+| Insurrezione | una città senza guarnigione della fazione più estesa torna neutrale |
+| Uragano | aerei e navi fuori dai porti in un tratto di mare perdono 1 punto vita |
+| Corsa agli armamenti | una testata a ogni potenza nucleare, l'Orologio avanza di 1 minuto |
+| Disgelo diplomatico | l'Orologio arretra di 1 minuto |
+| Volontari | una fanteria in più nella capitale di ogni fazione |
+
+Gli effetti in corso compaiono nel pannello (`✦`). Nel tutorial gli eventi
+non ci sono.
+
 ### Vittoria
+- **Obiettivo segreto** completato (vedi sopra).
 - **Dominio**: controlla il 55% delle città del mondo (50% in Sei imperi, 90% nel
   tutorial, dove si vince prendendo Tirana).
 - **Conquista**: tutti i rivali senza città.
@@ -446,6 +502,8 @@ numero a fianco di ogni voce la sceglie subito, ed Esc annulla.
 | `N`, `C` | attacco nucleare / chimico sulla casella del cursore |
 | `O` | diplomazia: proponi una tregua o rispondi a una proposta |
 | `K` | le tue carte: leggile e giocane una |
+| `o` | obiettivo segreto, regioni con i loro bonus, eventi mondiali |
+| `+` / `-` | zoom della mappa |
 | `B` | archivio dei bollettini di guerra: leggi, sfoglia i turni, `R` per rivedere l'animazione |
 | `T` | chat (partite online) |
 | `E` | fine turno (segue il riepilogo animato delle mosse avversarie) |
@@ -550,6 +608,10 @@ theempire/
   game.py       regole: movimento, combattimento, produzione, armi DM, vittoria, salvataggi
   ai.py         avversari (campi di distanza condivisi, sbarchi, raid aerei, escalation, tregue, carte)
   cards.py      le carte alla Futurisiko: mazzo, pesca, effetti
+  regions.py    le 13 regioni del mondo e i loro bonus di produzione
+  missions.py   gli obiettivi segreti
+  events.py     gli eventi mondiali
+  midi.py       lettura e sintesi dei file MIDI del giocatore
   commands.py   i comandi del giocatore, validati: unica via per cambiare la partita
   net.py        multiplayer: server autoritativo, client, protocollo JSON su TCP
   ui.py         interfaccia curses: mappa Braille, pannello, registro, lobby, menu

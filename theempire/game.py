@@ -16,7 +16,7 @@ from dataclasses import asdict, dataclass, field
 from functools import lru_cache
 from pathlib import Path
 
-from theempire import cards
+from theempire import cards, events, missions, regions
 from theempire.scenarios import SCENARIOS, Scenario
 from theempire.units import (CHEMICAL, UNIT_TYPES, WARHEAD, UnitType,
                              production_cost)
@@ -115,6 +115,7 @@ class Faction:
     cards: list[str] = field(default_factory=list)     # the hand (see cards.py)
     effects: dict = field(default_factory=dict)        # card effects: name -> last turn
     conquests: int = 0                  # cities taken this turn (earns a card)
+    mission: dict = field(default_factory=dict)        # the secret objective (see missions.py)
 
 
 @dataclass
@@ -159,6 +160,9 @@ class Game:
         self.reel_mark: dict[int, int] = {}  # faction -> last action it has been shown
         self._vis: dict[int, set[int]] = {}
         self._det: dict[int, set[int]] = {}
+        self.region_holders: dict[str, int | None] = {}  # see regions.py
+        self.world_effects: dict[str, int] = {}          # world event -> last turn (events.py)
+        self.next_event = 0                              # round of the next world event
         if _empty:
             return
         self.factions: list[Faction] = []
@@ -186,6 +190,11 @@ class Game:
             for c in self.cities_of(f.idx):
                 c.production = self._default_production(c)
         self.deck = cards.new_deck(self.rng)
+        regions.update(self)
+        if self.scenario.missions:
+            missions.assign(self)
+        if self.scenario.world_events:
+            events.schedule(self)
         self.log(f"{self.scenario.name}: la guerra è cominciata. Orologio dell'Apocalisse "
                  f"a {self.doomsday} minuti dalla mezzanotte.", level="alert")
         self.begin_turn()
@@ -761,14 +770,18 @@ class Game:
         self.record("capture", city.cell, u.owner, old=old, new=u.owner, name=city.name)
         if old is not None and not self.cities_of(old):
             self.record("fall", city.cell, u.owner, old=old)
-            self.eliminate(old)
+            self.eliminate(old, by=u.owner)
+        regions.update(self)
         self._dirty()
 
-    def eliminate(self, f: int) -> None:
+    def eliminate(self, f: int, by: int | None = None) -> None:
+        """``f`` is out of the war, knocked out by ``by`` (default: the
+        faction playing)."""
         fac = self.factions[f]
         if not fac.alive:
             return
         fac.alive = False
+        missions.on_elimination(self, f, self.current if by is None else by)
         for u in self.units_of(f):
             if u.id in self.units:
                 self.kill(u)
@@ -955,6 +968,11 @@ class Game:
             rate *= 0.5
         if cards.active(self, c.owner, "plan"):
             rate *= 1.5
+        rate *= 1 + regions.production_bonus(self, c.owner)
+        if events.active(self, "boom"):
+            rate *= 1.25
+        if events.active(self, "famine") and c.size >= 3:
+            rate *= 0.7
         return rate
 
     def can_build(self, c: City, key: str) -> bool:
@@ -1001,6 +1019,7 @@ class Game:
     def begin_turn(self) -> None:
         f = self.current
         fac = self.factions[f]
+        regions.update(self)
         if self.turn % cards.BRIEFING_EVERY == 0:
             cards.draw(self, f, "Rapporto dei servizi segreti")
         room = self.supply_limit(f) - len(self.units_of(f))
@@ -1031,9 +1050,14 @@ class Game:
                     room -= 1
                     self.create_unit(c.production, f, c.cell)
                     self.log(f"{c.name} ha prodotto: {UNIT_TYPES[c.production].name}.", [f])
+        oil, winter = events.active(self, "oil"), events.active(self, "winter")
         for u in list(self.units_of(f)):
             t = u.type
             u.moves = t.move
+            if oil and t.domain in ("air", "sea"):
+                u.moves = max(1, (t.move + 1) // 2)
+            if winter and t.domain == "land" and self.world.lonlat(u.cell)[1] > 45:
+                u.moves = max(1, t.move - 1)
             city = self.city(u.cell)
             in_base = (city is not None and city.owner == f) or u.carrier is not None
             if city is not None and city.owner == f and u.hp < t.hp:
@@ -1052,6 +1076,7 @@ class Game:
         if self.over:
             return
         cards.end_of_turn(self, self.current)
+        regions.update(self)
         self._check_victory()
         n = len(self.factions)
         for _ in range(n):
@@ -1084,6 +1109,8 @@ class Game:
                 a, b = (int(x) for x in pair.split("-"))
                 self.log(f"La tregua tra {self.factions[a].name} e {self.factions[b].name} "
                          "è scaduta: si torna a combattere.", None, "alert", "alert")
+        events.new_round(self)
+        regions.update(self)
         self._check_victory()
         if not self.over and self.turn > self.scenario.max_turns:
             best = max((f for f in self.factions if f.alive), key=self.score)
@@ -1111,6 +1138,13 @@ class Game:
             self.over = (winner.idx, "conquest")
             self.log("Il tuo governo è caduto. Hai perso la guerra.", None, "alert")
             return
+        # a secret objective: the faction playing is checked first
+        for f in sorted(alive, key=lambda f: f.idx != self.current):
+            if f.mission and missions.done(self, f.idx):
+                self.over = (f.idx, "mission")
+                self.log(f"{f.name} ha completato il suo obiettivo segreto: "
+                         f"{missions.text(self, f.idx)}", None, "alert")
+                return
         total = len(self.cities)
         for f in alive:
             if len(self.cities_of(f.idx)) >= self.scenario.victory_share * total:
@@ -1136,6 +1170,7 @@ class Game:
             "rng": [state[0], list(state[1]), state[2]],
             "event_seq": self.event_seq,
             "deck": self.deck, "discard": self.discard,
+            "world_effects": self.world_effects, "next_event": self.next_event,
             "factions": [asdict(f) for f in self.factions],
             "cities": [asdict(c) for c in self.cities],
             "units": [asdict(u) for u in self.units.values()],
@@ -1166,6 +1201,9 @@ class Game:
                 g.at.setdefault(u.cell, []).append(u.id)
         g.events = [Event(**e) for e in d["events"]]
         g.event_seq = d.get("event_seq", len(g.events))
+        g.world_effects = dict(d.get("world_effects", {}))
+        g.next_event = d.get("next_event", 0)
+        regions.update(g)               # who holds what (no announcement)
         g.deck = list(d.get("deck", []))
         g.discard = list(d.get("discard", []))
         if not g.deck and not g.discard and not any(f.cards for f in g.factions):

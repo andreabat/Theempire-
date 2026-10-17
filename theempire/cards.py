@@ -12,6 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from theempire import missions, regions
 from theempire.units import UNIT_TYPES
 
 if TYPE_CHECKING:
@@ -124,7 +125,9 @@ def play(game: "Game", f: int, key: str, cell: int | None = None,
     if game.rng.random() >= card.chance:
         _failed(game, f, card, cell, target)
         return "failed"
-    return EFFECTS[key](game, f, cell, target)
+    result = EFFECTS[key](game, f, cell, target)
+    regions.update(game)               # a revolt or a coup may change who holds a region
+    return result
 
 
 def seat(game: "Game", f: int):
@@ -335,7 +338,7 @@ def intel(game: "Game", t: int) -> list[str]:
         f"Testate nucleari: {fac.warheads} · armi chimiche: {fac.chemicals} · carte in mano: {len(fac.cards)}.",
         f"Produzione: {plans or 'ferma'}.",
         f"Capitali: {', '.join(capitals) or 'nessuna'}.",
-    ]
+    ] + ([f"Obiettivo segreto: {missions.text(game, t)}"] if fac.mission else [])
 
 
 def _sabotage(game, f, cell, target) -> str:

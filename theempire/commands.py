@@ -237,6 +237,8 @@ def view_for(game: Game, f: int) -> dict:
         if fd["idx"] != f:
             fd["cards"] = ["?"] * len(fd["cards"])
             fd["effects"] = {}
+            if not game.over:
+                fd["mission"] = {"kind": "secret"} if fd.get("mission") else {}
     d["deck"] = ["?"] * len(d["deck"])
     state = random.Random(0).getstate()
     d["rng"] = [state[0], list(state[1]), state[2]]

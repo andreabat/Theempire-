@@ -31,6 +31,8 @@ class Scenario:
     victory_share: float = 0.5      # share of all cities for a domination win
     start_forces: bool = True       # garrison every starting city
     max_turns: int = 300
+    missions: bool = True           # secret objectives (missions.py)
+    world_events: bool = True       # world events every few rounds (events.py)
 
 
 NATO_EUROPE = ("GBR", "FRA", "DEU", "ITA", "ESP", "PRT", "NLD", "BEL", "LUX", "NOR", "DNK",
@@ -54,6 +56,8 @@ SCENARIOS: dict[str, Scenario] = {s.key: s for s in (
         doomsday=10,
         victory_share=0.9,
         max_turns=80,
+        missions=False,
+        world_events=False,
     ),
     Scenario(
         "ww3", "Terza Guerra Mondiale",

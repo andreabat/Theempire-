@@ -5,11 +5,12 @@ from __future__ import annotations
 import curses
 import datetime as dt
 import random
+import textwrap
 import time
 from collections import Counter, deque
 from pathlib import Path
 
-from theempire import cards
+from theempire import cards, events, missions, regions
 from theempire.audio import Audio, music_keys, music_name
 from theempire.commands import describe
 from theempire.game import CHEM_RANGE, DIRECTIVES, Unit
@@ -79,6 +80,7 @@ D                 congeda l'unità attiva
 m                 mappa del mondo (panoramica)
 + / -             zoom della mappa (anche pulsanti nel pannello, pizzico)
 r                 centra la vista sul cursore
+o                 obiettivo segreto, regioni (bonus) ed eventi mondiali
 M                 audio: scegli musica ed effetti
 N                 ☢ attacco nucleare sulla casella del cursore
 C                 ☣ attacco chimico (entro 4 caselle dalle tue forze)
@@ -582,6 +584,23 @@ class UI:
         label = DIRECTIVES[fac.directive].split(" (")[0] if fac.directive else "nessuna"
         self.button(row, x, f"Direttiva: {label} (P)"[:SIDEBAR - 1], "P", self.color("dim"))
         row += 1
+        if fac.mission.get("kind") in ("regions", "eliminate", "cities", "capitals"):
+            self.button(row, x, f"◎ {missions.progress(g, self.viewer)} (o)"[:SIDEBAR - 1], "o",
+                        self.color("cyan") | curses.A_BOLD)
+            row += 1
+        held = regions.held_by(g, self.viewer)
+        if held:
+            pct = int(round(regions.production_bonus(g, self.viewer) * 100))
+            text = "⚑ " + ", ".join(regions.REGIONS[k].short for k in held) + f" +{pct}%"
+        else:
+            near = next(((k, n, t) for k, n, t in regions.progress(g, self.viewer) if n < t), None)
+            text = f"⚑ {regions.REGIONS[near[0]].short} {near[1]}/{near[2]} città" if near else "⚑ Regioni"
+        self.button(row, x, f"{text} (o)"[:SIDEBAR - 1], "o", self.color("dim"))
+        row += 1
+        world = events.describe_active(g)
+        if world:
+            self.button(row, x, ("✦ " + ", ".join(world))[:SIDEBAR - 1], "o", self.color("cyan"))
+            row += 1
         others = [f for f in g.factions if f.idx != self.viewer]
         names = self.session.player_names()
         for f in others:
@@ -724,10 +743,11 @@ class UI:
                 self.put(top + 1 + k, 0, f" {line}"[:mw].ljust(mw), self.color("panel") | attr)
             return
         events = [e for e in self.g.events if e.audience is None or self.viewer in e.audience]
-        colors = {"info": "panel", "combat": "orange", "alert": "alert", "wmd": "wmd", "chat": "cyan"}
+        colors = {"info": "panel", "combat": "orange", "alert": "alert", "wmd": "wmd", "chat": "cyan",
+                  "world": "cyan"}
         for k, e in enumerate(events[-(LOG_ROWS - 1):]):
             self.put(top + 1 + k, 0, f"[{e.turn:3d}] {e.text}"[:mw].ljust(mw),
-                     self.color(colors.get(e.level, "panel")) | (curses.A_BOLD if e.level in ("wmd", "alert") else 0))
+                     self.color(colors.get(e.level, "panel")) | (curses.A_BOLD if e.level in ("wmd", "alert", "world") else 0))
 
     def draw_status(self) -> None:
         h, w = self.scr.getmaxyx()
@@ -1201,6 +1221,8 @@ class UI:
             self.bulletins.append((title, self.bulletin_text(reel), reel))
             del self.bulletins[:-30]
             self.play_bulletin(reel)
+        self.announce_world_events()
+        self.announce_mission()
         self.select_next()
         if self.active is None:
             self.cursor = self._home_cell()
@@ -1211,6 +1233,57 @@ class UI:
             self.session.start_clock()
         if self.session.online:
             self.audio.sfx("turn")
+
+    def announce_mission(self) -> None:
+        """The secret objective, shown once to each player at its first turn."""
+        g = self.g
+        shown = self.__dict__.setdefault("missions_shown", set())
+        if self.viewer in shown or not g.factions[self.viewer].mission:
+            return
+        shown.add(self.viewer)
+        self.audio.sfx("card")
+        self.draw()
+        self.dialog("◎ IL TUO OBIETTIVO SEGRETO", [
+            missions.text(g, self.viewer), "",
+            "Se lo completi vinci subito. Gli altri non lo conoscono, e tu non",
+            "conosci il loro (solo una carta Spionaggio lo rivela).",
+            "Il pannello mostra a che punto sei; o lo rilegge in ogni momento."])
+
+    def announce_world_events(self) -> None:
+        """World events since this player's last turn, one dialog each."""
+        g = self.g
+        seen = getattr(self, "world_seen", 0)
+        fresh = [e for e in g.events if e.level == "world" and e.seq > seen and e.turn >= g.turn - 1]
+        if g.events:
+            self.world_seen = max(seen, max(e.seq for e in g.events))
+        for e in fresh:
+            name, _, rest = e.text.partition(": ")
+            self.audio.sfx("alert")
+            self.draw()
+            self.dialog("✦ " + name, textwrap.wrap(rest, 64))
+
+    def objectives(self) -> None:
+        """Secret objective, regions and world events on one page."""
+        g = self.g
+        me = self.viewer
+        lines = []
+        if g.factions[me].mission.get("kind") in ("regions", "eliminate", "cities", "capitals"):
+            lines += ["◎ OBIETTIVO SEGRETO", "  " + missions.text(g, me),
+                      "  A che punto sei: " + missions.progress(g, me),
+                      "  Chi completa il suo obiettivo vince subito.", ""]
+        lines += ["⚑ REGIONI: chi ne tiene tutte le città ha un bonus di produzione in tutto l'impero", ""]
+        mine = {k: (n, t) for k, n, t in regions.progress(g, me)}
+        for key, region in regions.REGIONS.items():
+            n, t = mine.get(key, (0, len(regions.cities_in(g, key))))
+            owner = g.region_holders.get(key)
+            who = f"  ← {g.factions[owner].name}" if owner is not None else ""
+            lines.append(f"  {region.name:34s} {n:3d}/{t:<3d} +{int(regions.bonus_of(g, key) * 100):2d}%{who}")
+        lines += ["", "✦ EVENTI MONDIALI (uno ogni 5-8 turni)"]
+        active = events.describe_active(g)
+        lines += [f"  In corso: {', '.join(active)}"] if active else ["  Nessun effetto in corso."]
+        for e in [e for e in g.events if e.level == "world"][-5:]:
+            lines += textwrap.wrap(f"[{e.turn}] {e.text}", 76, initial_indent="  ", subsequent_indent="    ")
+        self.pager("Obiettivo, regioni ed eventi mondiali", lines, "↑↓ scorri · un tasto chiude")
 
     def end_human_turn(self) -> None:
         self.active = None
@@ -1549,9 +1622,14 @@ class UI:
                 human_won = fac.human
             why = {"conquest": "ha sconfitto tutti i rivali",
                    "domination": "domina il mondo",
-                   "turns": "vince ai punti allo scadere"}[reason]
+                   "turns": "vince ai punti allo scadere",
+                   "mission": "ha completato il suo obiettivo segreto"}[reason]
             lines = [f"{fac.name} {why}.", "",
                      "VITTORIA!" if human_won else "SCONFITTA.", ""]
+            if any(f.mission.get("kind") in ("regions", "eliminate", "cities", "capitals") for f in g.factions):
+                lines += ["Gli obiettivi segreti erano:"]
+                lines += [f"  {f.name}: {missions.text(g, f.idx)}" for f in g.factions if f.mission]
+                lines.append("")
             if g.scenario.key == "tutorial" and human_won:
                 lines = ["Tirana è caduta: la Repubblica Ribelle è sconfitta.", "",
                          "TUTORIAL COMPLETATO! Sei pronto per la guerra vera:",
@@ -1565,7 +1643,7 @@ class UI:
 
     # ----------------------------------------------------------- input
     VIEW_KEYS = {ord("m"), ord("M"), ord("r"), ord("?"), ord("Q"), ord("T"), ord("n"), ord("B"),
-                 ord("K"), ord("h"), 9, ord("+"), ord("="), ord("-")}
+                 ord("K"), ord("h"), 9, ord("+"), ord("="), ord("-"), ord("o")}
 
     def handle(self, key: int) -> None:
         g = self.g
@@ -1661,6 +1739,8 @@ class UI:
             self.diplomacy_menu()
         elif key == ord("K"):
             self.cards_menu()
+        elif key == ord("o"):
+            self.objectives()
         elif key == ord("h") and self.tutorial is not None:
             self.tutorial.visible = not self.tutorial.visible
         elif key == ord("B"):

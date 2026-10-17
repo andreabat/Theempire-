@@ -356,7 +356,7 @@ class AI:
         if not rivals or g.rng.random() >= TRUCE_OFFER.get(self.fac.doctrine, 0.05):
             return
         strongest = max(rivals, key=lambda o: len(g.cities_of(o.idx)))
-        if len(g.cities_of(strongest.idx)) > mine:
+        if len(g.cities_of(strongest.idx)) > mine and not _hunting(g, self.f, strongest.idx):
             g.propose_truce(self.f, strongest.idx)
 
     def _best_city(self, enemy: int) -> int | None:
@@ -670,10 +670,16 @@ def win_probability_for(g: Game, u: Unit, cell: int, defender: Unit) -> float:
                            g.defense_value(u, defender), defender.hp)
 
 
+def _hunting(g: Game, f: int, other: int) -> bool:
+    """Is ``other`` the faction that ``f``'s secret objective says to eliminate?"""
+    m = g.factions[f].mission
+    return m.get("kind") == "eliminate" and m.get("target") == other
+
+
 def accepts_truce(g: Game, f: int, proposer: int) -> bool:
     """Would the AI faction ``f`` accept a truce offered by ``proposer``?"""
     fac = g.factions[f]
-    if proposer in fac.nuked_by:
+    if proposer in fac.nuked_by or _hunting(g, f, proposer):
         return False
     mine = len(g.cities_of(f))
     theirs = len(g.cities_of(proposer))
