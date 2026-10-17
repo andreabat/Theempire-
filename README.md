@@ -1,713 +1,740 @@
+**English** · [Italiano](README.it.md)
+
 # THE EMPIRE
 
-Gioco di strategia globale a turni per il terminale. Prende la **guerra
-totale** di *Theatre Europe* (1985: armate, attacchi aerei, armi chimiche,
-escalation nucleare, l'apocalisse come sconfitta di tutti) e un classico
-**sistema di conquista** a griglia (città che producono unità, trasporti,
-portaerei, carburante degli aerei, nebbia di guerra) e li porta **sulla scala del mondo intero**.
-Dai giochi da tavolo prende le **carte** (alla Futurisiko), gli **obiettivi
-segreti** e i **bonus continentali** (alla Risiko) e gli **eventi mondiali**
-che rimescolano i piani.
+A turn-based global strategy game for the terminal. It takes the **total
+war** of *Theatre Europe* (1985: armies, air strikes, chemical weapons,
+nuclear escalation, the apocalypse as everyone's defeat) and a classic
+grid-based **conquest system** (cities that produce units, transports,
+aircraft carriers, aircraft fuel, fog of war) and brings them **to the scale of the whole world**.
+From board games it takes the **cards** (Futurisiko-style), the **secret
+objectives** and the **continental bonuses** (Risk-style) and the **world events**
+that shuffle everyone's plans.
 
-La mappa è il mondo reale: viene dai dati Natural Earth ed è disegnata in
-caratteri Braille come in [Terrascope](https://github.com/a-shygun/Terrascope),
-il punto di partenza del progetto. Ogni carattere è una casella di gioco
-(1° di longitudine × 2° di latitudine) e i suoi 2×4 punti Braille
-disegnano la costa vera. La mappa si avvolge da est a ovest: il Pacifico si
-attraversa. Il Mediterraneo è navigabile per intero, dall'Atlantico al
-Levante: il canale tra Tunisi e la Sicilia è stato aperto a mano (in
-`assets/world.json`), dato che la griglia da 1°×2° non lo ricavava dalle
-coste Natural Earth.
+The map is the real world: it comes from Natural Earth data and is drawn in
+Braille characters as in [Terrascope](https://github.com/a-shygun/Terrascope),
+the project's starting point. Each character is a game square
+(1° of longitude × 2° of latitude) and its 2×4 Braille dots
+draw the real coastline. The map wraps from east to west: you can cross the
+Pacific. The Mediterranean is navigable end to end, from the Atlantic to the
+Levant: the channel between Tunis and Sicily was opened by hand (in
+`assets/world.json`), since the 1°×2° grid did not derive it from the
+Natural Earth coastlines.
 
-![Europa al turno 4 della Terza Guerra Mondiale](docs/screenshot.png)
+![Europe on turn 4 of World War III](docs/screenshot.png)
 
-### In breve: come si vince
+### In short: how to win
 
-Ogni fazione ha un **obiettivo segreto** (per esempio «conquista Nord
-Africa e Medio Oriente» o «elimina il Blocco Orientale»): chi lo completa
-vince subito. Altrimenti vince chi **domina** il mondo (55% delle città),
-chi elimina tutti i rivali o chi ha più punti allo scadere dei turni. Se
-l'**Orologio dell'Apocalisse** arriva a mezzanotte, perdono tutti.
+Each faction has a **secret objective** (for example "conquer North
+Africa and the Middle East" or "eliminate the Eastern Bloc"): whoever completes it
+wins at once. Otherwise the winner is whoever **dominates** the world (55% of the cities),
+whoever eliminates all rivals, or whoever has the most points when the turns run out. If
+the **Doomsday Clock** reaches midnight, everyone loses.
 
-Per arrivarci:
-- **conquisti città** con fanteria e corazzati: ogni città produce un'unità
-  alla volta, e le **direttive** (`P`) riconvertono tutte le fabbriche;
-- tieni **intere regioni** (13 nel mondo) per un bonus di produzione dal
-  +10% al +30% in tutto l'impero;
-- giochi le **carte** (`K`): spionaggio, diserzioni, rivolte, colpi di stato;
-- sfrutti gli **eventi mondiali**, che ogni 5-8 turni cambiano le regole
-  per tutti (crisi petrolifera, carestia, boom, vertice dell'ONU...);
-- usi la **diplomazia** (`O`) per firmare tregue sul fronte secondario.
+To get there:
+- you **conquer cities** with infantry and armour: each city produces one unit
+  at a time, and **directives** (`P`) retool every factory;
+- you hold **whole regions** (13 in the world) for a production bonus from
+  +10% to +30% across the whole empire;
+- you play **cards** (`K`): espionage, defections, revolts, coups;
+- you exploit **world events**, which every 5-8 turns change the rules
+  for everyone (oil crisis, famine, boom, UN summit...);
+- you use **diplomacy** (`O`) to sign truces on the secondary front.
 
-Il tasto `o` mostra tutto in una pagina: il tuo obiettivo e a che punto
-sei, le regioni con chi le tiene, gli eventi in corso.
+The `o` key shows everything on one page: your objective and how far along
+you are, the regions and who holds them, the events in progress.
 
-## Avvio
+## Getting started
 
-Se è la prima volta, comincia dal **tutorial**: è il primo scenario del menu
-(oppure `python3 -m theempire --scenario tutorial`). Un istruttore, in un
-riquadro sulla mappa, ti spiega una cosa alla volta e aspetta che tu la
-faccia davvero: guardare la mappa, selezionare e muovere un'unità, dare un
-ordine di marcia, scegliere la produzione e una direttiva, finire il turno
-e leggere il bollettino, conquistare una città, giocare una carta. Poi ti
-presenta l'obiettivo segreto e le regioni (aprendo la pagina `o`) e ti fa
-vedere un evento mondiale vero, un boom economico da sfruttare. Alla fine
-ti lascia l'obiettivo: prendere Tirana, con una carta Rinforzi in regalo.
-`h` nasconde o mostra il riquadro.
+If it's your first time, start with the **tutorial**: it's the first scenario in the menu
+(or `python3 -m theempire --scenario tutorial`). An instructor, in a
+box on the map, explains one thing at a time and waits for you to actually
+do it: look at the map, select and move a unit, give a
+march order, choose production and a directive, end the turn
+and read the bulletin, conquer a city, play a card. Then they
+introduce the secret objective and the regions (opening the `o` page) and show you
+a real world event, an economic boom to exploit. At the end
+they leave you the objective: take Tirana, with a Reinforcements card as a gift.
+`h` hides or shows the box.
 
 
-Serve Python 3.10+ e un terminale UTF-8, meglio se a 256 colori. Il gioco
-usa solo la libreria standard: niente da installare.
+You need Python 3.10+ and a UTF-8 terminal, ideally with 256 colours. The game
+uses only the standard library: nothing to install.
 
 ```bash
-python3 -m theempire                 # menu: scenario, fazione, difficoltà
-python3 -m theempire --list          # scenari e fazioni
+python3 -m theempire                 # menu: scenario, faction, difficulty
+python3 -m theempire --list          # scenarios and factions
 python3 -m theempire --scenario ww3 --faction east --difficulty difficile
-python3 -m theempire --scenario coldwar --faction nato --faction pact   # hot-seat, 2 giocatori
-python3 -m theempire --load          # riprende ~/.theempire/save.json
-python3 -m theempire --autoplay 100 --seed 1   # IA contro IA, senza interfaccia
+python3 -m theempire --scenario coldwar --faction nato --faction pact   # hot-seat, 2 players
+python3 -m theempire --load          # resumes ~/.theempire/save.json
+python3 -m theempire --autoplay 100 --seed 1   # AI against AI, no interface
+python3 -m theempire --lang en       # game in English (it, en, fr, es, de, pt)
 ```
 
-Per installarlo come comando: `pip install .` e poi `theempire`.
+To install it as a command: `pip install .` and then `theempire`.
 
-## Musica ed effetti sonori
+## Languages
 
-Suoni e musiche sono **sintetizzati dal gioco stesso** in stile 8-bit, con
-onde quadre, triangolari e rumore come i computer di Theatre Europe. Nel
-progetto non c'è nessun file audio: al primo avvio vengono generati in un paio
-di secondi in `~/.theempire/sounds`.
+The game is available in **Italian, English, French, Spanish, German and
+Portuguese**. You choose the language:
+- from the command line with `--lang it|en|fr|es|de|pt`;
+- from the first menu ("Lingua / Language");
+- in game with the `L` key;
+- in the server setup screen ("Language" row);
+- in the web TUI login form.
 
-- **Musica**: nel menu e nella lobby la Toccata in re minore di Bach
-  (omaggio a Theatre Europe; la composizione è di pubblico dominio), in
-  guerra una marcia in minore con rullante, e quando l'Orologio scende sotto
-  i 5 minuti un tema di tensione con battito cardiaco e ticchettio. A fine
-  partita c'è una fanfara di vittoria, un lamento per la sconfitta o il vento
-  sul mondo morto a mezzanotte. Con il tasto `M` puoi scegliere la musica:
-  automatica, nessuna, **Kalinka** (il ritornello veloce e la strofa lenta
-  «Ах, под сосною», ricavati dall'arrangiamento MIDI di riferimento), l'**inno sovietico** (il «Союз нерушимый» di Aleksandrov,
-  trascritto dalla partitura ufficiale: strofa e ritornello completi), la
-  Toccata, la marcia, la tensione, la vittoria, la sconfitta o la mezzanotte.
-- **La tua musica**: metti dei file MIDI (`.mid`) nella cartella
-  `~/.theempire/music` (o in quella indicata da `THEEMPIRE_MUSIC`) e
-  compaiono nel menu `M` con il nome del file e i tasti 1-9: per esempio
-  `~/.theempire/music/Give Peace a Chance.mid` diventa «Give Peace a
-  Chance». Il gioco li suona con il suo sintetizzatore (basso, chitarre,
-  melodia e batteria, al massimo 4 minuti) e li prepara una volta sola
-  nella cache. I file restano tuoi: non fanno parte del gioco né del
-  repository. Nella web TUI si usa la cartella di chi avvia il server.
-- **Effetti**:
-  - battaglie, città conquistate o perdute, crolli di una fazione;
-  - attacco nucleare (sirena, fischio, esplosione), missile intercettato,
-    gas, aereo abbattuto;
-  - tregua, inizio del tuo turno online, allarmi.
-- **Ogni unità ha la sua voce**: un suono quando si muove e
-  uno quando apre il fuoco.
+Without an explicit choice the game uses the language saved last time, then
+the system's (`LANG`), otherwise Italian. In online games every player
+sees the game in their own language: the war log messages are translated
+by each client.
 
-  | Unità | Movimento | Fuoco |
+Translations live in `theempire/locales/<lang>.json`, with the Italian
+text as the key. `python3 tools/i18n.py check` lists missing or broken
+translations, `python3 tools/i18n.py update` adds new texts to the
+catalogues.
+
+## Music and sound effects
+
+Sounds and music are **synthesised by the game itself** in 8-bit style, with
+square and triangle waves and noise like the computers of Theatre Europe. There
+are no audio files in the project: on first launch they are generated in a couple
+of seconds in `~/.theempire/sounds`.
+
+- **Music**: in the menu and the lobby, Bach's Toccata in D minor
+  (a tribute to Theatre Europe; the composition is in the public domain), in
+  war a minor-key march with snare drum, and when the Clock drops below
+  5 minutes a tension theme with heartbeat and ticking. At the end of the
+  game there is a victory fanfare, a lament for defeat, or the wind
+  over the dead world at midnight. With the `M` key you can choose the music:
+  automatic, none, **Kalinka** (the fast chorus and the slow verse
+  «Ах, под сосною», taken from the reference MIDI arrangement), the **Soviet anthem** (Aleksandrov's «Союз нерушимый»,
+  transcribed from the official score: complete verse and chorus), the
+  Toccata, the march, tension, victory, defeat or midnight.
+- **Your own music**: put MIDI files (`.mid`) in the folder
+  `~/.theempire/music` (or the one given by `THEEMPIRE_MUSIC`) and
+  they appear in the `M` menu with the file name and keys 1-9: for example
+  `~/.theempire/music/Give Peace a Chance.mid` becomes "Give Peace a
+  Chance". The game plays them with its own synthesiser (bass, guitars,
+  melody and drums, at most 4 minutes) and prepares them only once
+  in the cache. The files remain yours: they are not part of the game or the
+  repository. In the web TUI the folder of whoever starts the server is used.
+- **Effects**:
+  - battles, cities conquered or lost, a faction's collapse;
+  - nuclear strike (siren, whistle, explosion), missile intercepted,
+    gas, aircraft shot down;
+  - truce, start of your online turn, alarms.
+- **Every unit has its own voice**: a sound when it moves and
+  one when it opens fire.
+
+  | Unit | Movement | Fire |
   |---|---|---|
-  | Fanteria | passi di marcia | raffica di fucili |
-  | Corazzati | motore diesel e cingoli | colpo del cannone |
-  | Caccia | jet che passa | raffiche di cannoncino |
-  | Bombardiere | motori pesanti che ronzano | fischio delle bombe ed esplosioni |
-  | Cacciatorpediniere | fischio e eliche veloci | cannoni a tiro rapido |
-  | Sottomarino | ping del sonar | siluro in corsa e impatto |
-  | Trasporto | motore lento e sirena bassa | — |
-  | Incrociatore | sirena profonda | bordata dei cannoni pesanti |
-  | Portaerei | sirena e decollo degli aerei | stormo che decolla |
+  | Infantry | marching footsteps | rifle volley |
+  | Armour | diesel engine and tracks | cannon shot |
+  | Fighter | passing jet | cannon bursts |
+  | Bomber | heavy droning engines | whistling bombs and explosions |
+  | Destroyer | whistle and fast propellers | rapid-fire guns |
+  | Submarine | sonar ping | running torpedo and impact |
+  | Transport | slow engine and low horn | — |
+  | Cruiser | deep horn | broadside of heavy guns |
+  | Aircraft carrier | horn and aircraft taking off | squadron taking off |
 
-  Le battaglie che ti riguardano suonano con le armi di chi attacca: senti
-  arrivare il siluro del sottomarino nemico.
-- **Bollettino di guerra.** All'inizio di ogni tuo turno la telecamera
-  ripercorre quello che gli altri hanno fatto dal tuo turno precedente,
-  come nel Theatre Europe. Vale per le fazioni dell'IA e per gli altri
-  giocatori, in hot-seat e online:
-  - le armate in marcia, con la voce di ogni unità;
-  - **ogni attacco in primo piano**: la mappa si centra sullo scontro, un
-    anello lampeggia intorno al bersaglio, l'attaccante si illumina, poi
-    fuoco ed esplosione con il suono della sua arma e infine l'esito
-    (bersaglio distrutto, attaccante respinto, città caduta). Gli attacchi
-    contro di te durano di più e sono segnalati come «ATTACCO CONTRO DI NOI»;
-  - le città conquistate e perdute, le atomiche e le armi chimiche.
+  Battles that concern you sound with the attacker's weapons: you hear
+  the enemy submarine's torpedo coming.
+- **War bulletin.** At the start of each of your turns the camera
+  replays what the others have done since your previous turn,
+  as in Theatre Europe. This applies to the AI factions and to other
+  players, in hot-seat and online:
+  - armies on the march, with each unit's voice;
+  - **every attack in close-up**: the map centres on the clash, a
+    ring flashes around the target, the attacker lights up, then
+    fire and explosion with the sound of its weapon and finally the outcome
+    (target destroyed, attacker repelled, city fallen). Attacks
+    against you last longer and are flagged as "ATTACK AGAINST US";
+  - cities conquered and lost, atomic bombs and chemical weapons.
 
-  Mentre scorre l'animazione, nel riquadro in basso si scrive la **cronaca**
-  di ogni scena. Alla fine compare il **bollettino scritto**, diviso in
-  sezioni:
-  - armi di distruzione di massa;
-  - il nostro fronte: ogni attacco subito, dove, con che unità e com'è finito;
-  - le città che hanno cambiato bandiera (quelle perse sono evidenziate);
-  - gli altri scontri avvistati;
-  - i movimenti osservati: quante unità e di che tipo, di quali fazioni, e
-    le zone più attive.
+  While the animation runs, the box at the bottom writes the **chronicle**
+  of each scene. At the end the **written bulletin** appears, divided into
+  sections:
+  - weapons of mass destruction;
+  - our front: every attack suffered, where, with which unit and how it ended;
+  - the cities that changed flag (the ones lost are highlighted);
+  - the other clashes sighted;
+  - the movements observed: how many units and of what type, of which factions, and
+    the most active areas.
 
   ```
-  IL NOSTRO FRONTE · 6 attacchi subiti, 2 respinti
-  ⚔ CONTRO DI NOI · Bombardiere (Unione Eurasiatica) sulla città di Kharkiv → RESPINTO
-  ⚔ CONTRO DI NOI · Corazzati (Unione Eurasiatica) sulla città di Kharkiv → LA CITTÀ CADE
-  CITTÀ CHE HANNO CAMBIATO BANDIERA · ne perdiamo 1
-  ⚑ Kharkiv conquistata da Unione Eurasiatica (prima: Alleanza Atlantica) — PERSA
+  OUR FRONT · 6 attacks suffered, 2 repelled
+  ⚔ AGAINST US · Bomber (Eurasian Union) on the city of Kharkiv → REPELLED
+  ⚔ AGAINST US · Armour (Eurasian Union) on the city of Kharkiv → THE CITY FALLS
+  CITIES THAT CHANGED FLAG · we lose 1
+  ⚑ Kharkiv conquered by Eurasian Union (before: Atlantic Alliance) — LOST
   ```
 
-  Un tasto qualunque salta l'animazione. `B` apre in ogni momento
-  l'**archivio dei bollettini** (gli ultimi 30 turni): ↑↓ scorre, ←→ passa
-  ai turni precedenti e successivi, `R` rivede l'animazione di quel turno.
-  Il bollettino rispetta la nebbia di guerra (online la applica il server),
-  sfoltisce le marce troppo lunghe e non consuma il tempo del turno.
-- Senti solo gli eventi che conosci. Le battaglie lontane tra altri e le
-  esplosioni nella nebbia di guerra restano mute. Le atomiche si sentono in
-  tutto il mondo.
-- Il tasto `M` apre il menu audio: scegli la musica (automatica, nessuna,
-  Kalinka, inno sovietico, Toccata di Bach, marcia di guerra,
-  tensione, vittoria, sconfitta, mezzanotte) e attiva o disattiva gli
-  effetti. La scelta resta per le partite successive. Da riga di comando:
-  `--audio all|sfx|off` oppure `--muto`.
-- Per suonare usa il lettore già presente: `afplay` su macOS, `paplay`,
-  `pw-play` o `aplay` su Linux, altrimenti `ffplay`. Se non ne trova nessuno
-  il gioco funziona lo stesso e usa il beep del terminale per gli eventi
-  importanti. Il server online non suona: l'audio è sul computer di ogni
-  giocatore.
+  Any key skips the animation. `B` opens the **bulletin archive** at any time
+  (the last 30 turns): ↑↓ scrolls, ←→ moves
+  to previous and next turns, `R` replays that turn's animation.
+  The bulletin respects the fog of war (online the server applies it),
+  thins out marches that are too long and does not use up turn time.
+- You only hear the events you know about. Distant battles between others and
+  explosions in the fog of war stay silent. Atomic bombs are heard all over
+  the world.
+- The `M` key opens the audio menu: choose the music (automatic, none,
+  Kalinka, Soviet anthem, Bach's Toccata, war march,
+  tension, victory, defeat, midnight) and turn the effects on or off.
+  The choice is kept for later games. From the command line:
+  `--audio all|sfx|off` or `--muto`.
+- To play sound it uses the player already present: `afplay` on macOS, `paplay`,
+  `pw-play` or `aplay` on Linux, otherwise `ffplay`. If it finds none,
+  the game works anyway and uses the terminal beep for important
+  events. The online server plays no sound: the audio is on each
+  player's computer.
 
-## Giocare dal browser (web TUI)
+## Playing from the browser (web TUI)
 
-Il gioco si può giocare anche da un browser: stessa mappa Braille, stessi
-colori, tasti e mouse del terminale, e l'audio suona nel browser.
+The game can also be played from a browser: same Braille map, same
+colours, keys and mouse as the terminal, and the audio plays in the browser.
 
 ```bash
-# server di gioco su 7777 + pagina web su 8080
+# game server on 7777 + web page on 8080
 python3 -m theempire --serve --web --scenario ww3 --faction west --faction east --password segreta
-# poi i giocatori aprono http://<indirizzo-del-server>:8080/
+# then the players open http://<server-address>:8080/
 ```
 
-- La pagina chiede nome, fazione e password. Il server avvia per ogni browser
-  un client vero in un terminale virtuale e lo mostra con
-  [xterm.js](https://xtermjs.org/) (MIT, incluso nel progetto: non serve
-  internet).
-- **Tablet e telefoni**: il tasto ⌨ mostra una pulsantiera con le direzioni,
-  le frecce del cursore e i comandi principali (Invio, prossima, vai a,
-  produzione, fine turno...). Con A− / A+ cambi la dimensione del testo.
-- **Audio nel browser**: effetti e musiche viaggiano come segnali invisibili
-  nel flusso del terminale, e la pagina li suona con la Web Audio API. Il
-  pulsante 🔊 li spegne.
-- **Rientro**: il browser ricorda il tuo posto. Se ricarichi la pagina torni
-  alla tua fazione.
-- Si può mettere la pagina web davanti a un server di gioco altrui:
+- The page asks for name, faction and password. For each browser the server starts
+  a real client in a virtual terminal and shows it with
+  [xterm.js](https://xtermjs.org/) (MIT, included in the project: no
+  internet needed).
+- **Tablets and phones**: the ⌨ button shows a keypad with the directions,
+  the cursor arrows and the main commands (Enter, next, go to,
+  production, end turn...). A− / A+ change the text size.
+- **Audio in the browser**: effects and music travel as invisible signals
+  in the terminal stream, and the page plays them with the Web Audio API. The
+  🔊 button turns them off.
+- **Rejoining**: the browser remembers your seat. If you reload the page you return
+  to your faction.
+- You can put the web page in front of someone else's game server:
   `python3 -m theempire --join host:7777 --web 8080`.
-- La password non passa mai nell'indirizzo: viaggia dentro la connessione.
-  Su internet mettete comunque la pagina dietro HTTPS (un reverse proxy come
-  Caddy o nginx) o una VPN. Funziona su Linux e macOS, perché usa i terminali
-  virtuali del sistema.
+- The password never goes into the address: it travels inside the connection.
+  On the internet, put the page behind HTTPS anyway (a reverse proxy such as
+  Caddy or nginx) or a VPN. It works on Linux and macOS, because it uses the system's
+  virtual terminals.
 
-## Multiplayer online
+## Online multiplayer
 
-Una partita online ha un **server** che tiene la partita e guida le fazioni
-dell'IA, e fino a un **giocatore per fazione** che si collega da un altro
-terminale o da un altro computer. Le fazioni indicate con `--faction` sono i
-posti per i giocatori umani; le altre le gioca l'IA. Senza `--faction`, tutte
-le fazioni sono posti umani.
+An online game has a **server** that holds the game and runs the AI
+factions, and up to **one player per faction** who connects from another
+terminal or another computer. The factions given with `--faction` are the
+seats for human players; the AI plays the others. Without `--faction`, all
+factions are human seats.
 
-### La schermata di configurazione
-Il modo più semplice per ospitare: `python3 -m theempire --serve` (senza
-scenario), oppure la voce **«Ospita una partita online...»** del menu
-iniziale. Si apre una pagina con tutte le opzioni:
+### The setup screen
+The easiest way to host: `python3 -m theempire --serve` (without a
+scenario), or the **"Host an online game..."** entry in the start
+menu. A page opens with all the options:
 
-| Opzione | Cosa decide |
+| Option | What it decides |
 |---|---|
-| Partita | nuova, o una salvata da un server precedente |
-| Scenario | quale guerra |
-| Una riga per fazione | giocatore umano (un posto) oppure IA |
-| Difficoltà dell'IA | facile, normale, difficile |
-| Obiettivi segreti, Eventi mondiali | sì o no |
-| Tempo per turno | nessun limite, 60, 90, 120, 180 o 300 secondi |
-| Tu giochi con | nessuna (solo server) o la fazione con cui giochi da questo terminale, e il tuo nome |
-| Porta di gioco, Web TUI, Porta web | dove entrano i client e il browser |
-| Password | vuota = partita aperta a tutti |
+| Game | new, or one saved by a previous server |
+| Scenario | which war |
+| One row per faction | human player (a seat) or AI |
+| AI difficulty | easy, normal, hard |
+| Secret objectives, World events | yes or no |
+| Time per turn | no limit, 60, 90, 120, 180 or 300 seconds |
+| You play as | none (server only) or the faction you play from this terminal, and your name |
+| Game port, Web TUI, Web port | where clients and the browser connect |
+| Password | empty = game open to everyone |
 
-Si sceglie con ↑↓, si cambia con ←→ o spazio, nei campi di testo si scrive.
-Un avviso spiega cosa non va (nessun posto umano, porte uguali...). In
-fondo alla pagina c'è sempre il **comando equivalente**, da copiare per la
-volta dopo. All'avvio il server stampa come entrare: il comando `--join`
-con l'indirizzo della macchina nella rete locale e l'indirizzo per il browser.
+Select with ↑↓, change with ←→ or space, type in the text fields.
+A warning explains what is wrong (no human seat, identical ports...). At
+the bottom of the page there is always the **equivalent command**, to copy for
+next time. On startup the server prints how to join: the `--join` command
+with the machine's address on the local network and the address for the browser.
 
-### Da riga di comando
+### From the command line
 
 ```bash
-# chi ospita: server su porta 7777, posti per NATO e Patto, 3 minuti a turno
+# the host: server on port 7777, seats for NATO and the Pact, 3 minutes per turn
 python3 -m theempire --serve --scenario coldwar --faction nato --faction pact \
         --password segreta --turn-time 180
 
-# chi ospita e gioca dallo stesso terminale (server in background)
+# the host plays from the same terminal (server in the background)
 python3 -m theempire --serve --scenario ww3 --faction west --faction east --play west
 
-# gli altri giocatori
+# the other players
 python3 -m theempire --join 192.168.1.20 --name Bruno --password segreta
 python3 -m theempire --join mioserver.example.org:7777 --faction east
 ```
 
-- La partita comincia quando tutti i posti sono occupati. Fino ad allora
-  compare la lobby con i nomi dei giocatori.
-- I turni restano a fazioni alterne: mentre tocca agli altri puoi guardare
-  la mappa, la panoramica e il registro, e scrivere in **chat** (`T`). Quando
-  tocca a te il terminale emette un beep.
-- **Nebbia di guerra vera.** Il server manda a ogni giocatore solo le unità
-  nemiche che le sue forze vedono, e solo i suoi messaggi. Il generatore
-  casuale dei combattimenti resta sul server. Il server controlla ogni
-  comando, quindi non si può muovere un'unità altrui né agire fuori turno.
-- Con `--turn-time` il server chiude da solo il turno di chi supera il
-  tempo. Il conto alla rovescia compare in alto.
-- `--senza-obiettivi` e `--senza-eventi` tolgono obiettivi segreti ed
-  eventi mondiali (valgono anche nelle partite in locale).
-- **Rientro.** Se cadi, rilancia lo stesso `--join`: il client ha salvato in
-  `~/.theempire/online.json` un gettone che ti restituisce il tuo posto.
-- Il server salva da sé a ogni turno in `~/.theempire/server-<porta>.json`.
-  Si riprende con `--serve --load <file>`: i posti restano agli stessi
-  giocatori. `S` da un client chiede un salvataggio immediato.
-- **Su internet** chi ospita deve aprire la porta TCP (7777 o quella scelta)
-  sul router/firewall, o usare una VPN come Tailscale o ZeroTier. Il traffico
-  non è cifrato: per partite tra sconosciuti usate una VPN o un tunnel SSH
-  (`ssh -L 7777:localhost:7777 host`) e mettete sempre una password.
+- The game starts when all the seats are taken. Until then
+  the lobby appears with the players' names.
+- Turns still alternate between factions: while it's the others' turn you can look at
+  the map, the overview and the log, and write in the **chat** (`T`). When
+  it's your turn the terminal beeps.
+- **Real fog of war.** The server sends each player only the enemy units
+  that their forces can see, and only their own messages. The random
+  generator for combat stays on the server. The server checks every
+  command, so you cannot move someone else's unit or act out of turn.
+- With `--turn-time` the server ends the turn of anyone who runs over the
+  time by itself. The countdown appears at the top.
+- `--senza-obiettivi` and `--senza-eventi` remove secret objectives and
+  world events (they also apply to local games).
+- **Rejoining.** If you drop, run the same `--join` again: the client has saved in
+  `~/.theempire/online.json` a token that gives you back your seat.
+- The server saves by itself every turn in `~/.theempire/server-<port>.json`.
+  You resume with `--serve --load <file>`: the seats stay with the same
+  players. `S` from a client asks for an immediate save.
+- **On the internet** the host must open the TCP port (7777 or the chosen one)
+  on the router/firewall, or use a VPN such as Tailscale or ZeroTier. The traffic
+  is not encrypted: for games between strangers use a VPN or an SSH tunnel
+  (`ssh -L 7777:localhost:7777 host`) and always set a password.
 
-## Scenari
+## Scenarios
 
-| Scenario | Fazioni | Idea |
+| Scenario | Factions | Idea |
 |---|---|---|
-| **Tutorial: la campagna dei Balcani** (`tutorial`) | Comando Italiano contro Repubblica Ribelle | Un istruttore ti insegna il gioco passo per passo, fino alla conquista di Tirana |
-| **Terza Guerra Mondiale** (`ww3`) | Alleanza Atlantica, Unione Eurasiatica, Blocco Orientale | Tre blocchi armati; il resto del mondo è neutrale e conquistabile |
-| **Guerra Fredda 1985** (`coldwar`) | NATO, Patto di Varsavia | Il Theatre Europe originale portato su scala mondiale; la Cina resta neutrale |
-| **Sei imperi** (`empire`) | sei imperi | Una sola capitale a testa, tutto il mondo da prendere, le atomiche vanno costruite |
+| **Tutorial: the Balkan campaign** (`tutorial`) | Italian Command against Rebel Republic | An instructor teaches you the game step by step, up to the conquest of Tirana |
+| **World War III** (`ww3`) | Atlantic Alliance, Eurasian Union, Eastern Bloc | Three armed blocs; the rest of the world is neutral and can be conquered |
+| **Cold War 1985** (`coldwar`) | NATO, Warsaw Pact | The original Theatre Europe brought to a world scale; China stays neutral |
+| **Six empires** (`empire`) | six empires | A single capital each, the whole world to take, atomic bombs must be built |
 
-## Regole
+## Rules
 
-### Città e produzione
-Ci sono 320 città vere: tutte le capitali più le maggiori metropoli, in
-proporzione alla popolazione e all'estensione dei paesi. Ognuna ha una
-**dimensione** da 1 a 3 (popolazione oltre 1 o 5 milioni). Produce
-`dimensione + 1 se capitale` punti a turno, moltiplicati per l'industria
-della fazione. Ogni città costruisce **una cosa alla volta**.
-Le navi si costruiscono solo nei porti. Le città hanno una **milizia** che le
-difende anche senza truppe.
+### Cities and production
+There are 320 real cities: all the capitals plus the largest metropolises, in
+proportion to the population and size of the countries. Each one has a
+**size** from 1 to 3 (population over 1 or 5 million). It produces
+`size + 1 if capital` points per turn, multiplied by the faction's
+industry. Each city builds **one thing at a time**.
+Ships can only be built in ports. Cities have a **militia** that
+defends them even without troops.
 
-- **Disordini**: una città in disordini **produce la metà** finché dura il
-  conto (lo vedi nel pannello della città, «disordini 3t»). Ci finisce una
-  città appena conquistata (5 turni: la popolazione non ha ancora accettato
-  il nuovo padrone), una città colpita da una carta Sabotaggio o una città
-  che si è appena ribellata o è passata di mano con un colpo di stato
-  (3 turni). Ogni turno il conto scende di uno. Non tocca le unità né la
-  milizia: è un freno all'economia, così una conquista paga davvero solo
-  dopo qualche turno.
-- Il **limite logistico** (lo vedi come `Unità n/limite`) cresce con le città
-  possedute. Oltre il limite le città finiscono la produzione e restano in attesa.
+- **Unrest**: a city in unrest **produces half** as long as the
+  count lasts (you see it in the city panel, "unrest 3t"). A city
+  ends up there when it has just been conquered (5 turns: the population has not yet accepted
+  its new master), when hit by a Sabotage card, or when it
+  has just revolted or changed hands in a coup
+  (3 turns). Each turn the count goes down by one. It does not affect units or
+  militia: it is a brake on the economy, so a conquest only really pays off
+  after a few turns.
+- The **logistic limit** (you see it as `Units n/limit`) grows with the cities
+  you own. Above the limit, cities finish their production and wait.
 
-### Unità
+### Units
 
-| | Unità | Dominio | Mosse | PV | Att | Dif | Costo | Note |
+| | Unit | Domain | Moves | HP | Att | Def | Cost | Notes |
 |---|---|---|---|---|---|---|---|---|
-| I | Fanteria | terra | 1 | 2 | 2 | 3 | 6 | conquista città |
-| A | Corazzati | terra | 2 | 3 | 4 | 2 | 10 | conquista città |
-| F | Caccia | aria | 8 | 1 | 3 | 3 | 12 | 16 di carburante, ×1.5 contro aerei |
-| B | Bombardiere | aria | 6 | 2 | 6 | 1 | 18 | 24 di carburante |
-| D | Cacciatorpediniere | mare | 3 | 3 | 2 | 2 | 12 | scopre i sommergibili, ×2 contro di loro |
-| S | Sottomarino | mare | 2 | 2 | 4 | 1 | 14 | invisibile se non è adiacente |
-| T | Trasporto | mare | 3 | 1 | 0 | 1 | 10 | porta 6 unità di terra |
-| R | Incrociatore | mare | 2 | 6 | 3 | 3 | 22 | bombarda la costa senza penalità |
-| C | Portaerei | mare | 2 | 6 | 1 | 2 | 28 | porta 6 aerei, base mobile |
+| I | Infantry | land | 1 | 2 | 2 | 3 | 6 | conquers cities |
+| A | Armour | land | 2 | 3 | 4 | 2 | 10 | conquers cities |
+| F | Fighter | air | 8 | 1 | 3 | 3 | 12 | 16 fuel, ×1.5 against aircraft |
+| B | Bomber | air | 6 | 2 | 6 | 1 | 18 | 24 fuel |
+| D | Destroyer | sea | 3 | 3 | 2 | 2 | 12 | detects submarines, ×2 against them |
+| S | Submarine | sea | 2 | 2 | 4 | 1 | 14 | invisible unless adjacent |
+| T | Transport | sea | 3 | 1 | 0 | 1 | 10 | carries 6 land units |
+| R | Cruiser | sea | 2 | 6 | 3 | 3 | 22 | bombards the coast without penalty |
+| C | Aircraft carrier | sea | 2 | 6 | 1 | 2 | 28 | carries 6 aircraft, mobile base |
 
-Le città producono anche **testate nucleari** (45 punti, città di dimensione
-2 o più) e **armi chimiche** (20).
+Cities also produce **nuclear warheads** (45 points, cities of size
+2 or more) and **chemical weapons** (20).
 
-### Movimento
-- Fuori dalle città sta **una sola unità per casella**, più un aereo: gli
-  aerei **volano sopra le tue unità** (di terra o navi) e possono fermarsi
-  lì, uno per casella; sulla mappa si vede l'aereo. Sopra le unità nemiche
-  invece non si passa: muoversi lì è un attacco. Nelle città se ne
-  ammassano quante vuoi.
-- Le unità di terra **salgono** su un trasporto muovendosi sulla sua casella e
-  **sbarcano** muovendosi su una casella di terra (lo sbarco consuma il turno).
-  Con `l`/`u` carichi e scarichi una nave ferma in porto.
-- Le navi entrano solo nei porti amici. Una città su un istmo (Panamá,
-  Istanbul, Suez...) fa da canale.
-- Gli aerei consumano 1 di carburante per casella e si riforniscono in città
-  o su una portaerei. A zero precipitano: il pannello mostra il carburante.
-- **Zoom**: `+` e `-` (o i pulsanti «Zoom +» e «Zoom -» in fondo al
-  pannello; sul telefono il pizzico con due dita) ingrandiscono la mappa
-  ×2 o ×4. Come in Terrascope la mappa non si deforma e non ripete gli
-  stessi punti: ogni casella diventa un quadrato di 2×2 o 4×4 caratteri e
-  la costa viene ridisegnata da una mappa della terraferma 4 volte più fine
-  (`assets/land_hd.bin`, da Natural Earth). Il cursore diventa il blocco
-  intero, e unità e città stanno al centro del loro blocco. Per vedere più
-  mondo c'è la panoramica (`m`).
-- **Col mouse**:
-  - clic su una tua unità: la selezioni (clic di nuovo per passare alla
-    successiva nella stessa città);
-  - clic su una casella accanto all'unità attiva: si muove lì, o attacca;
-  - clic su una casella lontana: compare il percorso, un secondo clic sulla
-    stessa casella la manda in marcia (Esc annulla);
-  - trascina per spostare la mappa, rotella per scorrerla, tasto destro per
-    selezionare. Funziona anche nella web TUI, e sugli schermi touch il dito
-    fa da mouse: un tocco è un clic, trascinando sposti la mappa;
-  - **il pannello è cliccabile**: «Carte (K)» apre le carte, «Direttiva (P)»
-    le direttive, una fazione la diplomazia, «In attesa di ordini (n)» passa
-    alla prossima unità, «Produce (p)» la produzione della città, un'unità
-    elencata la prende al comando. In fondo al pannello ci sono i pulsanti
-    Fine turno, Bollettino, Diplomazia, Mondo, Audio, Salva, Aiuto, e anche i
-    suggerimenti nella riga in basso («n prossima», «E fine turno»...) si
-    cliccano. Nei menu un clic sceglie la voce, un clic fuori chiude, la
-    rotella scorre.
+### Movement
+- Outside cities there is **only one unit per square**, plus one aircraft:
+  aircraft **fly over your units** (land units or ships) and can stop
+  there, one per square; the map shows the aircraft. Over enemy units,
+  however, you cannot pass: moving there is an attack. In cities you can
+  stack as many as you like.
+- Land units **board** a transport by moving onto its square and
+  **disembark** by moving onto a land square (disembarking uses up the turn).
+  With `l`/`u` you load and unload a ship stopped in port.
+- Ships only enter friendly ports. A city on an isthmus (Panamá,
+  Istanbul, Suez...) acts as a canal.
+- Aircraft use 1 fuel per square and refuel in cities
+  or on an aircraft carrier. At zero they crash: the panel shows the fuel.
+- **Zoom**: `+` and `-` (or the "Zoom +" and "Zoom -" buttons at the bottom of the
+  panel; on a phone, pinch with two fingers) enlarge the map
+  ×2 or ×4. As in Terrascope the map is not distorted and does not repeat the
+  same dots: each square becomes a block of 2×2 or 4×4 characters and
+  the coastline is redrawn from a land map 4 times finer
+  (`assets/land_hd.bin`, from Natural Earth). The cursor becomes the whole
+  block, and units and cities sit at the centre of their block. To see more of the
+  world there is the overview (`m`).
+- **With the mouse**:
+  - click on one of your units: you select it (click again to move to the
+    next one in the same city);
+  - click on a square next to the active unit: it moves there, or attacks;
+  - click on a distant square: the path appears, a second click on the
+    same square sends it marching (Esc cancels);
+  - drag to move the map, wheel to scroll it, right button to
+    select. It also works in the web TUI, and on touch screens your finger
+    acts as the mouse: a tap is a click, dragging moves the map;
+  - **the panel is clickable**: "Cards (K)" opens the cards, "Directive (P)"
+    the directives, a faction the diplomacy, "Awaiting orders (n)" goes
+    to the next unit, "Produces (p)" the city's production, a listed
+    unit takes command of it. At the bottom of the panel there are the buttons
+    End turn, Bulletin, Diplomacy, World, Audio, Save, Help, and the
+    hints in the bottom row ("n next", "E end turn"...) can
+    be clicked too. In menus a click chooses the entry, a click outside closes, the
+    wheel scrolls.
 
-### Direttive di produzione
-Con `P` dai un ordine unico a tutta l'economia di guerra e tutte le città
-si riconvertono subito. Il lavoro già fatto resta, e le città conquistate
-dopo seguono la stessa direttiva.
+### Production directives
+With `P` you give a single order to the whole war economy and all cities
+retool immediately. Work already done is kept, and cities conquered
+later follow the same directive.
 
-| Direttiva | Cosa costruiscono le città |
+| Directive | What the cities build |
 |---|---|
-| manuale | decidi tu, città per città |
-| bilanciata | decide l'IA in base alla situazione |
-| offensiva terrestre | corazzati nelle città grandi, fanteria nelle piccole |
-| potenza aerea | caccia, e bombardieri in una città grande su tre |
-| dominio dei mari | cacciatorpediniere, sottomarini, incrociatori e qualche portaerei nei porti; truppe nell'entroterra |
-| sbarchi | trasporti in metà dei porti, truppe altrove |
-| difesa | fanteria ovunque |
-| deterrenza | testate nucleari nelle capitali e nelle metropoli, truppe altrove |
+| manual | you decide, city by city |
+| balanced | the AI decides based on the situation |
+| land offensive | armour in the large cities, infantry in the small ones |
+| air power | fighters, and bombers in one large city out of three |
+| sea control | destroyers, submarines, cruisers and a few aircraft carriers in ports; troops inland |
+| landings | transports in half the ports, troops elsewhere |
+| defence | infantry everywhere |
+| deterrence | nuclear warheads in capitals and metropolises, troops elsewhere |
 
-Se imposti a mano una città con `p`, quella città esce dalla direttiva e il
-pannello la segna "(a mano)". Dal menu di produzione, `X` la riporta sotto
-la direttiva. Nel menu delle direttive, `T` applica il nuovo ordine anche
-alle città scelte a mano.
+If you set a city by hand with `p`, that city leaves the directive and the
+panel marks it "(manual)". From the production menu, `X` puts it back under
+the directive. In the directives menu, `T` applies the new order also
+to the cities set by hand.
 
-### Timer del turno
-Per dare ritmo alla partita puoi limitare il tempo di ogni turno. Lo scegli
-nel menu iniziale (nessun limite, 1, 2, 3 o 5 minuti) oppure con
-`--turn-time SECONDI`, anche in locale e in hot-seat. Il conto alla rovescia
-è in alto a destra. A 10 secondi dalla fine suona l'allarme, e allo scadere
-il turno finisce da solo: le unità con un ordine di marcia proseguono, le
-altre restano dove sono. Il riepilogo animato delle mosse avversarie non
-consuma il tuo tempo.
+### Turn timer
+To give the game pace you can limit the time of each turn. You choose it
+in the start menu (no limit, 1, 2, 3 or 5 minutes) or with
+`--turn-time SECONDS`, also locally and in hot-seat. The countdown
+is at the top right. 10 seconds before the end the alarm sounds, and when time runs out
+the turn ends by itself: units with a march order carry on, the
+others stay where they are. The animated summary of the opponents' moves does not
+use up your time.
 
-### Combattimento
-Per attaccare muovi un'unità contro un nemico. Lo scontro è un duello a round:
-a ogni round uno dei due perde un punto vita, con probabilità
-`attacco / (attacco + difesa)`, finché uno dei due non muore. Il pannello
-mostra la **probabilità di vittoria** prima che tu attacchi.
+### Combat
+To attack, move a unit against an enemy. The clash is a duel in rounds:
+in each round one of the two loses a hit point, with probability
+`attack / (attack + defence)`, until one of the two dies. The panel
+shows the **probability of victory** before you attack.
 
-- Difesa in città ×1.5, fortificati ×1.25.
-- **Supporto**: +15% all'attacco di terra per ogni altra tua unità di terra
-  adiacente al bersaglio (fino a +60%). Concentrare le forze conta.
-- Assalto anfibio direttamente da un trasporto: attacco dimezzato.
-- Solo fanteria e corazzati conquistano le città. Aerei e navi le bombardano
-  e ne abbassano la milizia.
+- Defence in a city ×1.5, fortified ×1.25.
+- **Support**: +15% to the land attack for each other land unit of yours
+  adjacent to the target (up to +60%). Concentrating forces matters.
+- Amphibious assault directly from a transport: attack halved.
+- Only infantry and armour conquer cities. Aircraft and ships bombard them
+  and lower their militia.
 
-### Nebbia di guerra
-Conosci la geografia e il colore delle città, ma vedi le unità nemiche solo
-nel raggio delle tue forze. I sottomarini si vedono solo da vicino.
+### Fog of war
+You know the geography and the colour of the cities, but you see enemy units only
+within range of your forces. Submarines can only be seen up close.
 
-### Escalation e Orologio dell'Apocalisse
-L'**Orologio dell'Apocalisse** parte da 10 minuti alla mezzanotte (7 nella
-Guerra Fredda) e sta in alto a destra, insieme al livello DEFCON.
+### Escalation and the Doomsday Clock
+The **Doomsday Clock** starts at 10 minutes to midnight (7 in the
+Cold War) and sits at the top right, together with the DEFCON level.
 
-| Arma | Effetto | Orologio |
+| Weapon | Effect | Clock |
 |---|---|---|
-| ☣ Chimica (`C`) | 2 danni a tutte le unità di terra in un'area 3×3, milizia dimezzata; portata 4 caselle dalle tue forze | −1 min |
-| ☢ Nucleare (`N`) | tutto distrutto in un'area 3×3, ricaduta radioattiva per 12 turni, città irradiate per 10 turni, la città colpita perde una dimensione; portata globale | −2 min, −3 se colpisci una città |
+| ☣ Chemical (`C`) | 2 damage to all land units in a 3×3 area, militia halved; range 4 squares from your forces | −1 min |
+| ☢ Nuclear (`N`) | everything destroyed in a 3×3 area, radioactive fallout for 12 turns, cities irradiated for 10 turns, the city hit loses one size; global range | −2 min, −3 if you hit a city |
 
-- Ogni testata può essere **intercettata** dalla difesa antimissile del
-  bersaglio (dal 15% al 25%). Anche un lancio intercettato costa un minuto.
-- Per lanciare devi digitare il **codice di autorizzazione** che compare a
-  schermo, come nel manuale di Theatre Europe.
-- Chi viene colpito di solito **risponde** (distruzione mutua assicurata):
-  le IA reagiscono quasi sempre, e colpiscono la tua città più grande.
-- Le IA sono attori razionali: non fanno mai il lancio che porterebbe
-  l'orologio a mezzanotte, a meno di essere ormai spacciate (3 città o
-  meno). Tu invece puoi farlo.
-- Dopo 6 turni senza armi di distruzione di massa la tensione cala e
-  l'orologio recupera un minuto.
-- **A mezzanotte la partita finisce e perdono tutti.**
+- Each warhead can be **intercepted** by the target's missile defence
+  (from 15% to 25%). Even an intercepted launch costs a minute.
+- To launch you must type the **authorisation code** that appears on
+  screen, as in the Theatre Europe manual.
+- Whoever is hit usually **retaliates** (mutually assured destruction):
+  the AIs almost always react, and hit your largest city.
+- The AIs are rational actors: they never make the launch that would bring
+  the clock to midnight, unless they are already doomed (3 cities or
+  fewer). You, on the other hand, can.
+- After 6 turns without weapons of mass destruction tension eases and
+  the clock gains back a minute.
+- **At midnight the game ends and everyone loses.**
 
-### Carte (alla Futurisiko)
-Oltre a muovere le unità puoi giocare **carte segrete** che cambiano la
-guerra. Si guadagnano in due modi:
-- **conquistando**: come in Risiko, a fine turno peschi una carta se nel
-  turno hai preso almeno una città, con le armi, una rivolta o un colpo di
-  stato;
-- **dai servizi segreti**: tutti ricevono una carta ogni 6 turni.
+### Cards (Futurisiko-style)
+Besides moving units you can play **secret cards** that change the
+war. You earn them in two ways:
+- **by conquering**: as in Risk, at the end of the turn you draw a card if in the
+  turn you took at least one city, by arms, a revolt or a
+  coup;
+- **from the secret services**: everyone receives a card every 6 turns.
 
-Si tengono al massimo 5 carte. Il tasto `K` mostra la tua mano e gioca una
-carta; nel pannello vedi quante ne hai (♠) e quante ne ha ogni rivale.
+You can hold at most 5 cards. The `K` key shows your hand and plays a
+card; in the panel you see how many you have (♠) and how many each rival has.
 
-| Carta | Effetto | Riesce |
+| Card | Effect | Succeeds |
 |---|---|---|
-| Piano quinquennale (×3) | +50% di produzione in tutte le città per 3 turni | sempre |
-| Mobilitazione generale (×2) | ogni città guadagna subito un turno di produzione | sempre |
-| Rinforzi (×3) | 2 fanterie e 1 corazzato in una tua città, oltre il limite logistico | sempre |
-| Diserzione (×3) | un'unità nemica che vedi, fuori dalle città, passa con te | 65% |
-| Commando (×2) | elimina un'unità nemica accanto alle tue forze | 70% |
-| Rivolta (×2) | una città nemica di dimensione 1-2 insorge (anche le capitali minori come Varsavia o Minsk; non la capitale principale della fazione, come Mosca o Washington): neutrale, o tua se hai truppe di terra accanto (e la guarnigione passa con te) | 60% |
-| Colpo di stato (×1) | un paese neutrale con al massimo 4 città, dove hai un'unità entro 3 caselle, passa tutto con te | 50% |
-| Spionaggio (×3) | vedi tutte le unità di una fazione fino al tuo prossimo turno, più un rapporto su città, eserciti, testate, carte e produzione | sempre |
-| Sabotaggio (×2) | in una città nemica la produzione riparte da zero, con 3 turni di disordini | 75% |
-| Scudo antimissile (×1) | +50% di intercettazione dei missili per 6 turni | sempre |
-| Distensione (×2) | vertice di pace: l'Orologio dell'Apocalisse torna indietro di 3 minuti | sempre |
+| Five-year plan (×3) | +50% production in all cities for 3 turns | always |
+| General mobilisation (×2) | every city immediately gains one turn of production | always |
+| Reinforcements (×3) | 2 infantry and 1 armour in one of your cities, beyond the logistic limit | always |
+| Defection (×3) | an enemy unit you can see, outside cities, comes over to you | 65% |
+| Commando (×2) | eliminates an enemy unit next to your forces | 70% |
+| Revolt (×2) | an enemy city of size 1-2 rises up (minor capitals too, such as Warsaw or Minsk; not the faction's main capital, such as Moscow or Washington): neutral, or yours if you have land troops next to it (and the garrison comes over to you) | 60% |
+| Coup (×1) | a neutral country with at most 4 cities, where you have a unit within 3 squares, comes over to you entirely | 50% |
+| Espionage (×3) | you see all the units of a faction until your next turn, plus a report on cities, armies, warheads, cards and production | always |
+| Sabotage (×2) | in an enemy city production restarts from zero, with 3 turns of unrest | 75% |
+| Missile shield (×1) | +50% missile interception for 6 turns | always |
+| Détente (×2) | peace summit: the Doomsday Clock goes back 3 minutes | always |
 
-- Una carta che fallisce è comunque spesa, e la vittima viene a sapere del
-  tentativo.
-- Le carte giocate contro di te compaiono nel bollettino di guerra (sezione
-  «Carte e colpi di mano»). Rivolte e colpi di stato sono notizie pubbliche.
-- **Anche l'IA gioca le carte**: usa subito quelle economiche, tiene scudo e
-  distensione per quando l'orologio si avvicina alla mezzanotte, e usa
-  diserzioni, commando e sabotaggi dove fanno più male.
-- **Online le carte sono segrete**: il server non manda a nessuno la mano
-  degli altri né l'ordine del mazzo, solo quante carte ha ciascuno.
-- Strategia: tieni una Distensione per i momenti di crisi nucleare e uno
-  Spionaggio prima di un'offensiva. Una Diserzione su una portaerei o su un
-  trasporto carico vale una battaglia vinta.
+- A card that fails is spent anyway, and the victim learns of the
+  attempt.
+- Cards played against you appear in the war bulletin (section
+  "Cards and covert actions"). Revolts and coups are public news.
+- **The AI plays cards too**: it uses the economic ones at once, keeps shield and
+  détente for when the clock gets close to midnight, and uses
+  defections, commandos and sabotage where they hurt most.
+- **Online, cards are secret**: the server sends nobody the hand
+  of the others or the order of the deck, only how many cards each one has.
+- Strategy: keep a Détente for moments of nuclear crisis and an
+  Espionage before an offensive. A Defection on an aircraft carrier or a
+  loaded transport is worth a battle won.
 
-### Diplomazia: le tregue
-Con `O` proponi una **tregua di 15 turni** a un'altra fazione. Durante la
-tregua le due fazioni non possono attaccarsi, entrare nelle caselle
-dell'altra né colpirla con armi chimiche o nucleari (nel pannello compare
-`≈`). Allo scadere si torna in guerra.
+### Diplomacy: truces
+With `O` you propose a **15-turn truce** to another faction. During the
+truce the two factions cannot attack each other, enter each other's
+squares or hit each other with chemical or nuclear weapons (the panel shows
+`≈`). When it expires, it's back to war.
 
-- L'IA accetta volentieri quando sta perdendo o quando l'orologio è sotto i
-  5 minuti. Un'IA aggressiva che sta vincendo rifiuta quasi sempre, e
-  nessuno firma con chi lo ha appena colpito con l'atomica.
-- Le IA in difficoltà propongono a loro volta tregue alla fazione più forte.
-- Dopo un rifiuto puoi riproporre la stessa tregua solo dopo 5 turni.
-- Strategia: una tregua sul fronte secondario ti libera le truppe per quello
-  principale, ma dura poco. Usala per una spallata, non per sempre.
+- The AI gladly accepts when it is losing or when the clock is under
+  5 minutes. An aggressive AI that is winning almost always refuses, and
+  nobody signs with someone who has just hit them with an atomic bomb.
+- AIs in difficulty in turn propose truces to the strongest faction.
+- After a refusal you can propose the same truce again only after 5 turns.
+- Strategy: a truce on the secondary front frees your troops for the
+  main one, but it doesn't last long. Use it for a decisive push, not forever.
 
-### Obiettivi segreti (alla Risiko)
-A inizio partita ogni fazione riceve un **obiettivo segreto**: chi lo
-completa **vince subito**, prima del dominio del mondo. Il tuo compare in un
-riquadro al primo turno e nel pannello (`◎ Obiettivo`, con il punto a cui
-sei); `o` lo rilegge. Gli obiettivi possibili:
+### Secret objectives (Risk-style)
+At the start of the game each faction receives a **secret objective**: whoever
+completes it **wins at once**, before world domination. Yours appears in a
+box on the first turn and in the panel (`◎ Objective`, with how far along
+you are); `o` shows it again. The possible objectives:
 
-- **due regioni**: conquista tutte le città di due regioni (vedi sotto);
-- **eliminare una fazione**: devi prendere tu la sua ultima città. Se la
-  elimina qualcun altro, l'obiettivo diventa «controlla N città»;
-- **N città**: le tue città di partenza più un quinto di quelle del mondo
-  (sempre meno di quante ne servono per il dominio);
-- **N capitali nemiche**: conquista e tieni quasi metà delle capitali che
-  all'inizio erano dei tuoi rivali (al massimo 12); quelle neutrali non
-  contano.
+- **two regions**: conquer all the cities of two regions (see below);
+- **eliminate a faction**: you must take its last city yourself. If
+  someone else eliminates it, the objective becomes "control N cities";
+- **N cities**: your starting cities plus a fifth of those in the world
+  (always fewer than are needed for domination);
+- **N enemy capitals**: conquer and hold almost half of the capitals that
+  at the start belonged to your rivals (at most 12); neutral ones don't
+  count.
 
-Gli obiettivi degli altri sono segreti, anche online: li rivela solo una
-carta **Spionaggio**, e si scoprono tutti a fine partita. L'IA insegue il
-suo e non firma tregue con la fazione che deve eliminare. Nel tutorial gli
-obiettivi non ci sono.
+The others' objectives are secret, online too: only an
+**Espionage** card reveals them, and they are all revealed at the end of the game. The AI pursues
+its own and does not sign truces with the faction it has to eliminate. There are no
+objectives in the tutorial.
 
-### Regioni (bonus continentali)
-Il mondo è diviso in 13 regioni: Nord America, America Centrale e Caraibi,
-Sud America, Europa Occidentale, Europa Orientale e Balcani, Russia-Caucaso-
-Asia Centrale, Medio Oriente, Nord Africa, Africa Subsahariana, Asia
-Meridionale, Asia Orientale, Sud-Est Asiatico, Oceania. Chi tiene **tutte**
-le città di una regione ha un **bonus di produzione in tutte le sue città**,
-dal +10% (Nord Africa, 8 città) al +30% (Africa Subsahariana, 51 città). I
-bonus si sommano; perdere anche una sola città della regione li toglie, e
-l'acquisto e la perdita vengono annunciati a tutti.
+### Regions (continental bonuses)
+The world is divided into 13 regions: North America, Central America and the Caribbean,
+South America, Western Europe, Eastern Europe and the Balkans, Russia-Caucasus-Central
+Asia, Middle East, North Africa, Sub-Saharan Africa, South
+Asia, East Asia, Southeast Asia, Oceania. Whoever holds **all**
+the cities of a region gets a **production bonus in all their cities**,
+from +10% (North Africa, 8 cities) to +30% (Sub-Saharan Africa, 51 cities). The
+bonuses add up; losing even a single city of the region removes them, and
+gaining and losing them is announced to everyone.
 
-Il pannello mostra le regioni che tieni (`⚑`) o quella che ti manca meno;
-`o` apre la tabella completa: tue città per regione, bonus e chi la tiene.
-Strategia: una città nemica isolata dentro la tua regione vale più della sua
-dimensione, e strapparne una all'avversario gli toglie il bonus.
+The panel shows the regions you hold (`⚑`) or the one you are closest to;
+`o` opens the full table: your cities per region, bonus and who holds it.
+Strategy: an isolated enemy city inside your region is worth more than its
+size, and taking one from your opponent removes their bonus.
 
-### Eventi mondiali
-Ogni 5-8 turni succede qualcosa che tocca tutti, annunciato con un riquadro
-all'inizio del tuo turno e nel registro (in azzurro):
+### World events
+Every 5-8 turns something happens that affects everyone, announced with a box
+at the start of your turn and in the log (in light blue):
 
-| Evento | Effetto |
+| Event | Effect |
 |---|---|
-| Crisi petrolifera | per 3 turni aerei e navi hanno metà delle mosse |
-| Carestia | per 3 turni le città di dimensione 3 producono il 30% in meno |
-| Boom economico | per 3 turni +25% di produzione per tutti |
-| Inverno rigido | per 3 turni le unità di terra oltre il 45° parallelo nord muovono di 1 in meno |
-| Vertice dell'ONU | tregua imposta di 6 turni tra le due potenze più forti in guerra |
-| Insurrezione | una città senza guarnigione della fazione più estesa torna neutrale |
-| Uragano | aerei e navi fuori dai porti in un tratto di mare perdono 1 punto vita |
-| Corsa agli armamenti | una testata a ogni potenza nucleare, l'Orologio avanza di 1 minuto |
-| Disgelo diplomatico | l'Orologio arretra di 1 minuto |
-| Volontari | una fanteria in più nella capitale di ogni fazione |
+| Oil crisis | for 3 turns aircraft and ships have half their moves |
+| Famine | for 3 turns cities of size 3 produce 30% less |
+| Economic boom | for 3 turns +25% production for everyone |
+| Harsh winter | for 3 turns land units beyond the 45th parallel north move 1 less |
+| UN summit | 6-turn truce imposed between the two strongest powers at war |
+| Insurrection | an ungarrisoned city of the largest faction goes back to neutral |
+| Hurricane | aircraft and ships outside ports in a stretch of sea lose 1 hit point |
+| Arms race | one warhead to each nuclear power, the Clock advances by 1 minute |
+| Diplomatic thaw | the Clock goes back 1 minute |
+| Volunteers | one extra infantry in the capital of each faction |
 
-Gli effetti in corso compaiono nel pannello (`✦`). Nel tutorial gli eventi
-non ci sono.
+The effects in progress appear in the panel (`✦`). There are no events in the
+tutorial.
 
-### Vittoria
-- **Obiettivo segreto** completato (vedi sopra).
-- **Dominio**: controlla il 55% delle città del mondo (50% in Sei imperi, 90% nel
-  tutorial, dove si vince prendendo Tirana).
-- **Conquista**: tutti i rivali senza città.
-- **Ai punti** allo scadere dei turni (300; 400 in Sei imperi).
-- **Mezzanotte**: nessun vincitore.
+### Victory
+- **Secret objective** completed (see above).
+- **Domination**: control 55% of the world's cities (50% in Six empires, 90% in the
+  tutorial, where you win by taking Tirana).
+- **Conquest**: all rivals without cities.
+- **On points** when the turns run out (300; 400 in Six empires).
+- **Midnight**: no winner.
 
-## Comandi
+## Controls
 
-In tutti i menu (produzione, direttive, carte, diplomazia, audio, conferme)
-ti muovi con le **frecce ↑↓** e confermi con **Invio**. La lettera o il
-numero a fianco di ogni voce la sceglie subito, ed Esc annulla.
+In all menus (production, directives, cards, diplomacy, audio, confirmations)
+you move with the **arrows ↑↓** and confirm with **Enter**. The letter or
+number next to each entry chooses it at once, and Esc cancels.
 
-| Tasto | Azione |
+| Key | Action |
 |---|---|
-| `q w e` `a d` `z x c` (o tastierino) | muove l'unità attiva nelle 8 direzioni |
-| frecce, PagSu/PagGiù | muovono il cursore |
-| mouse | clic: seleziona, muove o attacca; clic lontano + secondo clic: marcia; trascina o rotella: scorre la mappa |
-| `Invio` | seleziona l'unità sotto il cursore (in città scorre le unità); su una città vuota apre la produzione |
-| `n` / `Tab`, `spazio` | unità successiva / salta l'unità |
-| `s`, `f` | sentinella (si sveglia se arriva il nemico), fortifica |
-| `g` | vai a: sposta il cursore e premi Invio (il percorso viene mostrato) |
-| `A` | **automatica**: l'unità passa sotto il controllo dell'IA |
-| `v` | sveglia le unità sotto il cursore, compreso il carico delle navi |
-| `l` / `u` | carica / scarica una nave in porto |
-| `p`, `P` | produzione della città, direttiva di produzione per tutte le città |
-| `m` | panoramica del mondo (un punto Braille = una casella; clic per saltare) |
-| `M` | audio: scegli musica ed effetti |
-| `N`, `C` | attacco nucleare / chimico sulla casella del cursore |
-| `O` | diplomazia: proponi una tregua o rispondi a una proposta |
-| `K` | le tue carte: leggile e giocane una |
-| `o` | obiettivo segreto, regioni con i loro bonus, eventi mondiali |
-| `+` / `-` | zoom della mappa |
-| `B` | archivio dei bollettini di guerra: leggi, sfoglia i turni, `R` per rivedere l'animazione |
-| `T` | chat (partite online) |
-| `E` | fine turno (segue il riepilogo animato delle mosse avversarie) |
-| `S`, `Q`, `?` | salva, esci (salvando), aiuto |
+| `q w e` `a d` `z x c` (or keypad) | moves the active unit in the 8 directions |
+| arrows, PgUp/PgDn | move the cursor |
+| mouse | click: select, move or attack; distant click + second click: march; drag or wheel: scroll the map |
+| `Enter` | selects the unit under the cursor (in a city it cycles through the units); on an empty city it opens production |
+| `n` / `Tab`, `space` | next unit / skip the unit |
+| `s`, `f` | sentry (wakes up if the enemy arrives), fortify |
+| `g` | go to: move the cursor and press Enter (the path is shown) |
+| `A` | **automatic**: the unit passes under AI control |
+| `v` | wakes the units under the cursor, including the ships' cargo |
+| `l` / `u` | load / unload a ship in port |
+| `p`, `P` | city production, production directive for all cities |
+| `m` | world overview (one Braille dot = one square; click to jump) |
+| `M` | audio: choose music and effects |
+| `L` | game language |
+| `N`, `C` | nuclear / chemical strike on the square under the cursor |
+| `O` | diplomacy: propose a truce or answer a proposal |
+| `K` | your cards: read them and play one |
+| `o` | secret objective, regions with their bonuses, world events |
+| `+` / `-` | map zoom |
+| `B` | war bulletin archive: read, browse the turns, `R` to replay the animation |
+| `T` | chat (online games) |
+| `E` | end turn (followed by the animated summary of the opponents' moves) |
+| `S`, `Q`, `?` | save, quit (saving), help |
 
-A inizio partita la fanteria è fortificata e il resto è di sentinella. Le
-unità si svegliano da sole quando il nemico si avvicina, così a ogni turno
-ti chiede ordini solo il fronte. Un'unità nuova chiede subito ordini.
+At the start of the game infantry is fortified and the rest is on sentry. Units
+wake up by themselves when the enemy approaches, so each turn
+only the front asks you for orders. A new unit asks for orders immediately.
 
-## Strategie consigliate
+## Recommended strategies
 
-**Alleanza Atlantica.** Hai più città di tutti, ma sono sparse su quattro
-continenti. Il tuo limite è la logistica, non l'industria.
-1. Tieni l'Europa orientale. Polonia, Paesi Baltici e Ucraina sono il
-   "Fulda Gap" del 2027: fortifica la fanteria nelle città e tieni dietro i
-   corazzati per i contrattacchi, che col bonus di supporto fanno la differenza.
-2. Le Americhe sono quasi tutte neutrali e raggiungibili via terra. Metti i
-   corazzati americani in automatico (`A`) verso sud: Messico e Brasile
-   raddoppiano la tua industria.
-3. Le portaerei sono la tua carta migliore: le basi mobili tengono il
-   Pacifico e l'Atlantico. Scortale con i cacciatorpediniere, perché i
-   sottomarini eurasiatici le cercano.
-4. Non sparare per primo. La tua dottrina è prudente e le IA rispondono
-   colpo su colpo: una sola atomica può costare New York.
+**Atlantic Alliance.** You have more cities than anyone, but they are spread over four
+continents. Your limit is logistics, not industry.
+1. Hold Eastern Europe. Poland, the Baltic states and Ukraine are the
+   "Fulda Gap" of 2027: fortify the infantry in the cities and keep the
+   armour behind for counter-attacks, which with the support bonus make the difference.
+2. The Americas are almost all neutral and reachable by land. Put the
+   American armour on automatic (`A`) heading south: Mexico and Brazil
+   double your industry.
+3. Aircraft carriers are your best card: mobile bases hold the
+   Pacific and the Atlantic. Escort them with destroyers, because Eurasian
+   submarines hunt them.
+4. Don't fire first. Your doctrine is cautious and the AIs answer
+   blow for blow: a single atomic bomb can cost you New York.
 
-**Unione Eurasiatica.** Poche città ma l'industria più forte (×1.5) e tante
-truppe corazzate.
-1. Attacca subito: i neutrali dell'Asia centrale e del Medio Oriente
-   (Iran, Iraq, Turchia, Asia centrale) sono raggiungibili via terra.
-2. Sfonda in Europa con masse di corazzati: tre unità adiacenti allo stesso
-   bersaglio danno +30% d'attacco.
-3. Usa i sottomarini contro i trasporti nemici: ogni trasporto affondato
-   costa all'avversario fino a 6 unità.
-4. Le chimiche (6) servono a spezzare una difesa fortificata, ma ogni uso
-   avvicina la mezzanotte.
+**Eurasian Union.** Few cities but the strongest industry (×1.5) and plenty of
+armoured troops.
+1. Attack at once: the neutrals of Central Asia and the Middle East
+   (Iran, Iraq, Turkey, Central Asia) are reachable by land.
+2. Break through in Europe with masses of armour: three units adjacent to the same
+   target give +30% attack.
+3. Use submarines against enemy transports: every transport sunk
+   costs the opponent up to 6 units.
+4. Chemical weapons (6) serve to break a fortified defence, but every use
+   brings midnight closer.
 
-**Blocco Orientale.** Una massa enorme di fanteria e il cuore industriale
-cinese.
-1. Il Sud-est asiatico e l'India sono la tua espansione naturale.
-2. Il Giappone, la Corea del Sud e Taiwan sono avamposti nemici a un passo:
-   isolali con i sottomarini prima di sbarcare.
-3. Hai solo 10 testate: costruiscine altre nelle grandi città se il
-   conflitto si inasprisce, perché il deterrente conta anche se non lo usi.
+**Eastern Bloc.** A huge mass of infantry and China's industrial
+heartland.
+1. Southeast Asia and India are your natural expansion.
+2. Japan, South Korea and Taiwan are enemy outposts a step away:
+   isolate them with submarines before landing.
+3. You have only 10 warheads: build more in the large cities if the
+   conflict escalates, because the deterrent counts even if you don't use it.
 
-**Obiettivi, regioni ed eventi**
-- Il tuo obiettivo segreto decide dove attaccare: non disperdere le forze su
-  fronti che non ti servono. Un colpo di stato o una rivolta (carte) sono il
-  modo più rapido per chiudere una regione.
-- Guarda chi sta per completare una regione (`o`): strappargli una sola
-  città gli toglie il bonus, e forse gli blocca l'obiettivo.
-- Gioca una carta Spionaggio sul rivale più minaccioso: oltre all'esercito
-  ti rivela il suo obiettivo segreto.
-- Un boom economico è il momento di mettere tutte le città su una direttiva
-  di produzione; una crisi petrolifera ferma flotte e aviazione, quindi è
-  il momento delle offensive di terra.
+**Objectives, regions and events**
+- Your secret objective decides where to attack: don't scatter your forces on
+  fronts you don't need. A coup or a revolt (cards) are the
+  quickest way to complete a region.
+- Watch who is about to complete a region (`o`): taking a single
+  city from them removes their bonus, and may block their objective.
+- Play an Espionage card on the most threatening rival: besides their army
+  it reveals their secret objective.
+- An economic boom is the time to put all cities on a production
+  directive; an oil crisis halts fleets and air forces, so it is
+  the time for land offensives.
 
-**In generale**
-- Attento a vincere troppo in fretta: quando una fazione si avvicina al
-  dominio (92% della soglia), le IA si sentono perse e diventano molto più
-  propense al primo colpo nucleare. A volte conviene fermarsi, consolidare
-  e abbattere prima i loro arsenali conquistando le grandi città.
-- La fanteria tiene, i corazzati prendono, i bombardieri ammorbidiscono.
-  Prima di un assalto, bombarda la città per abbassarne la milizia.
-- Guarda la percentuale di vittoria nel pannello prima di ogni attacco.
-- Le unità danneggiate tornano in città: lì recuperano 1 PV a turno.
-- Un trasporto carico che viaggia senza scorta è un bersaglio.
-- Tieni d'occhio il limite logistico: costruisci unità di qualità (incrociatori,
-  bombardieri, corazzati) quando sei vicino al tetto.
+**In general**
+- Beware of winning too fast: when a faction gets close to
+  domination (92% of the threshold), the AIs feel lost and become much more
+  inclined to a nuclear first strike. Sometimes it pays to stop, consolidate
+  and first bring down their arsenals by conquering the large cities.
+- Infantry holds, armour takes, bombers soften up.
+  Before an assault, bombard the city to lower its militia.
+- Check the victory percentage in the panel before every attack.
+- Damaged units go back to a city: there they recover 1 HP per turn.
+- A loaded transport travelling without escort is a target.
+- Keep an eye on the logistic limit: build quality units (cruisers,
+  bombers, armour) when you are close to the cap.
 
-## Scelte di progetto (e alternative possibili)
+## Design choices (and possible alternatives)
 
-Dove c'erano dubbi è stata fatta una scelta, segnata qui insieme
-all'alternativa, così si può cambiare strada.
+Where there were doubts a choice was made, noted here together
+with the alternative, so the course can be changed.
 
-1. **Turni contro tempo reale.** Theatre Europe era semi-real-time; qui i
-   turni sono a fazioni alterne, perché a scala
-   mondiale servono tempo e riflessione. Alternativa: turni a tempo limitato
-   (es. 60 secondi).
-2. **Griglia contro province.** Una griglia regolare (360×72) mantiene la
-   geografia vera e la regola "un'unità per casella". Alternativa:
-   province/regioni stile Risiko, più leggibili ma meno tattiche.
-3. **Neutrali passivi, diplomazia minima.** I paesi neutrali difendono le
-   città con la milizia ma non hanno eserciti. Tra le fazioni ci sono solo
-   tregue a tempo. Alternative: neutrali armati che si alleano con chi viene
-   attaccato, alleanze vere, embarghi.
-4. **Niente rifornimenti di linea.** C'è solo un tetto logistico globale.
-   Alternativa: rifornimento per catena di città (unità isolate più deboli),
-   come nei wargame.
-5. **Bilanciamento dei blocchi.** L'Occidente ha più città; Eurasia e Cina
-   compensano con l'industria di guerra (×1.5 e ×1.35) e con più truppe
-   iniziali. I numeri sono in `theempire/scenarios.py`.
-6. **Un turno = una settimana.** Il calendario serve solo all'atmosfera.
+1. **Turns versus real time.** Theatre Europe was semi-real-time; here
+   turns alternate between factions, because at a world
+   scale you need time and reflection. Alternative: time-limited turns
+   (e.g. 60 seconds).
+2. **Grid versus provinces.** A regular grid (360×72) keeps the
+   real geography and the "one unit per square" rule. Alternative:
+   Risk-style provinces/regions, more readable but less tactical.
+3. **Passive neutrals, minimal diplomacy.** Neutral countries defend their
+   cities with militia but have no armies. Between factions there are only
+   timed truces. Alternatives: armed neutrals that ally with whoever is
+   attacked, real alliances, embargoes.
+4. **No supply lines.** There is only a global logistic cap.
+   Alternative: supply through a chain of cities (isolated units weaker),
+   as in wargames.
+5. **Balancing the blocs.** The West has more cities; Eurasia and China
+   compensate with war industry (×1.5 and ×1.35) and more starting
+   troops. The numbers are in `theempire/scenarios.py`.
+6. **One turn = one week.** The calendar is only there for atmosphere.
 
-7. **Online con turni alterni.** Il server è l'unico arbitro e ogni
-   giocatore muove nel suo turno. Alternativa: turni simultanei (tutti danno
-   ordini insieme, il server li risolve), più veloci ma con regole di
-   conflitto molto più complicate.
-8. **Il turno dell'IA si guarda.** Ogni mossa delle fazioni avversarie è
-   registrata e riproposta a fine turno come un telegiornale, come nel
-   Theatre Europe. Alternativa: il turno invisibile, con i soli resoconti
-   nel registro degli eventi.
+7. **Online with alternating turns.** The server is the only referee and each
+   player moves in their own turn. Alternative: simultaneous turns (everyone gives
+   orders together, the server resolves them), faster but with much more
+   complicated conflict rules.
+8. **The AI's turn can be watched.** Every move of the opposing factions is
+   recorded and replayed at the end of the turn like a TV newscast, as in
+   Theatre Europe. Alternative: the invisible turn, with only reports
+   in the event log.
 
-Possibili sviluppi: alleanze, eventi casuali (colpi di stato, crisi
-petrolifere), tecnologie (scudo antimissile, stealth), turni simultanei
-online, client web, editor di scenari.
+Possible developments: alliances, random events (coups, oil
+crises), technologies (missile shield, stealth), simultaneous online turns,
+web client, scenario editor.
 
-## Struttura del codice
+## Code structure
 
 ```
 theempire/
-  world.py      griglia, vicinanze con avvolgimento, distanze, BFS, terraferma fine per lo zoom
-  units.py      tipi di unità e costi
-  scenarios.py  fazioni, paesi, testate, dottrine
-  game.py       regole: movimento, combattimento, produzione, armi DM, vittoria, salvataggi
-  ai.py         avversari (campi di distanza condivisi, sbarchi, raid aerei, escalation, tregue, carte)
-  cards.py      le carte alla Futurisiko: mazzo, pesca, effetti
-  regions.py    le 13 regioni del mondo e i loro bonus di produzione
-  missions.py   gli obiettivi segreti
-  events.py     gli eventi mondiali
-  midi.py       lettura e sintesi dei file MIDI del giocatore
-  commands.py   i comandi del giocatore, validati: unica via per cambiare la partita
-  net.py        multiplayer: server autoritativo, client, protocollo JSON su TCP
-  ui.py         interfaccia curses: mappa Braille, pannello, registro, lobby, menu
-  audio.py      sintetizzatore chiptune, effetti, voci delle unità e musiche, riproduzione in background
-  web.py        web TUI: gateway HTTP/WebSocket che porta il client nel browser
-  assets/web/   pagina della web TUI e xterm.js (MIT)
-  cli.py        riga di comando
-  serversetup.py  la schermata di configurazione del server
-  assets/world.json   mappa generata da Natural Earth
-  assets/land_hd.bin  terraferma 4 volte più fine, per lo zoom
-tools/build_world.py  rigenera la mappa (richiede numpy e Pillow)
-tests/                test pytest
+  world.py      grid, wrap-around neighbours, distances, BFS, fine land map for zoom
+  units.py      unit types and costs
+  scenarios.py  factions, countries, warheads, doctrines
+  game.py       rules: movement, combat, production, WMD, victory, saves
+  ai.py         opponents (shared distance fields, landings, air raids, escalation, truces, cards)
+  cards.py      Futurisiko-style cards: deck, draw, effects
+  regions.py    the world's 13 regions and their production bonuses
+  missions.py   the secret objectives
+  events.py     the world events
+  midi.py       reading and synthesis of the player's MIDI files
+  commands.py   the player's commands, validated: the only way to change the game
+  net.py        multiplayer: authoritative server, client, JSON protocol over TCP
+  ui.py         curses interface: Braille map, panel, log, lobby, menus
+  audio.py      chiptune synthesiser, effects, unit voices and music, background playback
+  web.py        web TUI: HTTP/WebSocket gateway that brings the client to the browser
+  assets/web/   web TUI page and xterm.js (MIT)
+  cli.py        command line
+  serversetup.py  the server setup screen
+  i18n.py       languages: tr, Msg, catalogues
+  locales/      translations (one JSON file per language)
+  assets/world.json   map generated from Natural Earth
+  assets/land_hd.bin  land map 4 times finer, for zoom
+tools/build_world.py  regenerates the map (requires numpy and Pillow)
+tools/i18n.py         checks and updates the translation catalogues
+tests/                pytest tests
 ```
 
 ```bash
-pip install pytest && python3 -m pytest           # test
-pip install numpy Pillow && python3 tools/build_world.py --source /tmp/ne   # rigenera la mappa
-python3 tools/build_world.py --source /tmp/ne --hd-only   # solo la terraferma fine dello zoom
+pip install pytest && python3 -m pytest           # tests
+pip install numpy Pillow && python3 tools/build_world.py --source /tmp/ne   # regenerate the map
+python3 tools/build_world.py --source /tmp/ne --hd-only   # only the fine land map for zoom
 ```
 
-## Crediti
+## Credits
 
-- *Theatre Europe* (PSS, 1985) e i classici giochi di conquista a griglia per l'ispirazione.
-- [Terrascope](https://github.com/a-shygun/Terrascope) (MIT) per la tecnica di
-  resa della mappa in Braille.
-- Dati geografici [Natural Earth](https://www.naturalearthdata.com/) (pubblico dominio).
-- [xterm.js](https://github.com/xtermjs/xterm.js) (MIT) per il terminale nel browser.
-- Musiche di pubblico dominio: Toccata e fuga in re minore BWV 565 (J. S. Bach),
-  inno dell'URSS (A. V. Aleksandrov, 1883–1946).
+- *Theatre Europe* (PSS, 1985) and the classic grid-based conquest games for the inspiration.
+- [Terrascope](https://github.com/a-shygun/Terrascope) (MIT) for the technique of
+  rendering the map in Braille.
+- Geographic data [Natural Earth](https://www.naturalearthdata.com/) (public domain).
+- [xterm.js](https://github.com/xtermjs/xterm.js) (MIT) for the terminal in the browser.
+- Public domain music: Toccata and Fugue in D minor BWV 565 (J. S. Bach),
+  anthem of the USSR (A. V. Aleksandrov, 1883–1946).
