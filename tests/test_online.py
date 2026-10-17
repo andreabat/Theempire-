@@ -138,3 +138,18 @@ def test_online_players_get_their_bulletin(tmp_path):
         b.close()
     finally:
         srv.stop()
+
+
+def test_a_new_game_frees_the_seats(tmp_path):
+    save = tmp_path / "server.json"
+    first = GameServer(Game("coldwar", humans=("nato", "pact"), seed=1), "127.0.0.1", 0,
+                       save_path=save, log=lambda line: None)
+    first.slots[0].name, first.slots[0].token = "Anna", "abc"
+    first.save()
+    resumed = GameServer(Game.load_file(save), "127.0.0.1", 0, save_path=save,
+                         log=lambda line: None, resume=True)
+    assert resumed.slots[0].name == "Anna"           # a saved game keeps its players
+    fresh = GameServer(Game("coldwar", humans=("nato", "pact"), seed=2), "127.0.0.1", 0,
+                       save_path=save, log=lambda line: None, resume=False)
+    assert not any(s.token or s.name for s in fresh.slots.values())
+    assert not save.with_suffix(".seats.json").exists()

@@ -113,7 +113,8 @@ class GameServer:
 
     def __init__(self, game: Game, host: str = "0.0.0.0", port: int = DEFAULT_PORT,
                  password: str = "", save_path: Path | None = None,
-                 turn_time: int = 0, log: Callable[[str], None] = print):
+                 turn_time: int = 0, log: Callable[[str], None] = print,
+                 resume: bool = True):
         self.game = game
         self.host, self.port = host, port
         self.password = password
@@ -130,7 +131,12 @@ class GameServer:
         self.turn_started = time.time()
         self.stopping = threading.Event()
         self.sock: socket.socket | None = None
-        self._load_slots()
+        if resume:              # a saved game: its players get their seats back
+            self._load_slots()
+        else:                   # a new game: every seat is free again
+            path = self._slots_path()
+            if path is not None and path.exists():
+                path.unlink()
 
     # -- persistence of seats, so players can rejoin a restarted server
     def _slots_path(self) -> Path | None:

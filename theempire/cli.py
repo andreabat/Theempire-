@@ -181,7 +181,8 @@ def serve(args: argparse.Namespace) -> int:
         else:
             print(f"{stamp} {line}", flush=True)
 
-    server = GameServer(game, args.bind, args.serve, args.password, save, args.turn_time, log)
+    server = GameServer(game, args.bind, args.serve, args.password, save, args.turn_time, log,
+                        resume=args.load is not None)
     try:
         server.listen()
     except OSError as exc:
