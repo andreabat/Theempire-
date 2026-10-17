@@ -19,8 +19,8 @@ from pathlib import Path
 from theempire import cards, events, i18n, missions, regions
 from theempire.i18n import N, Msg
 from theempire.scenarios import SCENARIOS, Scenario
-from theempire.units import (CHEMICAL, UNIT_TYPES, WARHEAD, UnitType,
-                             production_cost)
+from theempire.units import (ASAT, CHEMICAL, MODERN, SATELLITE, UNIT_TYPES, WARHEAD,
+                             UnitType, production_cost)
 from theempire.world import World, load_world
 
 DIFFICULTY = {N("facile"): 0.75, N("normale"): 1.0, N("difficile"): 1.3}
@@ -35,6 +35,9 @@ SUPPORT_BONUS = 0.15                # per friendly land unit next to the target
 SUPPORT_MAX = 4
 SUPPLY_FACTOR = 2.0                 # unit cap = factor x base production + 20
 CLOCK_RECOVERY_TURNS = 6
+SATELLITE_SWATH = 12                # a spy satellite watches 25 columns of the world...
+SATELLITE_STEP = 30                 # ...and moves this many columns every round
+ASAT_CHANCE = 0.75                  # an anti-satellite weapon hits
 TRUCE_TURNS = 15
 
 # Production directives: one order that sets what every city builds.
@@ -117,6 +120,8 @@ class Faction:
     effects: dict = field(default_factory=dict)        # card effects: name -> last turn
     conquests: int = 0                  # cities taken this turn (earns a card)
     mission: dict = field(default_factory=dict)        # the secret objective (see missions.py)
+    satellites: list[int] = field(default_factory=list)  # orbits: the column each one flies over
+    asats: int = 0                      # anti-satellite weapons in stock
 
 
 @dataclass
@@ -307,6 +312,10 @@ class Game:
             for u in self.units.values():
                 if u.owner == f and u.carrier is None:
                     vis.update(w.ring(u.cell, u.type.vision))
+            for x in self.factions[f].satellites:   # from orbit, a band of the whole world
+                for col in self.satellite_band(x):
+                    col %= w.width
+                    vis.update(range(col, w.size, w.width))
             spied = cards.spied(self, f)
             if spied is not None:   # the spies report every enemy position
                 vis.update(u.cell for u in self.units.values() if u.owner == spied)
@@ -773,7 +782,9 @@ class Game:
             result = "won"
         else:
             return "illegal"
-        if u.type.domain == "air":
+        if u.type.oneshot:              # a missile is spent in its strike
+            self.kill(u)
+        elif u.type.domain == "air":
             self._air_after_move(u)
         self._dirty()
         return result
@@ -883,6 +894,46 @@ class Game:
         w = self.world
         return any(c.owner == f and w.dist(c.cell, cell) <= CHEM_RANGE for c in self.cities) or \
             any(u.owner == f and w.dist(u.cell, cell) <= CHEM_RANGE for u in self.units.values())
+
+    # ------------------------------------------------------------------ space
+    def launch_satellite(self, f: int, city: City) -> None:
+        """A spy satellite goes up above the city that built it."""
+        self.factions[f].satellites.append(city.cell % self.world.width)
+        self._dirty()
+        self.log(Msg("{faction} mette in orbita un satellite spia da {city}.",
+                     faction=self.factions[f].name, city=city.name), None, "alert", "satellite", f)
+
+    def satellite_band(self, column: int) -> range:
+        """The columns a satellite above ``column`` watches."""
+        return range(column - SATELLITE_SWATH, column + SATELLITE_SWATH + 1)
+
+    def asat_strike(self, f: int, target: int) -> str:
+        """Fire an anti-satellite weapon at one of ``target``'s satellites."""
+        fac, victim = self.factions[f], self.factions[target]
+        if fac.asats <= 0:
+            return "noasat"
+        if target == f or not self.hostile(f, target):
+            return "truce" if target != f else "illegal"
+        if not victim.satellites:
+            return "nosat"
+        fac.asats -= 1
+        self.quiet_turns = 0
+        if self.rng.random() >= ASAT_CHANCE:
+            self.log(Msg("{faction} lancia un'arma antisatellite contro {target}: mancato.",
+                         faction=fac.name, target=victim.name), None, "alert", "asat", f)
+            return "missed"
+        victim.satellites.pop(self.rng.randrange(len(victim.satellites)))
+        self._dirty()
+        self.log(Msg("{faction} abbatte un satellite spia di {target}: ne restano {left}.",
+                     faction=fac.name, target=victim.name, left=len(victim.satellites)),
+                 None, "alert", "asat", f)
+        return "ok"
+
+    def _orbit(self) -> None:
+        """Every round each satellite moves on to watch another band."""
+        for fac in self.factions:
+            fac.satellites = [(x + SATELLITE_STEP) % self.world.width for x in fac.satellites]
+        self._dirty()
 
     def chemical_strike(self, f: int, cell: int) -> str:
         if not self.can_chemical(f, cell) or self.over:
@@ -1011,6 +1062,12 @@ class Game:
         return rate
 
     def can_build(self, c: City, key: str) -> bool:
+        if key in MODERN and not self.scenario.modern:
+            return False
+        if key == SATELLITE:
+            return c.owner is not None and (c.size >= 3 or c.capital)
+        if key == ASAT:
+            return c.owner is not None and c.size >= 2
         if key == WARHEAD:
             return c.owner is not None and self.factions[c.owner].nuclear and c.size >= 2
         if key == CHEMICAL:
@@ -1081,6 +1138,11 @@ class Game:
                 elif c.production == CHEMICAL:
                     fac.chemicals += 1
                     self.log(Msg("{city} ha prodotto armi chimiche.", city=c.name), [f])
+                elif c.production == SATELLITE:
+                    self.launch_satellite(f, c)
+                elif c.production == ASAT:
+                    fac.asats += 1
+                    self.log(Msg("{city} ha prodotto un'arma antisatellite.", city=c.name), [f])
                 else:
                     room -= 1
                     self.create_unit(c.production, f, c.cell)
@@ -1146,6 +1208,7 @@ class Game:
                 a, b = (int(x) for x in pair.split("-"))
                 self.log(Msg("La tregua tra {a} e {b} è scaduta: si torna a combattere.",
                              a=self.factions[a].name, b=self.factions[b].name), None, "alert", "alert")
+        self._orbit()
         events.new_round(self)
         regions.update(self)
         self._check_victory()

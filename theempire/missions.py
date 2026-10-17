@@ -22,8 +22,7 @@ from theempire.i18n import Msg, tr, word
 if TYPE_CHECKING:
     from theempire.game import Game
 
-CITY_STEP = 0.2       # "cities": the starting cities plus this share of the world's cities...
-CITY_MARGIN = 0.15    # ...but this share of the world fewer than a domination win
+CITY_MARGIN = 0.08    # "cities": this share of the world fewer than a domination win
 CAPITAL_SHARE = 0.45  # "capitals": this share of the rivals' starting capitals,
 CAPITAL_MAX = 12      # at most
 REGION_GAIN = (45, 90)  # "regions": cities still to take in the two regions
@@ -62,8 +61,9 @@ def _rival_capitals(game: "Game", f: int) -> list:
 def _cities(game: "Game", f: int) -> dict:
     total = len(game.cities)
     start = game.factions[f].start_cities
-    count = min(start + int(CITY_STEP * total),
-                int((game.scenario.victory_share - CITY_MARGIN) * total))
+    # the same target for everybody, as in the board game: the big empires
+    # must not reach it just by taking the neutrals next door
+    count = int((game.scenario.victory_share - CITY_MARGIN) * total)
     return {"kind": "cities", "count": max(start + int(0.1 * total), count)}
 
 

@@ -25,7 +25,7 @@ from pathlib import Path
 from theempire.i18n import N, word
 
 RATE = 22050
-VERSION = "v4"  # bump whenever a sound changes, so caches are rebuilt
+VERSION = "v5"  # bump whenever a sound changes, so caches are rebuilt
 CACHE = Path.home() / ".theempire" / "sounds" / VERSION
 SETTINGS = Path.home() / ".theempire" / "settings.json"
 LOOPING = {"menu", "war", "tension", "kalinka", "anthem"}
@@ -315,6 +315,25 @@ def _unit_sounds() -> dict[str, Track]:
     for k in range(3):
         t.add(k * 0.2, noise(0.5, vol=0.3, cutoff=0.5, seed=141 + k, attack=0.15, release=0.3))
     out["fire_C"] = t
+    # Drone: the thin buzz of small propellers / a light missile hiss and pop.
+    t = Track(0.7)
+    t.add(0, tremolo(square(330, 0.65, vol=0.12, duty=0.3, attack=0.05, release=0.15), 28))
+    t.add(0, tremolo(square(334, 0.65, vol=0.08, duty=0.3, attack=0.05, release=0.15), 31))
+    out["move_U"] = t
+    t = Track(0.5)
+    t.add(0, noise(0.2, vol=0.35, cutoff=0.8, seed=161, attack=0.01, decay=0.05, sustain=0.2))
+    t.add(0.22, noise(0.2, vol=0.5, cutoff=0.5, seed=162, attack=0.001, decay=0.05, sustain=0.0))
+    out["fire_U"] = t
+    # Hypersonic missile: a scramjet scream rising out of hearing / the strike.
+    t = Track(0.9)
+    t.add(0, sine_sweep(400, 2400, 0.8, vol=0.25, attack=0.02, release=0.3))
+    t.add(0, noise(0.8, vol=0.25, cutoff=0.9, seed=171, attack=0.05, release=0.3))
+    out["move_H"] = t
+    t = Track(1.0)
+    t.add(0, sine_sweep(2400, 300, 0.12, vol=0.3, attack=0.001, release=0.02))
+    t.add(0.12, sine_sweep(140, 30, 0.8, vol=0.9, attack=0.001, decay=0.2, sustain=0.0))
+    t.add(0.12, noise(0.8, vol=0.6, cutoff=0.4, seed=172, attack=0.001, decay=0.15, sustain=0.0))
+    out["fire_H"] = t
     return out
 
 
@@ -325,6 +344,16 @@ def _sfx() -> dict[str, Track]:
     t.add(0.08, noise(0.05, vol=0.4, cutoff=0.9, seed=152, attack=0.001, decay=0.012, sustain=0.0))
     sequence(t, [("R", 0.5), ("E5", 0.5), ("A5", 1.5)], 200, square, vol=0.2, duty=0.25)
     out["card"] = t
+    t = Track(2.2)  # a launch: the rumble of the rocket, then the satellite's beeps
+    t.add(0, noise(1.2, vol=0.5, cutoff=0.15, seed=181, attack=0.3, release=0.6))
+    t.add(0, sine_sweep(60, 120, 1.2, vol=0.4, attack=0.3, release=0.5))
+    for k in range(4):
+        t.add(1.3 + k * 0.2, square(1760, 0.06, vol=0.15, duty=0.5, release=0.01))
+    out["satellite"] = t
+    t = Track(1.0)  # the anti-satellite weapon: a zap, then static
+    t.add(0, sine_sweep(3000, 200, 0.35, vol=0.35, attack=0.001, release=0.05))
+    t.add(0.35, noise(0.5, vol=0.3, cutoff=0.95, seed=191, attack=0.01, decay=0.1, sustain=0.2))
+    out["asat"] = t
     t = Track(1.6)  # the spies' telegraph
     for k, length in enumerate((0.06, 0.06, 0.18, 0.06, 0.18, 0.18, 0.06)):
         at = sum((0.06, 0.06, 0.18, 0.06, 0.18, 0.18, 0.06)[:k]) + 0.07 * k
@@ -608,9 +637,9 @@ def _render_user_music(cache: Path) -> None:
         tmp.replace(path)
 
 
-UNIT_KINDS = "IAFBDSTRC"
+UNIT_KINDS = "IAFBDSTRCUH"
 _SFX_NAMES = ("battle", "capture", "loss", "fall", "nuke", "intercept", "gas", "crash",
-              "truce", "turn", "alert", "card", "spy") + tuple(
+              "truce", "turn", "alert", "card", "spy", "satellite", "asat") + tuple(
     f"{what}_{k}" for k in UNIT_KINDS for what in ("move", "fire"))
 _MUSIC_NAMES = ("menu", "war", "tension", "victory", "defeat", "midnight",
                  "kalinka", "anthem")

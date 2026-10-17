@@ -332,9 +332,35 @@ defends them even without troops.
 | T | Transport | sea | 3 | 1 | 0 | 1 | 10 | carries 6 land units |
 | R | Cruiser | sea | 2 | 6 | 3 | 3 | 22 | bombards the coast without penalty |
 | C | Aircraft carrier | sea | 2 | 6 | 1 | 2 | 28 | carries 6 aircraft, mobile base |
+| U | Drone | air | 6 | 1 | 1 | 1 | 4 | sees 3 squares, 8 fuel; cheap |
+| H | Hypersonic missile | air | 12 | 1 | 9 | 0 | 14 | range 12, spent in its attack |
 
 Cities also produce **nuclear warheads** (45 points, cities of size
 2 or more) and **chemical weapons** (20).
+
+### Today's weapons: drones, hypersonic missiles and space
+They exist in World War III and Six Empires; **not in Cold War 1985** (nor
+in the tutorial), where the arsenal is that of the 1980s.
+
+- **Drones** (`U`): a third of the cost of a fighter, and they see far (3
+  squares). Reconnaissance, harassment, hunting unescorted transports: in
+  battle they count for little.
+- **Hypersonic missiles** (`H`): fly up to 12 squares and strike with
+  attack 9; they are spent in the attack, won or lost, and need not fly
+  back. Ideal against carriers, cruisers and distant garrisons.
+- **Spy satellites** (40 points, only cities of size 3 or capitals): go
+  into orbit above the city that built them. Each one sees **every enemy
+  unit** (except submarines, which stay submerged) in a band 25° of
+  longitude wide, from pole to pole, and so their **moves in the war
+  bulletin**. Every turn the orbit shifts by 30°: more satellites cover more
+  of the world.
+- **Anti-satellite weapons** (16 points, cities of size 2 or more): kept in
+  stock like warheads. With the **`Z`** key (or by clicking the `⊙` line of
+  the panel) you fire them at a faction: 75% of the time they shoot down one
+  of its satellites and leave it blind right where you are moving.
+- How many satellites each faction has is known to all; where they fly is not.
+- The AI builds satellites when it has big cities, answers whoever spies on
+  it with anti-satellite weapons and uses missiles on valuable targets.
 
 ### Movement
 - Outside cities there is **only one unit per square**, plus one aircraft:
@@ -505,8 +531,8 @@ you are); `o` shows it again. The possible objectives:
 - **two regions**: conquer all the cities of two regions (see below);
 - **eliminate a faction**: you must take its last city yourself. If
   someone else eliminates it, the objective becomes "control N cities";
-- **N cities**: your starting cities plus a fifth of those in the world
-  (always fewer than are needed for domination);
+- **N cities**: the same number for everybody, 47% of the world's cities
+  (domination needs 55%);
 - **N enemy capitals**: conquer and hold almost half of the capitals that
   at the start belonged to your rivals (at most 12); neutral ones don't
   count.
@@ -585,6 +611,7 @@ number next to each entry chooses it at once, and Esc cancels.
 | `O` | diplomacy: propose a truce or answer a proposal |
 | `K` | your cards: read them and play one |
 | `o` | secret objective, regions with their bonuses, world events |
+| `Z` | space: spy satellites and anti-satellite weapons |
 | `+` / `-` | map zoom |
 | `B` | war bulletin archive: read, browse the turns, `R` to replay the animation |
 | `T` | chat (online games) |

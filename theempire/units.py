@@ -23,6 +23,8 @@ class UnitType:
     carries: str = ""    # domain of the cargo
     stealth: bool = False
     capture: bool = False
+    oneshot: bool = False    # spent in its attack (missiles)
+    modern: bool = False     # only in scenarios with today's weapons
 
 
 UNIT_TYPES: dict[str, UnitType] = {u.key: u for u in (
@@ -35,6 +37,11 @@ UNIT_TYPES: dict[str, UnitType] = {u.key: u for u in (
     UnitType("T", N("Trasporto"), "sea", 3, 1, 0, 1, 10, capacity=6, carries="land"),
     UnitType("R", N("Incrociatore"), "sea", 2, 6, 3, 3, 22, vision=2),
     UnitType("C", N("Portaerei"), "sea", 2, 6, 1, 2, 28, vision=2, capacity=6, carries="air"),
+    # Today's weapons: a cheap drone that sees far and stings a little, and a
+    # hypersonic missile that strikes hard far away and is spent in the blow.
+    UnitType("U", N("Drone"), "air", 6, 1, 1, 1, 4, vision=3, fuel=8, modern=True),
+    UnitType("H", N("Missile ipersonico"), "air", 12, 1, 9, 0, 14, fuel=12, oneshot=True,
+             modern=True),
 )}
 
 # Things a city can build that are not units.
@@ -42,14 +49,18 @@ WARHEAD = "N"
 WARHEAD_COST = 45
 CHEMICAL = "G"
 CHEMICAL_COST = 20
+SATELLITE = "Z"         # a spy satellite put in orbit (big cities only)
+SATELLITE_COST = 40
+ASAT = "Y"              # an anti-satellite weapon, kept in stock like the warheads
+ASAT_COST = 16
+SPECIAL_COSTS = {WARHEAD: WARHEAD_COST, CHEMICAL: CHEMICAL_COST,
+                 SATELLITE: SATELLITE_COST, ASAT: ASAT_COST}
+MODERN = {SATELLITE, ASAT} | {k for k, u in UNIT_TYPES.items() if u.modern}
 
 PRODUCTION_NAMES = {**{k: u.name for k, u in UNIT_TYPES.items()},
-                    WARHEAD: N("Testata nucleare"), CHEMICAL: N("Armi chimiche")}
+                    WARHEAD: N("Testata nucleare"), CHEMICAL: N("Armi chimiche"),
+                    SATELLITE: N("Satellite spia"), ASAT: N("Arma antisatellite")}
 
 
 def production_cost(key: str) -> int:
-    if key == WARHEAD:
-        return WARHEAD_COST
-    if key == CHEMICAL:
-        return CHEMICAL_COST
-    return UNIT_TYPES[key].cost
+    return SPECIAL_COSTS.get(key) or UNIT_TYPES[key].cost

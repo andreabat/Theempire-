@@ -17,8 +17,8 @@ from theempire.game import CHEM_RANGE, DIRECTIVES, Unit
 from theempire.i18n import N, tr, word
 from theempire.scenarios import SCENARIOS
 from theempire.tutorial import Tutorial
-from theempire.units import (CHEMICAL, PRODUCTION_NAMES, UNIT_TYPES, WARHEAD,
-                             production_cost)
+from theempire.units import (ASAT, CHEMICAL, PRODUCTION_NAMES, SATELLITE, UNIT_TYPES,
+                             WARHEAD, production_cost)
 from theempire.world import load_hd
 
 SIDEBAR = 36
@@ -83,6 +83,7 @@ m                 mappa del mondo (panoramica)
 + / -             zoom della mappa (anche pulsanti nel pannello, pizzico)
 r                 centra la vista sul cursore
 o                 obiettivo segreto, regioni (bonus) ed eventi mondiali
+Z                 spazio: satelliti spia e armi antisatellite
 M                 audio: scegli musica ed effetti
 L                 lingua dell'interfaccia (language)
 N                 ☢ attacco nucleare sulla casella del cursore
@@ -101,6 +102,10 @@ MONTHS = N("gen feb mar apr mag giu lug ago set ott nov dic")
 
 
 BRAILLE_DOTS = ((0x01, 0x02, 0x04, 0x40), (0x08, 0x10, 0x20, 0x80))  # [column][row]
+
+
+def _longitude(lon: float) -> str:
+    return f"{abs(lon):.0f}°{'E' if lon >= 0 else 'W'}"
 
 
 def lower_noun(name: str) -> str:
@@ -633,6 +638,10 @@ class UI:
         self.put(row, x, tr("Unità {n:3d}/{limit}  ☢ {warheads:2d}  ☣ {chemicals}", n=len(units),
                             limit=g.supply_limit(self.viewer), warheads=fac.warheads, chemicals=fac.chemicals))
         row += 1
+        if g.scenario.modern:
+            self.button(row, x, tr("⊙ Satelliti {n} · antisatellite {asats} (Z)", n=len(fac.satellites),
+                                   asats=fac.asats)[:SIDEBAR - 1], "Z", self.color("cyan"))
+            row += 1
         effects = []
         if cards.active(g, self.viewer, "plan"):
             effects.append(tr("piano"))
@@ -1008,7 +1017,8 @@ class UI:
 
     def production_menu(self, city) -> None:
         g = self.g
-        keys = [k for k in list(UNIT_TYPES) + [WARHEAD, CHEMICAL] if g.can_build(city, k)]
+        keys = [k for k in list(UNIT_TYPES) + [WARHEAD, CHEMICAL, SATELLITE, ASAT]
+                if g.can_build(city, k)]
         rate = g.production_rate(city)
         lines = []
         for k in keys:
@@ -1018,6 +1028,8 @@ class UI:
                 t = UNIT_TYPES[k]
                 stats = tr("att {attack} dif {defense} PV {hp} mosse {moves}", attack=t.attack,
                            defense=t.defense, hp=t.hp, moves=t.move)
+            elif k == SATELLITE:
+                stats = tr("in orbita: vede una fascia del mondo")
             else:
                 stats = tr("scorta strategica")
             lines.append(tr("{production:20s} costo {cost:3d}  {eta:>3s} turni  {stats}",
@@ -1361,6 +1373,40 @@ class UI:
             self.audio.sfx("alert")
             self.draw()
             self.dialog("✦ " + name, textwrap.wrap(rest, 64))
+
+    def space_menu(self) -> None:
+        """Satellites in orbit and the anti-satellite weapons."""
+        g = self.g
+        if not g.scenario.modern:
+            self.status = tr("In questo scenario non ci sono armi spaziali.")
+            return
+        fac = g.factions[self.viewer]
+        header = [tr("Un satellite spia vede tutte le unità nemiche (tranne i sottomarini) in una "
+                     "fascia larga 25° e mostra le loro mosse nel bollettino. Ogni turno sorvola "
+                     "un'altra fascia. Si costruisce nelle città grandi o nelle capitali.")]
+        header = [line for text in header for line in textwrap.wrap(text, 70)] + [""]
+        if fac.satellites:
+            for k, x in enumerate(fac.satellites):
+                band = g.satellite_band(x)
+                west = self.w.lonlat(band.start % self.w.width)[0]
+                east = self.w.lonlat((band.stop - 1) % self.w.width)[0]
+                header.append(tr("Satellite {n}: sorvola da {west} a {east}", n=k + 1,
+                                 west=_longitude(west), east=_longitude(east)))
+        else:
+            header.append(tr("Nessun satellite in orbita."))
+        header.append(tr("Armi antisatellite pronte: {n}", n=fac.asats))
+        items = []
+        for o in g.factions:
+            if o.idx == self.viewer or not o.alive:
+                continue
+            items.append((str(len(items) + 1),
+                          tr("Lancia un'arma antisatellite contro {faction} ({n} satelliti)",
+                             faction=o.name, n=len(o.satellites)), o.idx))
+        picked = self.choose(tr("Spazio"), items, header=header) if items else None
+        if picked is None:
+            return
+        result = self.do({"op": "asat", "target": picked[1]})
+        self.status = describe(result) or tr("Satellite nemico abbattuto!")
 
     def objectives(self) -> None:
         """Secret objective, regions and world events on one page."""
@@ -1763,7 +1809,7 @@ class UI:
 
     # ----------------------------------------------------------- input
     VIEW_KEYS = {ord("m"), ord("M"), ord("r"), ord("?"), ord("Q"), ord("T"), ord("n"), ord("B"),
-                 ord("K"), ord("h"), 9, ord("+"), ord("="), ord("-"), ord("o"), ord("L")}
+                 ord("K"), ord("h"), 9, ord("+"), ord("="), ord("-"), ord("o"), ord("L"), ord("Z")}
 
     def handle(self, key: int) -> None:
         g = self.g
@@ -1861,6 +1907,8 @@ class UI:
             self.diplomacy_menu()
         elif key == ord("K"):
             self.cards_menu()
+        elif key == ord("Z"):
+            self.space_menu()
         elif key == ord("o"):
             self.objectives()
         elif key == ord("h") and self.tutorial is not None:
@@ -2223,8 +2271,8 @@ class UI:
         return True
 
 
-SOUND_PRIORITY = ("nuke", "fall", "capture", "loss", "intercept", "gas", "crash",
-                  "card", "spy", "truce", "alert", "battle")
+SOUND_PRIORITY = ("nuke", "fall", "capture", "loss", "intercept", "gas", "crash", "asat",
+                  "satellite", "card", "spy", "truce", "alert", "battle")
 
 
 def _names(e) -> list[str]:

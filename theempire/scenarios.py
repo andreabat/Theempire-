@@ -32,6 +32,7 @@ class Scenario:
     doomsday: int = 10              # minutes to midnight
     victory_share: float = 0.5      # share of all cities for a domination win
     start_forces: bool = True       # garrison every starting city
+    modern: bool = True             # drones, hypersonic missiles and space weapons
     max_turns: int = 300
     missions: bool = True           # secret objectives (missions.py)
     world_events: bool = True       # world events every few rounds (events.py)
@@ -60,6 +61,7 @@ SCENARIOS: dict[str, Scenario] = {s.key: s for s in (
         max_turns=80,
         missions=False,
         world_events=False,
+        modern=False,
     ),
     Scenario(
         "ww3", N("Terza Guerra Mondiale"),
@@ -101,6 +103,7 @@ SCENARIOS: dict[str, Scenario] = {s.key: s for s in (
         ),
         doomsday=7,
         victory_share=0.55,
+        modern=False,                   # 1985: no drones, no hypersonics, no space war
     ),
     Scenario(
         "empire", N("Sei imperi"),

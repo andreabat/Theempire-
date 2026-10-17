@@ -157,6 +157,11 @@ def apply(game: Game, f: int, cmd: dict, name: str = "",
         if city is not None and city.owner == f:
             return "own"
         return game.nuclear_strike(f, cell)
+    if op == "asat":
+        target = cmd.get("target")
+        if not isinstance(target, int) or not 0 <= target < len(game.factions):
+            return "illegal"
+        return game.asat_strike(f, target)
     if op == "chem":
         cell = _cell(game, cmd.get("cell"))
         if cell is None:
@@ -240,6 +245,9 @@ def view_for(game: Game, f: int) -> dict:
             fd["effects"] = {}
             if not game.over:
                 fd["mission"] = {"kind": "secret"} if fd.get("mission") else {}
+                # how many satellites they have is known, not where they fly
+                fd["satellites"] = [-1] * len(fd.get("satellites", []))
+                fd["asats"] = 0
     d["deck"] = ["?"] * len(d["deck"])
     state = random.Random(0).getstate()
     d["rng"] = [state[0], list(state[1]), state[2]]
@@ -284,6 +292,9 @@ RESULTS = {
     "cooldown": N("Hai già proposto una tregua di recente."),
     "pending": N("Proposta di tregua inviata."), "accepted": N("Tregua accettata!"),
     "refused": N("Proposta di tregua respinta."),
+    "noasat": N("Nessuna arma antisatellite: costruiscine una in una città grande."),
+    "nosat": N("Quella fazione non ha satelliti in orbita."),
+    "missed": N("L'arma antisatellite ha mancato il bersaglio."),
 }
 
 

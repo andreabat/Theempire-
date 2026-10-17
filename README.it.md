@@ -332,9 +332,35 @@ difende anche senza truppe.
 | T | Trasporto | mare | 3 | 1 | 0 | 1 | 10 | porta 6 unità di terra |
 | R | Incrociatore | mare | 2 | 6 | 3 | 3 | 22 | bombarda la costa senza penalità |
 | C | Portaerei | mare | 2 | 6 | 1 | 2 | 28 | porta 6 aerei, base mobile |
+| U | Drone | aria | 6 | 1 | 1 | 1 | 4 | vede a 3 caselle, 8 di carburante; costa poco |
+| H | Missile ipersonico | aria | 12 | 1 | 9 | 0 | 14 | gittata 12, si consuma nell'attacco |
 
 Le città producono anche **testate nucleari** (45 punti, città di dimensione
 2 o più) e **armi chimiche** (20).
+
+### Armi di oggi: droni, missili ipersonici e spazio
+Ci sono nella Terza Guerra Mondiale e in Sei imperi; **non nella Guerra
+Fredda 1985** (né nel tutorial), dove l'arsenale è quello degli anni '80.
+
+- **Droni** (`U`): costano un terzo di un caccia e vedono lontano (3
+  caselle). Ricognizione, disturbo, caccia ai trasporti scoperti: in
+  battaglia contano poco.
+- **Missili ipersonici** (`H`): volano fino a 12 caselle e colpiscono con
+  attacco 9; si consumano nell'attacco, vinto o perso, e non devono tornare
+  alla base. Ideali contro portaerei, incrociatori e guarnigioni lontane.
+- **Satelliti spia** (40 punti, solo città di dimensione 3 o capitali):
+  vanno in orbita sopra la città che li ha costruiti. Ognuno vede **tutte le
+  unità nemiche** (tranne i sottomarini, che restano in immersione) in una
+  fascia larga 25° di longitudine, dal polo all'altro polo, e quindi le loro
+  **mosse nel bollettino di guerra**. Ogni turno l'orbita si sposta di 30°:
+  con più satelliti copri più mondo.
+- **Armi antisatellite** (16 punti, città di dimensione 2 o più): restano
+  in deposito come le testate. Col tasto **`Z`** (o cliccando la riga `⊙`
+  del pannello) le lanci contro una fazione: il 75% delle volte abbattono
+  uno dei suoi satelliti e la lasciano cieca proprio dove ti muovi.
+- Quanti satelliti ha ogni fazione è noto a tutti, dove volano no.
+- L'IA costruisce satelliti quando ha grandi città, risponde con le armi
+  antisatellite a chi la spia e usa i missili sui bersagli di valore.
 
 ### Movimento
 - Fuori dalle città sta **una sola unità per casella**, più un aereo: gli
@@ -505,8 +531,8 @@ sei); `o` lo rilegge. Gli obiettivi possibili:
 - **due regioni**: conquista tutte le città di due regioni (vedi sotto);
 - **eliminare una fazione**: devi prendere tu la sua ultima città. Se la
   elimina qualcun altro, l'obiettivo diventa «controlla N città»;
-- **N città**: le tue città di partenza più un quinto di quelle del mondo
-  (sempre meno di quante ne servono per il dominio);
+- **N città**: lo stesso numero per tutti, il 47% delle città del mondo
+  (il dominio ne chiede il 55%);
 - **N capitali nemiche**: conquista e tieni quasi metà delle capitali che
   all'inizio erano dei tuoi rivali (al massimo 12); quelle neutrali non
   contano.
@@ -585,6 +611,7 @@ numero a fianco di ogni voce la sceglie subito, ed Esc annulla.
 | `O` | diplomazia: proponi una tregua o rispondi a una proposta |
 | `K` | le tue carte: leggile e giocane una |
 | `o` | obiettivo segreto, regioni con i loro bonus, eventi mondiali |
+| `Z` | spazio: satelliti spia e armi antisatellite |
 | `+` / `-` | zoom della mappa |
 | `B` | archivio dei bollettini di guerra: leggi, sfoglia i turni, `R` per rivedere l'animazione |
 | `T` | chat (partite online) |

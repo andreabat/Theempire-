@@ -22,7 +22,7 @@ import math
 
 from theempire import cards
 from theempire.game import Game, Unit
-from theempire.units import UNIT_TYPES, WARHEAD
+from theempire.units import ASAT, SATELLITE, UNIT_TYPES, WARHEAD
 
 FIRST_STRIKE = {"aggressive": 0.25, "balanced": 0.12, "restrained": 0.05}
 RETALIATE = {"aggressive": 0.95, "balanced": 0.8, "restrained": 0.65}
@@ -48,10 +48,11 @@ class AI:
         self.escalation()
         if g.over:
             return
+        self.space()
         self.diplomacy()
         self.play_cards()
         self.production()
-        units = sorted(g.units_of(self.f), key=lambda u: "FBTSDRCAI".find(u.kind))
+        units = sorted(g.units_of(self.f), key=lambda u: "UHFBTSDRCAI".find(u.kind))
         for u in units:
             if g.over:
                 return
@@ -178,12 +179,21 @@ class AI:
                     options.append((0.5, "T"))
             if self.fac.nuclear and c.size >= 2 and self.fac.warheads < 4 and g.turn > 8:
                 options.append((0.05 + (0.2 if c.capital else 0.0), WARHEAD))
+            if g.turn > 6 and len(self.fac.satellites) < 2 and g.can_build(c, SATELLITE) \
+                    and not any(x.production == SATELLITE for x in g.cities_of(self.f)):
+                options.append((0.12, SATELLITE))
+            if self.fac.asats < 1 and g.can_build(c, ASAT) and any(
+                    o.satellites for o in g.factions if o.idx != self.f and g.hostile(self.f, o.idx)) \
+                    and not any(x.production == ASAT for x in g.cities_of(self.f)):
+                options.append((0.15, ASAT))
             _, choice = max(options, key=lambda o: o[0] + g.rng.random() * 0.1)
             r = g.rng.random()
             if choice == "land":
                 kind = "A" if c.size >= 2 and r < 0.55 else "I"
             elif choice == "air":
                 kind = "F" if r < 0.45 else "B"
+                if g.can_build(c, "U") and r > 0.65:     # today: drones and missiles too
+                    kind = "U" if r < 0.85 else "H"
             elif choice == "navy":
                 kind = "D" if r < 0.35 else "S" if r < 0.65 else "R"
                 if r > 0.9 and counts["C"] < max(1, ports // 10):
@@ -244,6 +254,16 @@ class AI:
             cell = self._best_tactical_target(minimum=2, chemical=True)
             if cell is not None:
                 g.chemical_strike(self.f, cell)
+
+    def space(self) -> None:
+        """Shoot down the satellites of whoever spies on us the most."""
+        g = self.g
+        if self.fac.asats <= 0:
+            return
+        spies = [o for o in g.factions if o.alive and o.idx != self.f and o.satellites
+                 and g.hostile(self.f, o.idx)]
+        if spies:
+            g.asat_strike(self.f, max(spies, key=lambda o: len(o.satellites)).idx)
 
     def play_cards(self) -> None:
         """Simple card sense: economy cards at once, the shield and peace
@@ -634,10 +654,13 @@ class AI:
             if not g.hostile(self.f, o.owner) or o.carrier is not None or o.kind == "S" or o.cell not in vis:
                 continue
             d = w.dist(u.cell, o.cell)
-            if d > reach or d + min(w.dist(o.cell, b) for b in bases) > reach - 1:
+            if d > reach:
+                continue
+            # a missile flies one way only; the others must get back
+            if not u.type.oneshot and d + min(w.dist(o.cell, b) for b in bases) > reach - 1:
                 continue
             defender = g.defender_at(u, o.cell)
-            if defender is None:
+            if defender is None or (u.type.oneshot and defender.type.cost < 10):
                 continue
             p = win_probability_for(g, u, o.cell, defender)
             if p < self.min_odds + 0.05:
