@@ -401,6 +401,10 @@ dell'altra né colpirla con armi chimiche o nucleari (nel pannello compare
 
 ## Comandi
 
+In tutti i menu (produzione, direttive, carte, diplomazia, audio, conferme)
+ti muovi con le **frecce ↑↓** e confermi con **Invio**. La lettera o il
+numero a fianco di ogni voce la sceglie subito, ed Esc annulla.
+
 | Tasto | Azione |
 |---|---|
 | `q w e` `a d` `z x c` (o tastierino) | muove l'unità attiva nelle 8 direzioni |

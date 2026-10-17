@@ -55,6 +55,7 @@ COLORS_8 = {"blue": curses.COLOR_BLUE, "red": curses.COLOR_RED, "yellow": curses
             "wmd": curses.COLOR_MAGENTA, "good": curses.COLOR_GREEN, "panel": curses.COLOR_WHITE}
 
 HELP = """\
+MENU              ↑↓ per scegliere, Invio per confermare (o la lettera/il numero), Esc
 MOVIMENTO UNITÀ   q w e / a · d / z x c  (o tastierino 7 8 9 4 6 1 2 3)
 CURSORE           frecce, PagSu/PagGiù, mouse (trascina o rotella per scorrere)
 MOUSE             clic su una tua unità: la selezioni; clic accanto: si muove o
@@ -123,6 +124,10 @@ class UI:
         self.territory_source = self._territory_sources()
         curses.curs_set(0)
         self.scr.keypad(True)
+        try:
+            curses.set_escdelay(25)   # Esc closes menus at once
+        except (AttributeError, curses.error):
+            pass
         # Motion reports are needed to drag the map while the button is held.
         curses.mousemask(curses.ALL_MOUSE_EVENTS | curses.REPORT_MOUSE_POSITION)
         curses.mouseinterval(0)
@@ -645,6 +650,94 @@ class UI:
         self.scr.touchwin()
         return text.strip()
 
+    ENTER_KEYS = (10, 13, curses.KEY_ENTER)
+
+    def choose(self, title: str, items: list[tuple[str, object, object]],
+               header: list[str] | None = None, notes: list[str] | None = None,
+               current=None, extra_keys: str = "", footer: str = ""):
+        """A list to pick from: ↑↓ move, Invio confirms, the item's letter or
+        number picks it at once, Esc cancels.
+
+        ``items`` are (shortcut, text, value); text is a string or a list of
+        lines (the first is the one highlighted). Returns ("item", value),
+        ("key", ch) for one of ``extra_keys``, or None."""
+        header, notes = header or [], notes or []
+        rows = [[t] if isinstance(t, str) else list(t) for _, t, _ in items]
+        sel = next((k for k, it in enumerate(items) if it[2] == current), 0)
+        h, w = self.scr.getmaxyx()
+        body = [*header, *([""] if header else [])]
+        width = min(w - 4, max(len(title) + 6, len(footer) + 6,
+                               *(len(line) + 10 for r in rows for line in r),
+                               *(len(line) + 6 for line in header + notes)))
+        height = min(h - 2, len(body) + sum(len(r) for r in rows) + len(notes) + (1 if notes else 0) + 4)
+        win = curses.newwin(height, width, (h - height) // 2, (w - width) // 2)
+        win.keypad(True)
+        footer = footer or "↑↓ scegli · Invio conferma · lettera o numero diretti · Esc annulla"
+        while True:
+            win.erase()
+            win.box()
+            y = 2
+            try:
+                win.addstr(0, 2, f" {title} "[: width - 4], curses.A_BOLD)
+                for line in body:
+                    if y < height - 1:
+                        win.addstr(y, 2, line[: width - 4])
+                    y += 1
+                for k, (key, _, _) in enumerate(items):
+                    for j, line in enumerate(rows[k]):
+                        if y >= height - 1:
+                            break
+                        lead = f"{'▶' if k == sel else ' '} {key:>2}  " if j == 0 else "        "
+                        text = (lead + line)[: width - 4].ljust(width - 4)
+                        attr = curses.A_REVERSE | curses.A_BOLD if k == sel and j == 0 else \
+                            (curses.A_DIM if j else 0)
+                        win.addstr(y, 2, text, attr)
+                        y += 1
+                if notes:
+                    y += 1
+                    for line in notes:
+                        if y < height - 1:
+                            win.addstr(y, 2, line[: width - 4], curses.A_DIM)
+                        y += 1
+                win.addstr(height - 1, 2, f" {footer} "[: width - 4], curses.A_DIM)
+            except curses.error:
+                pass
+            win.refresh()
+            key = win.getch()
+            if key in (curses.KEY_UP, curses.KEY_LEFT):
+                sel = (sel - 1) % len(items)
+            elif key in (curses.KEY_DOWN, curses.KEY_RIGHT, 9):
+                sel = (sel + 1) % len(items)
+            elif key == curses.KEY_HOME:
+                sel = 0
+            elif key == curses.KEY_END:
+                sel = len(items) - 1
+            elif key in self.ENTER_KEYS:
+                result = ("item", items[sel][2])
+                break
+            elif key == 27:
+                result = None
+                break
+            elif 0 < key < 256:
+                ch = chr(key)
+                if ch in extra_keys:
+                    result = ("key", ch)
+                    break
+                exact = [it for it in items if it[0] == ch]
+                loose = [it for it in items if it[0].lower() == ch.lower()]
+                hit = exact or (loose if len(loose) == 1 else [])
+                if hit:
+                    result = ("item", hit[0][2])
+                    break
+        del win
+        self.scr.touchwin()
+        return result
+
+    def confirm(self, title: str, lines: list[str], yes: str = "Sì", no: str = "No") -> bool:
+        """A yes/no question; No is preselected."""
+        picked = self.choose(title, [("s", yes, True), ("n", no, False)], header=lines, current=False)
+        return picked == ("item", True)
+
     def production_menu(self, city) -> None:
         g = self.g
         keys = [k for k in list(UNIT_TYPES) + [WARHEAD, CHEMICAL] if g.can_build(city, k)]
@@ -653,23 +746,24 @@ class UI:
         for k in keys:
             cost = production_cost(k)
             eta = "∞" if rate <= 0 else f"{-(-cost // rate):.0f}"
-            mark = "▶" if k == city.production else " "
             if k in UNIT_TYPES:
                 t = UNIT_TYPES[k]
                 stats = f"att {t.attack} dif {t.defense} PV {t.hp} mosse {t.move}"
             else:
                 stats = "scorta strategica"
-            lines.append(f"{mark} {k}  {PRODUCTION_NAMES[k]:20s} costo {cost:3d}  {eta:>3s} turni  {stats}")
+            lines.append(f"{PRODUCTION_NAMES[k]:20s} costo {cost:3d}  {eta:>3s} turni  {stats}")
+        items = [(k, line, k) for k, line in zip(keys, lines)]
         directive = g.factions[self.viewer].directive
+        notes = []
         if directive and city.manual:
-            lines += ["", f"  X  torna alla direttiva: {DIRECTIVES[directive].split(' (')[0]}"]
+            items.append(("X", f"torna alla direttiva: {DIRECTIVES[directive].split(' (')[0]}", "X"))
         elif directive:
-            lines += ["", "  Scegliendo a mano, questa città non seguirà più la direttiva."]
-        key = self.dialog(f"Produzione di {city.name} ({rate:.1f} punti/turno)", lines,
-                          "lettera per scegliere, Esc per annullare")
-        if key < 0 or key > 255:
+            notes = ["Scegliendo a mano, questa città non seguirà più la direttiva."]
+        picked = self.choose(f"Produzione di {city.name} ({rate:.1f} punti/turno)", items,
+                             notes=notes, current=city.production)
+        if picked is None:
             return
-        ch = chr(key).upper()
+        ch = picked[1]
         if ch == "X" and directive and city.manual:
             self.do({"op": "release", "city": city.id})
             self.status = f"{city.name} torna a seguire la direttiva."
@@ -683,29 +777,23 @@ class UI:
     def directive_menu(self) -> None:
         """One order for every city: what the whole war economy builds."""
         fac = self.g.factions[self.viewer]
-        lines = ["Una direttiva cambia subito la produzione di tutte le città", ""]
-        for key, name in self.DIRECTIVE_KEYS.items():
-            mark = "▶" if fac.directive == name else " "
-            lines.append(f"{mark} {key}  {DIRECTIVES[name]}")
+        items = [(key, DIRECTIVES[name], name) for key, name in self.DIRECTIVE_KEYS.items()]
         manual = sum(1 for c in self.g.cities_of(self.viewer) if c.manual)
-        lines += ["", "Le città che hai impostato a mano restano come sono."]
+        notes = ["Le città che hai impostato a mano restano come sono."]
         if manual:
-            lines.append(f"Città scelte a mano: {manual}. Premi T per includere anche quelle.")
-        key = self.dialog("Direttiva di produzione", lines, "numero, T per tutte, Esc")
-        if key < 0 or key > 255:
+            notes.append(f"Città scelte a mano: {manual}. Premi T per includere anche quelle.")
+        picked = self.choose("Direttiva di produzione", items,
+                             header=["Una direttiva cambia subito la produzione di tutte le città"],
+                             notes=notes, current=fac.directive, extra_keys="Tt" if manual else "")
+        if picked is None:
             return
-        ch = chr(key)
-        include_all = False
-        if ch in ("T", "t") and manual:
-            include_all = True
-            key = self.dialog("Direttiva per tutte le città", lines[2:2 + len(self.DIRECTIVE_KEYS)],
-                              "numero, Esc")
-            if key < 0 or key > 255:
+        include_all = picked[0] == "key"
+        if include_all:
+            picked = self.choose("Direttiva per TUTTE le città, anche quelle scelte a mano",
+                                 items, current=fac.directive)
+            if picked is None:
                 return
-            ch = chr(key)
-        if ch not in self.DIRECTIVE_KEYS:
-            return
-        name = self.DIRECTIVE_KEYS[ch]
+        name = picked[1]
         changed = self.do({"op": "directive", "name": name, "all": include_all})
         label = DIRECTIVES[name].split(" (")[0]
         self.status = f"Direttiva: {label}. Città riconvertite: {changed}." if name else \
@@ -722,25 +810,25 @@ class UI:
                                   f"(massimo {cards.HAND_LIMIT} in mano)."])
             return
         letters = "abcde"
-        lines = []
+        items = []
         for k, key in enumerate(hand):
             c = cards.CARDS[key]
             odds = f" · riesce nel {int(c.chance * 100)}% dei casi" if c.chance < 1 else ""
-            lines += [f"{letters[k]}  ♠ {c.name}{odds}", f"     {c.text}"]
+            items.append((letters[k], [f"♠ {c.name}{odds}", c.text], k))
         playing = self.my_turn()
-        footer = "lettera per giocarla, Esc per chiudere" if playing else "le giochi nel tuo turno"
-        key = self.dialog(f"Le tue carte ({len(hand)}/{cards.HAND_LIMIT})", lines, footer)
-        if not playing or key < 0 or key > 255 or chr(key) not in letters[:len(hand)]:
+        picked = self.choose(f"Le tue carte ({len(hand)}/{cards.HAND_LIMIT})", items,
+                             notes=[] if playing else ["Le carte si giocano nel tuo turno."])
+        if picked is None or not playing:
             return
-        card = cards.CARDS[hand[letters.index(chr(key))]]
+        card = cards.CARDS[hand[picked[1]]]
         if card.target == "none":
             self.play_card(card.key)
         elif card.target == "faction":
             rivals = [f for f in g.factions if f.alive and f.idx != self.viewer]
-            choice = self.dialog(f"♠ {card.name}: su quale fazione?",
-                                 [f"{k + 1}  {f.name}" for k, f in enumerate(rivals)], "numero, Esc")
-            if ord("1") <= choice < ord("1") + len(rivals):
-                self.play_card(card.key, target=rivals[choice - ord("1")].idx)
+            picked = self.choose(f"♠ {card.name}: su quale fazione?",
+                                 [(str(k + 1), f.name, f.idx) for k, f in enumerate(rivals)])
+            if picked is not None:
+                self.play_card(card.key, target=picked[1])
         else:
             self.pending_card = card.key
             self.mode = "card"
@@ -769,7 +857,7 @@ class UI:
         others = [f for f in g.factions if f.idx != self.viewer and f.alive]
         offers = g.proposals_to(self.viewer)
         lines = []
-        for k, f in enumerate(others, 1):
+        for f in others:
             left = g.truce_left(self.viewer, f.idx)
             if left:
                 state = f"tregua ({left} turni)"
@@ -779,17 +867,18 @@ class UI:
                 state = "proposta inviata"
             else:
                 state = "in guerra"
-            lines.append(f"{k}  {f.name:24s} {state}")
-        lines += ["", "Numero: proponi una tregua o rispondi a una proposta.",
-                  "Durante la tregua le due fazioni non possono attaccarsi."]
-        key = self.dialog("Diplomazia", lines, "numero o Esc")
-        if not ord("1") <= key < ord("1") + len(others):
+            lines.append(f"{f.name:24s} {state}")
+        picked = self.choose("Diplomazia", [(str(k), line, f) for k, (line, f)
+                                            in enumerate(zip(lines, others), 1)],
+                             notes=["Scegli una fazione per proporle una tregua o rispondere.",
+                                    "Durante la tregua le due fazioni non possono attaccarsi."])
+        if picked is None:
             return
-        f = others[key - ord("1")]
+        f = picked[1]
         if f.idx in offers:
-            answer = self.dialog("Tregua", [f"{f.name} propone una tregua.", "Accetti?"], "s / n")
-            result = self.do({"op": "truce_answer", "target": f.idx,
-                              "accept": answer in (ord("s"), ord("S"))})
+            accept = self.confirm("Tregua", [f"{f.name} propone una tregua di 15 turni.", "Accetti?"],
+                                  "Accetto la tregua", "Rifiuto")
+            result = self.do({"op": "truce_answer", "target": f.idx, "accept": accept})
         elif not g.truce_left(self.viewer, f.idx):
             result = self.do({"op": "truce", "target": f.idx})
         else:
@@ -799,25 +888,19 @@ class UI:
     def music_menu(self) -> None:
         """Choose the background music and mute or unmute the effects."""
         a = self.audio
-        lines = ["Musica", ""]
-        for key, choice in MUSIC_KEYS.items():
-            mark = "▶" if a.music_choice == choice else " "
-            lines.append(f"{mark} {key}  {MUSIC_NAMES[choice]}")
-        lines += ["", "Effetti", ""]
-        mark = "▶" if a.effects else " "
-        lines.append(f"{mark} e  effetti sonori: {'attivi' if a.effects else 'muti'}")
-        key = self.dialog("Audio", lines, "lettera per scegliere, Esc per chiudere")
-        if key < 0 or key > 255:
+        items = [(key, MUSIC_NAMES[choice], choice) for key, choice in MUSIC_KEYS.items()]
+        items.append(("e", f"effetti sonori: {'attivi (premi per spegnerli)' if a.effects else 'muti (premi per accenderli)'}",
+                      "effects"))
+        picked = self.choose("Audio: musica ed effetti", items, current=a.music_choice)
+        if picked is None:
             return
-        ch = chr(key).lower()
-        if ch in MUSIC_KEYS:
-            choice = MUSIC_KEYS[ch]
-            a.select_music(choice)
-            note = "" if a.available else " (nessun lettore audio trovato: solo il beep)"
-            self.status = f"Musica: {MUSIC_NAMES[choice]}{note}."
-        elif ch == "e":
+        if picked[1] == "effects":
             on = a.toggle_effects()
             self.status = f"Effetti sonori: {'attivi' if on else 'muti'}."
+            return
+        a.select_music(picked[1])
+        note = "" if a.available else " (nessun lettore audio trovato: solo il beep)"
+        self.status = f"Musica: {MUSIC_NAMES[picked[1]]}{note}."
 
     def chat(self) -> None:
         text = self.ask("Messaggio", ["Scrivi un messaggio per tutti i giocatori."], "> ", 120)
@@ -1395,7 +1478,7 @@ class UI:
             else:
                 self.status = "Metti il cursore su una tua città."
         elif key == ord("D") and self.active:
-            if self.dialog("Congedo", [f"Congedare {self.active.type.name}?"], "s per confermare") in (ord("s"), ord("S")):
+            if self.confirm("Congedo", [f"Congedare {self.active.type.name}?"]):
                 self.do({"op": "disband", "unit": self.active.id})
                 self.active = None
                 self.select_next()
@@ -1435,7 +1518,7 @@ class UI:
         elif key == ord("Q"):
             note = "Il server tiene la partita: potrai rientrare." if self.session.online \
                 else "La partita verrà salvata."
-            if self.dialog("Uscire?", [note], "s per uscire") in (ord("s"), ord("S")):
+            if self.confirm("Uscire?", [note], "Esci", "Resta"):
                 if not self.session.online:
                     self.save()
                 self.quit = True
@@ -1492,9 +1575,9 @@ class UI:
             if not g.can_chemical(self.viewer, self.cursor):
                 self.status = f"Bersaglio fuori portata (max {CHEM_RANGE} caselle dalle tue forze)."
                 return
-            if self.dialog("☣ Armi chimiche", [f"Colpire {place} con gas nervino?",
-                                               "Orologio dell'Apocalisse: -1 minuto."],
-                           "s per confermare") in (ord("s"), ord("S")):
+            if self.confirm("☣ Armi chimiche", [f"Colpire {place} con gas nervino?",
+                                                "Orologio dell'Apocalisse: -1 minuto."],
+                            "Lancia il gas", "Annulla"):
                 self.status = describe(self.do({"op": "chem", "cell": self.cursor}))
         else:
             if city is not None and city.owner == self.viewer:
