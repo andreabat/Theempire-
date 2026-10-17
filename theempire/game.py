@@ -133,13 +133,15 @@ class Game:
         self.units: dict[int, Unit] = {}
         self.at: dict[int, list[int]] = {}
         self.next_id = 1
+        self.replay: list[dict] = []   # AI actions to show as the newsreel
+        self.recording = False         # set while the AI plays its factions
         self._vis: dict[int, set[int]] = {}
         self._det: dict[int, set[int]] = {}
+        if _empty:
+            return
         self.factions: list[Faction] = []
         self.cities: list[City] = []
         self.city_at: dict[int, int] = {}
-        if _empty:
-            return
         for k, fd in enumerate(self.scenario.factions):
             self.factions.append(Faction(
                 k, fd.key, fd.name, fd.color, fd.key in humans, fd.doctrine,
@@ -203,6 +205,12 @@ class Game:
         return "A" if c.size >= 2 else "I"
 
     # ---------------------------------------------------------------- queries
+    def record(self, op: str, cell: int, **extra) -> None:
+        """Collect one AI action for the end-of-turn newsreel: only active
+        while the AI plays its factions (see commands.advance)."""
+        if self.recording:
+            self.replay.append({"op": op, "cell": cell, **extra})
+
     def log(self, text: str, audience: list[int] | None = None, level: str = "info",
             sound: str = "", actor: int | None = None) -> None:
         self.event_seq += 1
@@ -415,6 +423,8 @@ class Game:
             self._air_after_move(u)
         self._dirty()
         self._wake_sentries(u)
+        if u.id in self.units:
+            self.record("move", cell, unit=u.id, glyph=u.kind, owner=u.owner)
         return "moved" if u.id in self.units else "crashed"
 
     def _spend(self, u: Unit) -> None:
@@ -623,6 +633,9 @@ class Game:
     def attack(self, u: Unit, cell: int) -> str:
         city = self.city(cell)
         d = self.defender_at(u, cell)
+        defender = d.owner if d is not None else (city.owner if city else None)
+        self.record("attack", cell, glyph=u.kind, owner=u.owner,
+                    attacker=u.owner, defender=defender)
         av = self.attack_value(u, cell, d)
         self._spend(u)
         if u.type.domain == "land" and u.carrier is not None:
@@ -689,7 +702,9 @@ class Game:
         self.log(f"{self.factions[u.owner].name} conquista {tag}{city.name} "
                  f"(prima: {self.faction_name(old)}).", audience,
                  "alert" if city.capital or old is not None else "info", "capture", u.owner)
+        self.record("capture", city.cell, old=old, new=u.owner)
         if old is not None and not self.cities_of(old):
+            self.record("fall", city.cell)
             self.eliminate(old)
         self._dirty()
 
@@ -747,6 +762,7 @@ class Game:
                 if c == cell and hit.size > 1:
                     hit.size -= 1
         self.doomsday -= 3 if city else 2
+        self.record("nuke", cell)
         self.log(f"☢ {fac.name} colpisce {place} con un'arma nucleare: {killed} unità "
                  f"annientate. Orologio dell'Apocalisse: {max(0, self.doomsday)} min.", None, "wmd",
                  "nuke", f)
@@ -787,6 +803,7 @@ class Game:
             if hit is not None:
                 hit.militia //= 2
         self.doomsday -= 1
+        self.record("chem", cell)
         city = self.city(cell)
         place = city.name if city else _coords(self.world, cell)
         self.log(f"☣ {fac.name} usa armi chimiche su {place}: {hurt} unità colpite. "

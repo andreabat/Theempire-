@@ -5,10 +5,11 @@ from __future__ import annotations
 import curses
 import datetime as dt
 import random
+import time
 from collections import Counter, deque
 from pathlib import Path
 
-from theempire.audio import MODE_NAMES, Audio
+from theempire.audio import MUSIC_KEYS, MUSIC_NAMES, Audio
 from theempire.commands import describe
 from theempire.game import CHEM_RANGE, Unit
 from theempire.scenarios import SCENARIOS
@@ -53,7 +54,7 @@ COLORS_8 = {"blue": curses.COLOR_BLUE, "red": curses.COLOR_RED, "yellow": curses
 
 HELP = """\
 MOVIMENTO UNITÀ   q w e / a · d / z x c  (o tastierino 7 8 9 4 6 1 2 3)
-CURSORE           frecce, PagSu/PagGiù, mouse (clic)
+CURSORE           frecce, PagSu/PagGiù, mouse (clic; trascina per scorrere)
 Invio             seleziona l'unità sotto il cursore (cicla nelle città)
 n / Tab           unità successiva in attesa di ordini
 spazio            salta l'unità per questo turno
@@ -70,7 +71,7 @@ p                 produzione della città sotto il cursore
 D                 congeda l'unità attiva
 m                 mappa del mondo (panoramica)
 r                 centra la vista sul cursore
-M                 audio: musica ed effetti → solo effetti → muto
+M                 audio: scegli musica ed effetti
 N                 ☢ attacco nucleare sulla casella del cursore
 C                 ☣ attacco chimico (entro 4 caselle dalle tue forze)
 E                 fine turno
@@ -94,10 +95,14 @@ class UI:
         self.cursor = self._home_cell()
         self.view_x = 0
         self.view_y = 0
+        self.reveal: set[int] = set()     # newsreel: cells the player may peek at
+        self.phantom: dict[int, tuple[str, int]] = {}  # newsreel: (glyph, owner)
         self.active_id: int | None = None
         self.turn_key: tuple[int, int] | None = None
         self.over_shown = False
         self.skipped: set[int] = set()
+        self._pan: tuple[int, int] | None = None     # mouse drag origin (screen)
+        self._pan_view: tuple[int, int] | None = None  # view at drag start
         self.mode = "normal"          # normal | goto | nuke | chem | overview
         self.status = ""
         self.quit = False
@@ -274,7 +279,12 @@ class UI:
         bg = None if land or not self.rich else "sea"
         dim = 0 if seen else curses.A_DIM
         city = g.city(cell)
-        units = [u for u in g.units_at(cell) if seen and g.sees(self.viewer, u)] if cell in g.at else []
+        units = [u for u in g.units_at(cell)
+                 if (seen or cell in self.reveal) and (g.sees(self.viewer, u) or cell in self.reveal)] \
+            if cell in g.at else []
+        if cell in self.phantom:
+            kind, owner = self.phantom[cell]
+            return kind, self.color(self.owner_color(owner), bg) | curses.A_BOLD
         if self.active is not None and self.active.cell == cell and self.active.id in g.units:
             return self.active.kind, self.color(self.owner_color(self.active.owner), bg) | curses.A_BOLD | curses.A_REVERSE
         if city is not None:
@@ -302,7 +312,7 @@ class UI:
     def draw_map(self) -> None:
         g = self.g
         mw, mh = self.map_size()
-        vis = g.visible(self.viewer)
+        vis = g.visible(self.viewer) | self.reveal
         path: set[int] = set()
         if self.mode == "goto" and self.active is not None and self.active.id in g.units:
             route = g.path(self.active, self.cursor) or []
@@ -632,6 +642,29 @@ class UI:
             return
         self.status = describe(result) or self.status
 
+    def music_menu(self) -> None:
+        """Choose the background music and mute or unmute the effects."""
+        a = self.audio
+        lines = ["Musica", ""]
+        for key, choice in MUSIC_KEYS.items():
+            mark = "▶" if a.music_choice == choice else " "
+            lines.append(f"{mark} {key}  {MUSIC_NAMES[choice]}")
+        lines += ["", "Effetti", ""]
+        mark = "▶" if a.effects else " "
+        lines.append(f"{mark} e  effetti sonori: {'attivi' if a.effects else 'muti'}")
+        key = self.dialog("Audio", lines, "lettera per scegliere, Esc per chiudere")
+        if key < 0 or key > 255:
+            return
+        ch = chr(key).lower()
+        if ch in MUSIC_KEYS:
+            choice = MUSIC_KEYS[ch]
+            a.select_music(choice)
+            note = "" if a.available else " (nessun lettore audio trovato: solo il beep)"
+            self.status = f"Musica: {MUSIC_NAMES[choice]}{note}."
+        elif ch == "e":
+            on = a.toggle_effects()
+            self.status = f"Effetti sonori: {'attivi' if on else 'muti'}."
+
     def chat(self) -> None:
         text = self.ask("Messaggio", ["Scrivi un messaggio per tutti i giocatori."], "> ", 120)
         if text:
@@ -747,7 +780,83 @@ class UI:
 
     def end_human_turn(self) -> None:
         self.active = None
+        g = self.g
+        if g.events:  # the newsreel will ring every event; quiet the summary
+            self.last_seq = max(self.last_seq, max(e.seq for e in g.events))
         self.do({"op": "end_turn"})
+        self._replay_ai_turn()
+
+    # ------------------------------------------------------- newsreel
+    def _focus(self, cell: int) -> None:
+        """Pan the map so ``cell`` is in view (keep the view if it already is)."""
+        mw, mh = self.map_size()
+        cx, cy = self.w.xy(cell)
+        rel = (cx - self.view_x) % self.w.width
+        if rel < 3 or rel > mw - 4:
+            self.view_x = (cx - mw // 2) % self.w.width
+        if cy < self.view_y + 2 or cy > self.view_y + mh - 3:
+            self.view_y = cy - mh // 2
+        self.view_y = max(0, min(self.view_y, max(0, self.w.height - mh)))
+
+    def _replay_sound(self, act: dict) -> str | None:
+        """The effect that goes with one newsreel frame, for this player."""
+        me = self.viewer
+        op = act["op"]
+        if op == "nuke":
+            return "nuke"
+        if op == "chem":
+            return "gas"
+        if op == "fall":
+            return "fall"
+        if op == "capture":
+            return "loss" if act["old"] == me else None
+        if op == "attack":
+            return "battle"
+        return None
+
+    def _replay_ai_turn(self) -> None:
+        """Show what the AI did this round, Theatre-Europe style: the camera
+        pans over every move and battle, moving armies show as glowing marks
+        and the battles ring. Any key skips straight to your turn."""
+        g = self.g
+        acts = g.replay
+        if not acts or self.session.online or g.over:
+            return
+        g.replay = []
+        if g.events:  # the frames play the sounds; don't replay them after
+            self.last_seq = max(self.last_seq, max(e.seq for e in g.events))
+        saved_status = self.status
+        self.status = "⌛ Riepilogo del turno: premi un tasto per saltare"
+        self.scr.nodelay(True)
+        last_unit: int | None = None
+        try:
+            for act in acts:
+                key = self.scr.getch()  # any character key skips the reel
+                if 0 <= key <= 255:
+                    break
+                cell = act["cell"]
+                self.reveal = {cell}
+                if act["op"] == "move":
+                    self.phantom = {cell: (act["glyph"], act["owner"])}
+                    same = act.get("unit") == last_unit
+                    pause = 0.015 if same else 0.04   # walking vs new army
+                    last_unit = act.get("unit")
+                else:
+                    self.phantom = {}
+                    last_unit = None
+                    pause = 0.2 if act["op"] in ("capture", "fall", "nuke") else 0.12
+                self._focus(cell)
+                sound = self._replay_sound(act)
+                if sound:
+                    self.audio.sfx(sound, force=act["op"] not in ("attack", "move"))
+                self.draw()
+                time.sleep(pause)
+        finally:
+            self.scr.nodelay(False)
+            self.reveal.clear()
+            self.phantom.clear()
+            self.status = saved_status
+            self.follow_cursor()
 
     def game_over(self) -> None:
         g = self.g
@@ -876,9 +985,7 @@ class UI:
         elif key == ord("m"):
             self.mode = "overview"
         elif key == ord("M"):
-            mode = self.audio.cycle()
-            note = "" if self.audio.available else " (nessun lettore audio trovato: solo il beep)"
-            self.status = f"Audio: {MODE_NAMES[mode]}{note}."
+            self.music_menu()
         elif key == ord("r"):
             self.center()
         elif key == ord("N"):
@@ -973,15 +1080,37 @@ class UI:
             _, mx, my, _, state = curses.getmouse()
         except curses.error:
             return
-        mw, mh = self.map_size()
-        if not (1 <= my <= mh and 0 <= mx < mw):
-            return
         if self.mode == "overview":
-            kx, ky, _, _ = getattr(self, "overview_geom", (2, 2, 0, 0))
-            y = min(self.w.height - 1, (my - 1) * 4 * ky + 2 * ky)
-            self.cursor = self.w.idx(mx * 2 * kx + kx, y)
-            self.mode = "normal"
-            self.center()
+            mw, mh = self.map_size()
+            if 1 <= my <= mh and 0 <= mx < mw:
+                kx, ky, _, _ = getattr(self, "overview_geom", (2, 2, 0, 0))
+                y = min(self.w.height - 1, (my - 1) * 4 * ky + 2 * ky)
+                self.cursor = self.w.idx(mx * 2 * kx + kx, y)
+                self.mode = "normal"
+                self.center()
+            if state & curses.BUTTON1_RELEASED:
+                self._pan = None
+            return
+        mw, mh = self.map_size()
+        # drag with the left button to pan: the map follows the hand
+        if self._pan is not None:
+            px, py = self._pan
+            if state & curses.BUTTON1_RELEASED:
+                self._pan = None
+                self._pan_view = None
+                if 1 <= my <= mh and 0 <= mx < mw:   # release where the hand landed
+                    self.cursor = self.w.idx(self.view_x + mx, self.view_y + my - 1)
+                return
+            if 1 <= my <= mh and 0 <= mx < mw:
+                base_x, base_y = self._pan_view
+                self.view_x = (base_x - (mx - px)) % self.w.width
+                self.view_y = max(0, min(base_y - (my - py), max(0, self.w.height - mh)))
+            return
+        if state & curses.BUTTON1_PRESSED and 1 <= my <= mh and 0 <= mx < mw:
+            self._pan = (mx, my)
+            self._pan_view = (self.view_x, self.view_y)
+            return
+        if not (1 <= my <= mh and 0 <= mx < mw):
             return
         y = self.view_y + my - 1
         if y >= self.w.height:
@@ -1050,7 +1179,7 @@ class UI:
             if key in (ord("Q"), ord("q")):
                 return False
             if key == ord("M"):
-                self.audio.cycle()
+                self.music_menu()
         return True
 
 

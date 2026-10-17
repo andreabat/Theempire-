@@ -25,9 +25,25 @@ RATE = 22050
 VERSION = "v1"
 CACHE = Path.home() / ".theempire" / "sounds" / VERSION
 SETTINGS = Path.home() / ".theempire" / "settings.json"
-MODES = ("all", "sfx", "off")
-MODE_NAMES = {"all": "musica ed effetti", "sfx": "solo effetti", "off": "muto"}
-LOOPING = {"menu", "war", "tension"}
+LOOPING = {"menu", "war", "tension", "cossack", "anthem"}
+# What the player can pick as background music: "auto" follows the moment
+# (menu, war, tension, victory, defeat, midnight), "off" means no music at
+# all, anything else is a specific tune played on a loop.
+MUSIC_CHOICES = ("auto", "off", "cossack", "anthem", "menu", "war", "tension",
+                 "victory", "defeat", "midnight")
+MUSIC_NAMES = {"auto": "automatica (a seconda del momento)",
+               "off": "nessuna musica (restano gli effetti)",
+               "cossack": "Cossack Patrol",
+               "anthem": "inno sovietico",
+               "menu": "Toccata di Bach (menu)",
+               "war": "marcia di guerra",
+               "tension": "tensione",
+               "victory": "vittoria",
+               "defeat": "sconfitta",
+               "midnight": "mezzanotte"}
+MUSIC_KEYS = {"a": "auto", "o": "off", "c": "cossack", "s": "anthem",
+              "m": "menu", "w": "war", "t": "tension", "v": "victory",
+              "d": "defeat", "n": "midnight"}
 
 NOTES = {"C": -9, "C#": -8, "Db": -8, "D": -7, "D#": -6, "Eb": -6, "E": -5, "F": -4,
          "F#": -3, "Gb": -3, "G": -2, "G#": -1, "Ab": -1, "A": 0, "A#": 1, "Bb": 1, "B": 2}
@@ -277,6 +293,66 @@ def _music() -> dict[str, Track]:
     t.add(0, noise(9.0, vol=0.5, cutoff=0.04, seed=99, attack=2.0, release=3.0))
     t.add(0, sine_sweep(110, 30, 9.0, vol=0.35, attack=1.0, release=3.0))
     out["midnight"] = t
+    # Cossack Patrol (Polyushko Polye): the cavalry song with a galloping
+    # bass, in the dotted rhythm of the march. A A B A, the B rises high.
+    bpm = 120
+    verse = [("D5", 1.5), ("A4", 0.5), ("Bb4", 0.5), ("A4", 0.5), ("G4", 1), ("A4", 1),
+             ("Bb4", 0.5), ("A4", 0.5), ("G4", 1), ("F4", 1), ("G4", 1), ("A4", 1),
+             ("F4", 1), ("D4", 3), ("R", 2)]
+    chorus = [("F5", 1), ("E5", 1), ("D5", 0.5), ("C5", 0.5), ("D5", 1), ("E5", 1), ("F5", 1),
+              ("E5", 0.5), ("D5", 0.5), ("C5", 1), ("D5", 1), ("E5", 1), ("C5", 1),
+              ("A4", 2), ("R", 3)]
+    melody = verse + verse + chorus + verse
+    gallop = {"D": [("D2", 0.5), ("D2", 0.5), ("A2", 0.5), ("A2", 0.5),
+                     ("D3", 0.5), ("D3", 0.5), ("A2", 0.5), ("A2", 0.5)],
+              "Bb": [("Bb1", 0.5), ("Bb1", 0.5), ("F2", 0.5), ("F2", 0.5),
+                      ("Bb2", 0.5), ("Bb2", 0.5), ("F2", 0.5), ("F2", 0.5)],
+              "A": [("A1", 0.5), ("A1", 0.5), ("E2", 0.5), ("E2", 0.5),
+                     ("A2", 0.5), ("A2", 0.5), ("E2", 0.5), ("E2", 0.5)],
+              "F": [("F2", 0.5), ("F2", 0.5), ("C3", 0.5), ("C3", 0.5),
+                     ("F3", 0.5), ("F3", 0.5), ("C3", 0.5), ("C3", 0.5)],
+              "C": [("C2", 0.5), ("C2", 0.5), ("G2", 0.5), ("G2", 0.5),
+                     ("C3", 0.5), ("C3", 0.5), ("G2", 0.5), ("G2", 0.5)]}
+    bass = []
+    for chord in ("D", "Bb", "A", "D", "D", "Bb", "A", "D",
+                  "F", "C", "A", "A", "D", "Bb", "A", "D"):
+        bass += gallop[chord]
+    t = Track(16 * 16 * 60 / bpm / 4 + 0.3)
+    sequence(t, melody, bpm, square, vol=0.2, duty=0.25, release=0.03)
+    sequence(t, bass, bpm, triangle, vol=0.22, release=0.03)
+    drums(t, bpm, 16, pattern="k..sk..s")
+    out["cossack"] = t
+    # Inno sovietico (Aleksandrov): «Союз нерушимый», solenne, in sol
+    # maggiore — strofa e ritornello («Славься, Отечество»), 8 righi.
+    bpm = 84
+    melody = [
+        # «Союз нерушимый республик свободных»
+        ("G4", 1), ("A4", 1), ("B4", 1), ("C5", 1), ("D5", 1.5), ("C5", 0.5), ("B4", 1), ("A4", 1),
+        # «Сплотила навеки Великая Русь»
+        ("G4", 1), ("A4", 1), ("B4", 1), ("C5", 1), ("D5", 3), ("R", 1),
+        # «Да здравствует созданный волей народов»
+        ("B4", 1), ("C5", 1), ("D5", 1), ("E5", 1), ("D5", 1.5), ("C5", 0.5), ("B4", 1), ("A4", 1),
+        # «Единый, могучий Советский Союз»
+        ("G4", 2), ("F#4", 1), ("G4", 1), ("A4", 1), ("B4", 2), ("R", 1),
+        # «Славься, Отечество наше свободное»
+        ("G4", 1), ("A4", 1), ("B4", 1), ("C5", 1), ("D5", 1.5), ("C5", 0.5), ("B4", 1), ("A4", 1),
+        # «Дружбы народов надёжный оплот»
+        ("B4", 1), ("C5", 1), ("D5", 1), ("E5", 1), ("E5", 1.5), ("D5", 0.5), ("C5", 1), ("B4", 1),
+        # «Знамя советское, знамя народное»
+        ("F#4", 1), ("G4", 1), ("A4", 1), ("B4", 1), ("C5", 1.5), ("B4", 0.5), ("A4", 1), ("G4", 1),
+        # «Пусть от победы к победе ведёт»
+        ("G4", 1.5), ("A4", 0.5), ("B4", 1), ("C5", 1), ("D5", 2), ("G4", 2),
+    ]
+    bass = [
+        ("G2", 4), ("D2", 4), ("C3", 4), ("G2", 4),
+        ("G2", 4), ("D2", 4), ("C3", 4), ("D2", 4),
+        ("D2", 4), ("G2", 4), ("D2", 4), ("C3", 4),
+        ("G2", 4), ("D2", 4), ("C3", 4), ("G2", 4),
+    ]
+    t = Track(64 * 60 / bpm + 0.3)
+    sequence(t, melody, bpm, square, vol=0.19, duty=0.4, release=0.05)
+    sequence(t, bass, bpm, triangle, vol=0.3, release=0.1)
+    out["anthem"] = t
     return out
 
 
@@ -301,7 +377,8 @@ def generate(cache: Path = CACHE) -> None:
 
 _SFX_NAMES = ("battle", "capture", "loss", "fall", "nuke", "intercept", "gas", "crash",
               "truce", "turn", "alert")
-_MUSIC_NAMES = ("menu", "war", "tension", "victory", "defeat", "midnight")
+_MUSIC_NAMES = ("menu", "war", "tension", "victory", "defeat", "midnight",
+                 "cossack", "anthem")
 
 
 # ----------------------------------------------------------------- playback
@@ -313,27 +390,60 @@ def find_player() -> list[str] | None:
     return None
 
 
-def load_mode() -> str:
+def _settings() -> dict:
     try:
-        mode = json.loads(SETTINGS.read_text(encoding="utf-8")).get("audio", "all")
-    except (OSError, json.JSONDecodeError, AttributeError):
-        mode = "all"
-    return mode if mode in MODES else "all"
-
-
-def save_mode(mode: str) -> None:
-    try:
-        data = json.loads(SETTINGS.read_text(encoding="utf-8")) if SETTINGS.exists() else {}
-        if not isinstance(data, dict):
-            data = {}
+        data = json.loads(SETTINGS.read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {}
     except (OSError, json.JSONDecodeError):
-        data = {}
-    data["audio"] = mode
+        return {}
+
+
+def _save(data: dict) -> None:
     try:
         SETTINGS.parent.mkdir(parents=True, exist_ok=True)
         SETTINGS.write_text(json.dumps(data), encoding="utf-8")
     except OSError:
         pass
+
+
+def _sync_audio(data: dict) -> None:
+    """Keep the old "audio" key in step with the new music/effects choices."""
+    music = data.get("music", "auto")
+    effects = data.get("effects", True)
+    data["audio"] = "all" if effects and music != "off" else ("sfx" if effects else "off")
+
+
+def load_music() -> str:
+    """The chosen background music, or "auto" when nothing was chosen yet."""
+    data = _settings()
+    if "music" in data:
+        return data["music"] if data["music"] in MUSIC_CHOICES else "auto"
+    mode = data.get("audio", "all")  # legacy: the old all/sfx/off mode
+    return "off" if mode in ("sfx", "off") else "auto"
+
+
+def save_music(choice: str) -> None:
+    if choice not in MUSIC_CHOICES:
+        return
+    data = _settings()
+    data["music"] = choice
+    _sync_audio(data)
+    _save(data)
+
+
+def load_effects() -> bool:
+    """Whether the sound effects are on (legacy "audio" mode migrates here)."""
+    data = _settings()
+    if "effects" in data:
+        return bool(data["effects"])
+    return data.get("audio", "all") != "off"
+
+
+def save_effects(on: bool) -> None:
+    data = _settings()
+    data["effects"] = on
+    _sync_audio(data)
+    _save(data)
 
 
 class Audio:
@@ -342,19 +452,25 @@ class Audio:
 
     MAX_EFFECTS = 3
 
-    def __init__(self, mode: str | None = None, cache: Path = CACHE, bell=None):
-        self.mode = mode or load_mode()
+    def __init__(self, mode: str | None = None, music: str | None = None,
+                 effects: bool | None = None, cache: Path = CACHE, bell=None):
+        if mode is not None:                      # --audio all|sfx|off
+            self.music_choice = "off" if mode in ("sfx", "off") else "auto"
+            self.effects = mode != "off"
+        else:
+            self.music_choice = music if music is not None else load_music()
+            self.effects = effects if effects is not None else load_effects()
         self.cache = cache
         self.bell = bell              # fallback, e.g. curses.beep
         self.player = find_player()
         self.ready = threading.Event()
-        self.effects: list[subprocess.Popen] = []
+        self.running: list[subprocess.Popen] = []
         self.track: str | None = None     # what is playing
         self.wanted: str | None = None    # what the game asked for
         self.music_proc: subprocess.Popen | None = None
         self.lock = threading.Lock()
         self.stopping = threading.Event()
-        if self.player is not None and self.mode != "off":
+        if self.player is not None and (self.effects or self.music_choice != "off"):
             self._start()
         self.loop_thread = threading.Thread(target=self._loop, daemon=True)
         self.loop_thread.start()
@@ -386,8 +502,10 @@ class Audio:
         except OSError:
             return None
 
-    def sfx(self, name: str) -> None:
-        if self.mode == "off":
+    def sfx(self, name: str, force: bool = False) -> None:
+        """Play one effect. With ``force`` (used by the end-of-turn newsreel)
+        the older effects are cut short so the important sound is heard."""
+        if not self.effects:
             return
         if self.player is None or not self.ready.is_set():
             if self.bell and name in ("nuke", "capture", "fall", "turn", "alert", "loss"):
@@ -397,23 +515,49 @@ class Audio:
                     pass
             return
         with self.lock:
-            self.effects = [p for p in self.effects if p.poll() is None]
-            if len(self.effects) >= self.MAX_EFFECTS:
+            self.running = [p for p in self.running if p.poll() is None]
+            if force:
+                for p in self.running:
+                    p.terminate()
+                self.running = []
+            if len(self.running) >= self.MAX_EFFECTS:
                 return
             proc = self._spawn(name)
             if proc is not None:
-                self.effects.append(proc)
+                self.running.append(proc)
 
     def music(self, track: str | None) -> None:
-        """Switch the background music (None = silence)."""
+        """Switch the background music (None = silence). The chosen tune, if
+        any, wins over the track the game suggests for the moment."""
         self.wanted = track
-        if self.mode != "all":
+        if self.music_choice == "off":
             track = None
+        elif self.music_choice != "auto":
+            track = self.music_choice
         with self.lock:
             if track == self.track:
                 return
             self.track = track
             self._stop_music()
+
+    def select_music(self, choice: str) -> None:
+        """Pick a tune from MUSIC_CHOICES and keep it for the next games."""
+        if choice not in MUSIC_CHOICES:
+            return
+        self.music_choice = choice
+        save_music(choice)
+        if self.player is not None and choice != "off":
+            self._start()
+        self.music(self.wanted)
+
+    def toggle_effects(self) -> bool:
+        """Mute or unmute the sound effects; returns the new state."""
+        self.effects = not self.effects
+        save_effects(self.effects)
+        if self.effects and self.player is not None:
+            self._start()
+        self.music(self.wanted)
+        return self.effects
 
     def _stop_music(self) -> None:
         if self.music_proc is not None and self.music_proc.poll() is None:
@@ -439,20 +583,11 @@ class Audio:
                 self.music_proc = self._spawn(track)
                 played_once = track
 
-    def cycle(self) -> str:
-        """all -> sfx -> off -> all. Returns the new mode."""
-        self.mode = MODES[(MODES.index(self.mode) + 1) % len(MODES)]
-        save_mode(self.mode)
-        if self.mode != "off" and self.player is not None:
-            self._start()
-        self.music(self.wanted)
-        return self.mode
-
     def close(self) -> None:
         self.stopping.set()
         with self.lock:
             self._stop_music()
-            for p in self.effects:
+            for p in self.running:
                 if p.poll() is None:
                     p.terminate()
-            self.effects.clear()
+            self.running.clear()

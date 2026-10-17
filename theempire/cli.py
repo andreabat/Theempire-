@@ -34,7 +34,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
                    help="partita IA contro IA senza interfaccia, per TURNI turni")
     p.add_argument("--list", action="store_true", help="elenca scenari e fazioni")
     p.add_argument("--audio", choices=["all", "sfx", "off"],
-                   help="musica ed effetti, solo effetti, o niente (predefinito: l'ultima scelta, tasto M)")
+                   help="musica ed effetti, solo effetti, o niente (predefinito: l'ultima scelta; tasto M per il menu audio)")
     p.add_argument("--muto", dest="audio", action="store_const", const="off", help="niente audio")
     online = p.add_argument_group("partita online")
     online.add_argument("--serve", type=int, nargs="?", const=DEFAULT_PORT, metavar="PORTA",

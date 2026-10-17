@@ -12,7 +12,10 @@ caratteri Braille come in [Terrascope](https://github.com/a-shygun/Terrascope),
 il punto di partenza del progetto. Ogni carattere è una casella di gioco
 (1° di longitudine × 2° di latitudine) e i suoi 2×4 punti Braille
 disegnano la costa vera. La mappa si avvolge da est a ovest: il Pacifico si
-attraversa.
+attraversa. Il Mediterraneo è navigabile per intero, dall'Atlantico al
+Levante: il canale tra Tunisi e la Sicilia è stato aperto a mano (in
+`assets/world.json`), dato che la griglia da 1°×2° non lo ricavava dalle
+coste Natural Earth.
 
 ![Europa al turno 4 della Terza Guerra Mondiale](docs/screenshot.png)
 
@@ -44,17 +47,28 @@ di secondi in `~/.theempire/sounds`.
   guerra una marcia in minore con rullante, e quando l'Orologio scende sotto
   i 5 minuti un tema di tensione con battito cardiaco e ticchettio. A fine
   partita c'è una fanfara di vittoria, un lamento per la sconfitta o il vento
-  sul mondo morto a mezzanotte.
+  sul mondo morto a mezzanotte. Con il tasto `M` puoi scegliere la musica:
+  automatica, nessuna, **Cossack Patrol** (la canzone dei cosacchi, con il
+  galoppo), l'**inno sovietico** (il «Союз нерушимый» di Aleksandrov), la
+  Toccata, la marcia, la tensione, la vittoria, la sconfitta o la mezzanotte.
 - **Effetti**:
   - battaglie, città conquistate o perdute, crolli di una fazione;
   - attacco nucleare (sirena, fischio, esplosione), missile intercettato,
     gas, aereo abbattuto;
   - tregua, inizio del tuo turno online, allarmi.
+- **Il turno delle avversarie si guarda.** Quando finisci il tuo turno,
+  la telecamera passa sopra tutto quello che le altre fazioni hanno fatto,
+  come nel Theatre Europe: le armate che avanzano, le battaglie con i loro
+  suoni, le città conquistate e perdute, le atomiche e le armi chimiche.
+  Un tasto qualunque salta subito al tuo turno. Qui si è fatto un'eccezione
+  alla regola delle battaglie lontane mute: nel riepilogo le senti tutte.
 - Senti solo gli eventi che conosci. Le battaglie lontane tra altri e le
   esplosioni nella nebbia di guerra restano mute. Le atomiche si sentono in
   tutto il mondo.
-- Il tasto `M` passa da **musica ed effetti** a **solo effetti** a **muto**,
-  e la scelta resta per le partite successive. Da riga di comando:
+- Il tasto `M` apre il menu audio: scegli la musica (automatica, nessuna,
+  Cossack Patrol, inno sovietico, Toccata di Bach, marcia di guerra,
+  tensione, vittoria, sconfitta, mezzanotte) e attiva o disattiva gli
+  effetti. La scelta resta per le partite successive. Da riga di comando:
   `--audio all|sfx|off` oppure `--muto`.
 - Per suonare usa il lettore già presente: `afplay` su macOS, `paplay`,
   `pw-play` o `aplay` su Linux, altrimenti `ffplay`. Se non ne trova nessuno
@@ -219,7 +233,7 @@ dell'altra né colpirla con armi chimiche o nucleari (nel pannello compare
 | Tasto | Azione |
 |---|---|
 | `q w e` `a d` `z x c` (o tastierino) | muove l'unità attiva nelle 8 direzioni |
-| frecce, PagSu/PagGiù, mouse | muovono il cursore |
+| frecce, PagSu/PagGiù, mouse | muovono il cursore (trascina con il mouse per scorrere la mappa) |
 | `Invio` | seleziona l'unità sotto il cursore (in città scorre le unità); su una città vuota apre la produzione |
 | `n` / `Tab`, `spazio` | unità successiva / salta l'unità |
 | `s`, `f` | sentinella (si sveglia se arriva il nemico), fortifica |
@@ -229,11 +243,11 @@ dell'altra né colpirla con armi chimiche o nucleari (nel pannello compare
 | `l` / `u` | carica / scarica una nave in porto |
 | `p`, `P` | produzione della città, produzione automatica in tutte le città |
 | `m` | panoramica del mondo (un punto Braille = una casella; clic per saltare) |
-| `M` | audio: musica ed effetti → solo effetti → muto |
+| `M` | audio: scegli musica ed effetti |
 | `N`, `C` | attacco nucleare / chimico sulla casella del cursore |
 | `O` | diplomazia: proponi una tregua o rispondi a una proposta |
 | `T` | chat (partite online) |
-| `E` | fine turno |
+| `E` | fine turno (segue il riepilogo animato delle mosse avversarie) |
 | `S`, `Q`, `?` | salva, esci (salvando), aiuto |
 
 A inizio partita la fanteria è fortificata e il resto è di sentinella. Le
@@ -316,6 +330,10 @@ all'alternativa, così si può cambiare strada.
    giocatore muove nel suo turno. Alternativa: turni simultanei (tutti danno
    ordini insieme, il server li risolve), più veloci ma con regole di
    conflitto molto più complicate.
+8. **Il turno dell'IA si guarda.** Ogni mossa delle fazioni avversarie è
+   registrata e riproposta a fine turno come un telegiornale, come nel
+   Theatre Europe. Alternativa: il turno invisibile, con i soli resoconti
+   nel registro degli eventi.
 
 Possibili sviluppi: alleanze, eventi casuali (colpi di stato, crisi
 petrolifere), tecnologie (scudo antimissile, stealth), turni simultanei

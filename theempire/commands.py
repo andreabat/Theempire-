@@ -17,12 +17,19 @@ ORDERS = (None, "sentry", "fortify", "auto", "goto")
 
 
 def advance(game: Game, progress: Callable[[str], None] | None = None) -> None:
-    """Play AI factions until a human is to move, then prepare that turn."""
-    while not game.over and not game.faction.human:
-        if progress:
-            progress(game.faction.name)
-        AI(game, game.current).play()
-        game.end_turn()
+    """Play AI factions until a human is to move, then prepare that turn.
+    Every AI action is recorded in ``game.replay`` so the interface can show
+    the turn as an animated newsreel afterwards."""
+    game.replay = []
+    game.recording = True
+    try:
+        while not game.over and not game.faction.human:
+            if progress:
+                progress(game.faction.name)
+            AI(game, game.current).play()
+            game.end_turn()
+    finally:
+        game.recording = False
     if not game.over:
         prepare_human_turn(game)
 

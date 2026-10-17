@@ -44,15 +44,49 @@ def test_effects_and_looping_music(tmp_path, monkeypatch):
     # The march loops: it is started again after it ends.
     assert wait_for(lambda: log.exists() and log.read_text().count("war.wav") >= 2)
     assert "battle.wav" in log.read_text()
-    assert a.cycle() == "sfx"
+    a.select_music("off")
     played = log.read_text().count("war.wav")
     time.sleep(0.8)
     assert log.read_text().count("war.wav") == played  # music stopped
-    assert a.cycle() == "off"
+    a.toggle_effects()  # effects off
     a.sfx("nuke")
     time.sleep(0.4)
     assert "nuke.wav" not in log.read_text()
     a.close()
+
+
+def test_cossack_loops_when_selected(tmp_path, monkeypatch):
+    monkeypatch.setattr(audio, "SETTINGS", tmp_path / "settings.json")
+    player, log = fake_player(tmp_path)
+    a = audio.Audio(mode="all", cache=tmp_path / "snd")
+    a.player = player
+    assert a.ready.wait(30)
+    a.select_music("cossack")
+    assert wait_for(lambda: log.exists() and log.read_text().count("cossack.wav") >= 2)
+    a.close()
+
+
+def test_music_choice_persisted(tmp_path, monkeypatch):
+    monkeypatch.setattr(audio, "SETTINGS", tmp_path / "settings.json")
+    a = audio.Audio(cache=tmp_path / "snd")
+    a.select_music("cossack")
+    assert audio.load_music() == "cossack"
+    a.toggle_effects()
+    assert audio.load_effects() is False
+    a.close()
+
+
+def test_legacy_audio_mode_migration(tmp_path, monkeypatch):
+    monkeypatch.setattr(audio, "SETTINGS", tmp_path / "settings.json")
+    audio.SETTINGS.write_text('{"audio": "sfx"}')
+    assert audio.load_music() == "off"
+    assert audio.load_effects() is True
+    audio.SETTINGS.write_text('{"audio": "off"}')
+    assert audio.load_music() == "off"
+    assert audio.load_effects() is False
+    audio.SETTINGS.write_text('{"audio": "all"}')
+    assert audio.load_music() == "auto"
+    assert audio.load_effects() is True
 
 
 def test_bell_without_player(tmp_path):
