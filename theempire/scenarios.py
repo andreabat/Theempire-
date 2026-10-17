@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from theempire.i18n import N
+
 
 @dataclass(frozen=True)
 class FactionDef:
@@ -42,14 +44,14 @@ NATO_EAST = ("POL", "CZE", "SVK", "HUN", "ROU", "BGR", "HRV", "SVN", "ALB", "MNE
 
 SCENARIOS: dict[str, Scenario] = {s.key: s for s in (
     Scenario(
-        "tutorial", "Tutorial: la campagna dei Balcani",
-        "Impara a giocare passo per passo: l'Italia contro una piccola Repubblica "
-        "Ribelle in Albania. Un istruttore ti guida dai primi movimenti alla conquista "
-        "di Tirana.",
+        "tutorial", N("Tutorial: la campagna dei Balcani"),
+        N("Impara a giocare passo per passo: l'Italia contro una piccola Repubblica "
+          "Ribelle in Albania. Un istruttore ti guida dai primi movimenti alla conquista "
+          "di Tirana."),
         (
-            FactionDef("ita", "Comando Italiano", "blue", ("ITA", "SMR", "VAT"),
+            FactionDef("ita", N("Comando Italiano"), "blue", ("ITA", "SMR", "VAT"),
                        doctrine="restrained", warheads=0, chemicals=0, nuclear=False),
-            FactionDef("alb", "Repubblica Ribelle", "red", ("ALB",),
+            FactionDef("alb", N("Repubblica Ribelle"), "red", ("ALB",),
                        doctrine="restrained", warheads=0, chemicals=0, nuclear=False,
                        industry=0.4),
         ),
@@ -60,20 +62,20 @@ SCENARIOS: dict[str, Scenario] = {s.key: s for s in (
         world_events=False,
     ),
     Scenario(
-        "ww3", "Terza Guerra Mondiale",
-        "Tre blocchi armati fino ai denti si contendono il pianeta. "
-        "Il resto del mondo è neutrale: conquistarlo vuol dire più industria.",
+        "ww3", N("Terza Guerra Mondiale"),
+        N("Tre blocchi armati fino ai denti si contendono il pianeta. "
+          "Il resto del mondo è neutrale: conquistarlo vuol dire più industria."),
         (
-            FactionDef("west", "Alleanza Atlantica", "blue",
+            FactionDef("west", N("Alleanza Atlantica"), "blue",
                        ("USA", "CAN") + NATO_EUROPE + NATO_EAST +
                        ("UKR", "JPN", "KOR", "TWN", "AUS", "NZL"),
                        doctrine="restrained", warheads=20, chemicals=0, abm=0.25,
                        extras={"C": 3, "S": 3, "R": 2}),
-            FactionDef("east", "Unione Eurasiatica", "red",
+            FactionDef("east", N("Unione Eurasiatica"), "red",
                        ("RUS", "BLR", "KAZ", "KGZ", "TJK", "ARM", "IRN", "SYR", "CUB", "VEN"),
                        doctrine="aggressive", warheads=20, chemicals=6, abm=0.2,
                        industry=1.5, extras={"S": 6, "A": 10, "B": 4}),
-            FactionDef("china", "Blocco Orientale", "yellow",
+            FactionDef("china", N("Blocco Orientale"), "yellow",
                        ("CHN", "PRK", "PAK", "MMR", "LAO", "KHM"),
                        doctrine="balanced", warheads=10, chemicals=3, abm=0.15,
                        industry=1.35, extras={"I": 12, "S": 4, "A": 4}),
@@ -82,15 +84,15 @@ SCENARIOS: dict[str, Scenario] = {s.key: s for s in (
         victory_share=0.55,
     ),
     Scenario(
-        "coldwar", "Guerra Fredda 1985",
-        "NATO contro Patto di Varsavia, come in Theatre Europe, ma il teatro "
-        "è il mondo intero. La Cina resta neutrale... per ora.",
+        "coldwar", N("Guerra Fredda 1985"),
+        N("NATO contro Patto di Varsavia, come in Theatre Europe, ma il teatro "
+          "è il mondo intero. La Cina resta neutrale... per ora."),
         (
-            FactionDef("nato", "NATO", "blue",
+            FactionDef("nato", N("NATO"), "blue",
                        ("USA", "CAN") + NATO_EUROPE + ("JPN", "KOR"),
                        doctrine="restrained", warheads=25, chemicals=2, abm=0.2,
                        extras={"C": 3, "S": 3}),
-            FactionDef("pact", "Patto di Varsavia", "red",
+            FactionDef("pact", N("Patto di Varsavia"), "red",
                        ("RUS", "UKR", "BLR", "MDA", "EST", "LVA", "LTU", "GEO", "ARM", "AZE",
                         "KAZ", "UZB", "TKM", "KGZ", "TJK", "POL", "CZE", "SVK", "HUN", "ROU",
                         "BGR", "CUB", "MNG"),
@@ -101,16 +103,16 @@ SCENARIOS: dict[str, Scenario] = {s.key: s for s in (
         victory_share=0.55,
     ),
     Scenario(
-        "empire", "Sei imperi",
-        "Sei imperi partono da una sola capitale; tutto il resto è da "
-        "conquistare. Le armi atomiche vanno prima costruite.",
+        "empire", N("Sei imperi"),
+        N("Sei imperi partono da una sola capitale; tutto il resto è da "
+          "conquistare. Le armi atomiche vanno prima costruite."),
         (
-            FactionDef("amer", "Impero Americano", "blue", (), capital_city="Washington, D.C."),
-            FactionDef("braz", "Impero Brasiliano", "green", (), capital_city="Brasilia"),
-            FactionDef("euro", "Impero Europeo", "cyan", (), capital_city="Paris"),
-            FactionDef("afri", "Impero Africano", "magenta", (), capital_city="Abuja"),
-            FactionDef("indi", "Impero Indiano", "orange", (), capital_city="New Delhi"),
-            FactionDef("asia", "Impero Asiatico", "yellow", (), capital_city="Beijing"),
+            FactionDef("amer", N("Impero Americano"), "blue", (), capital_city="Washington, D.C."),
+            FactionDef("braz", N("Impero Brasiliano"), "green", (), capital_city="Brasilia"),
+            FactionDef("euro", N("Impero Europeo"), "cyan", (), capital_city="Paris"),
+            FactionDef("afri", N("Impero Africano"), "magenta", (), capital_city="Abuja"),
+            FactionDef("indi", N("Impero Indiano"), "orange", (), capital_city="New Delhi"),
+            FactionDef("asia", N("Impero Asiatico"), "yellow", (), capital_city="Beijing"),
         ),
         doomsday=12,
         victory_share=0.5,

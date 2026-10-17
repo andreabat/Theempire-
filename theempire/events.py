@@ -11,6 +11,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Callable
 
+from theempire.cards import listing
+from theempire.i18n import N, Msg, tr
+
 if TYPE_CHECKING:
     from theempire.game import Game
 
@@ -24,17 +27,17 @@ class WorldEvent:
     key: str
     name: str
     text: str
-    act: Callable[["Game"], str | None]   # returns the detail line, None = cannot happen now
+    act: Callable[["Game"], Msg | None]   # returns the detail line, None = cannot happen now
 
 
-def _effect(key: str) -> Callable[["Game"], str]:
-    def act(game: "Game") -> str:
+def _effect(key: str) -> Callable[["Game"], Msg]:
+    def act(game: "Game") -> Msg:
         game.world_effects[key] = game.turn + LASTS - 1
-        return f"Per {LASTS} turni."
+        return Msg("Per {turns} turni.", turns=LASTS)
     return act
 
 
-def _summit(game: "Game") -> str | None:
+def _summit(game: "Game") -> Msg | None:
     alive = [f for f in game.factions if f.alive]
     pairs = [(a, b) for i, a in enumerate(alive) for b in alive[i + 1:] if game.hostile(a.idx, b.idx)]
     if not pairs:
@@ -42,10 +45,10 @@ def _summit(game: "Game") -> str | None:
     a, b = max(pairs, key=lambda p: game.score(p[0]) + game.score(p[1]))
     game.truces[game._pair(a.idx, b.idx)] = game.turn + SUMMIT_TRUCE
     game.proposals = [p for p in game.proposals if set(p) != {a.idx, b.idx}]
-    return f"Tregua imposta tra {a.name} e {b.name} per {SUMMIT_TRUCE} turni."
+    return Msg("Tregua imposta tra {a} e {b} per {turns} turni.", a=a.name, b=b.name, turns=SUMMIT_TRUCE)
 
 
-def _uprising(game: "Game") -> str | None:
+def _uprising(game: "Game") -> Msg | None:
     alive = [f for f in game.factions if f.alive and len(game.cities_of(f.idx)) > 3]
     if not alive:
         return None
@@ -61,10 +64,10 @@ def _uprising(game: "Game") -> str | None:
     c.militia = c.militia_max()
     game.record("capture", c.cell, None, old=biggest.idx, new=None, name=c.name)
     game._dirty()
-    return f"{c.name} insorge contro {biggest.name} e torna neutrale."
+    return Msg("{city} insorge contro {faction} e torna neutrale.", city=c.name, faction=biggest.name)
 
 
-def _hurricane(game: "Game") -> str | None:
+def _hurricane(game: "Game") -> Msg | None:
     ships = [u for u in game.units.values() if u.type.domain == "sea" and u.carrier is None
              and game.city(u.cell) is None]
     if not ships:
@@ -78,10 +81,10 @@ def _hurricane(game: "Game") -> str | None:
             hit += 1
     lon, lat = game.world.lonlat(eye)
     where = f"{abs(lat):.0f}°{'N' if lat >= 0 else 'S'} {abs(lon):.0f}°{'E' if lon >= 0 else 'W'}"
-    return f"Un uragano a {where} danneggia {hit} unità in mare e in volo."
+    return Msg("Un uragano a {place} danneggia {hit} unità in mare e in volo.", place=where, hit=hit)
 
 
-def _arms_race(game: "Game") -> str:
+def _arms_race(game: "Game") -> Msg:
     got = [f.name for f in game.factions if f.alive and f.nuclear]
     for f in game.factions:
         if f.alive and f.nuclear:
@@ -89,18 +92,22 @@ def _arms_race(game: "Game") -> str:
     game.doomsday -= 1
     game.quiet_turns = 0
     game._check_clock()
-    return (f"Una testata in più a: {', '.join(got) or 'nessuno'}. "
-            f"L'Orologio dell'Apocalisse avanza a {game.doomsday} minuti.")
+    if not got:
+        return Msg("Una testata in più a: nessuno. L'Orologio dell'Apocalisse avanza a {minutes} minuti.",
+                   minutes=game.doomsday)
+    return Msg("Una testata in più a: {factions}. L'Orologio dell'Apocalisse avanza a {minutes} minuti.",
+               factions=listing(got), minutes=game.doomsday)
 
 
-def _thaw(game: "Game") -> str | None:
+def _thaw(game: "Game") -> Msg | None:
     if game.doomsday >= game.scenario.doomsday:
         return None
     game.doomsday += 1
-    return f"L'Orologio dell'Apocalisse torna a {game.doomsday} minuti dalla mezzanotte."
+    return Msg("L'Orologio dell'Apocalisse torna a {minutes} minuti dalla mezzanotte.",
+               minutes=game.doomsday)
 
 
-def _volunteers(game: "Game") -> str:
+def _volunteers(game: "Game") -> Msg:
     names = []
     for f in game.factions:
         if not f.alive:
@@ -110,31 +117,31 @@ def _volunteers(game: "Game") -> str:
         if home is not None:
             game.create_unit("I", f.idx, home.cell)
             names.append(home.name)
-    return f"Una fanteria di volontari in più a {', '.join(names)}."
+    return Msg("Una fanteria di volontari in più a {cities}.", cities=", ".join(names))
 
 
 EVENTS: dict[str, WorldEvent] = {e.key: e for e in (
-    WorldEvent("oil", "Crisi petrolifera",
-               "Il greggio è razionato: aerei e navi hanno metà delle mosse.", _effect("oil")),
-    WorldEvent("famine", "Carestia",
-               "Raccolti perduti: le città grandi (dimensione 3) producono il 30% in meno.",
+    WorldEvent("oil", N("Crisi petrolifera"),
+               N("Il greggio è razionato: aerei e navi hanno metà delle mosse."), _effect("oil")),
+    WorldEvent("famine", N("Carestia"),
+               N("Raccolti perduti: le città grandi (dimensione 3) producono il 30% in meno."),
                _effect("famine")),
-    WorldEvent("boom", "Boom economico",
-               "Le fabbriche lavorano a pieno ritmo: +25% di produzione per tutti.", _effect("boom")),
-    WorldEvent("winter", "Inverno rigido",
-               "Neve e gelo oltre il 45° parallelo nord: le unità di terra lassù muovono di 1 in meno.",
+    WorldEvent("boom", N("Boom economico"),
+               N("Le fabbriche lavorano a pieno ritmo: +25% di produzione per tutti."), _effect("boom")),
+    WorldEvent("winter", N("Inverno rigido"),
+               N("Neve e gelo oltre il 45° parallelo nord: le unità di terra lassù muovono di 1 in meno."),
                _effect("winter")),
-    WorldEvent("summit", "Vertice dell'ONU",
-               "Le Nazioni Unite impongono il cessate il fuoco tra le due potenze più forti in guerra.",
+    WorldEvent("summit", N("Vertice dell'ONU"),
+               N("Le Nazioni Unite impongono il cessate il fuoco tra le due potenze più forti in guerra."),
                _summit),
-    WorldEvent("uprising", "Insurrezione",
-               "Una città della fazione più estesa si ribella.", _uprising),
-    WorldEvent("hurricane", "Uragano", "Una tempesta colpisce un tratto di mare.", _hurricane),
-    WorldEvent("arms_race", "Corsa agli armamenti",
-               "Ogni potenza nucleare costruisce una testata; il mondo si avvicina alla mezzanotte.",
+    WorldEvent("uprising", N("Insurrezione"),
+               N("Una città della fazione più estesa si ribella."), _uprising),
+    WorldEvent("hurricane", N("Uragano"), N("Una tempesta colpisce un tratto di mare."), _hurricane),
+    WorldEvent("arms_race", N("Corsa agli armamenti"),
+               N("Ogni potenza nucleare costruisce una testata; il mondo si avvicina alla mezzanotte."),
                _arms_race),
-    WorldEvent("thaw", "Disgelo diplomatico", "La tensione internazionale cala.", _thaw),
-    WorldEvent("volunteers", "Volontari", "Ogni capitale riceve una fanteria di volontari.",
+    WorldEvent("thaw", N("Disgelo diplomatico"), N("La tensione internazionale cala."), _thaw),
+    WorldEvent("volunteers", N("Volontari"), N("Ogni capitale riceve una fanteria di volontari."),
                _volunteers),
 )}
 
@@ -171,11 +178,12 @@ def fire(game: "Game", key: str) -> bool:
     detail = event.act(game)
     if detail is None:
         return False
-    game.log(f"EVENTO MONDIALE · {event.name}: {event.text} {detail}", None, "world", "alert")
+    game.log(Msg("EVENTO MONDIALE · {name}: {text} {detail}", name=event.name, text=event.text,
+                 detail=detail), None, "world", "alert")
     return True
 
 
 def describe_active(game: "Game") -> list[str]:
     """The world effects in force, for the panel."""
-    return [f"{EVENTS[k].name} ({end - game.turn + 1}t)" for k, end in sorted(game.world_effects.items())
-            if end >= game.turn]
+    return [tr("{name} ({turns}t)", name=EVENTS[k].name, turns=end - game.turn + 1)
+            for k, end in sorted(game.world_effects.items()) if end >= game.turn]

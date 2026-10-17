@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from theempire import missions, regions
-from theempire.units import UNIT_TYPES
+from theempire.i18n import N, Msg
 
 if TYPE_CHECKING:
     from theempire.game import Game
@@ -33,35 +33,35 @@ class Card:
 
 
 CARDS: dict[str, Card] = {c.key: c for c in (
-    Card("plan", "Piano quinquennale",
-         "+50% di produzione in tutte le tue città per 3 turni.", "none", 3),
-    Card("mobilize", "Mobilitazione generale",
-         "Ogni tua città guadagna subito un turno di produzione.", "none", 2),
-    Card("reinforce", "Rinforzi",
-         "Compaiono 2 fanterie e 1 corazzato in una tua città (oltre il limite logistico).",
+    Card("plan", N("Piano quinquennale"),
+         N("+50% di produzione in tutte le tue città per 3 turni."), "none", 3),
+    Card("mobilize", N("Mobilitazione generale"),
+         N("Ogni tua città guadagna subito un turno di produzione."), "none", 2),
+    Card("reinforce", N("Rinforzi"),
+         N("Compaiono 2 fanterie e 1 corazzato in una tua città (oltre il limite logistico)."),
          "own_city", 3),
-    Card("defect", "Diserzione",
-         "Un'unità nemica che vedi, fuori dalle città, passa dalla tua parte.",
+    Card("defect", N("Diserzione"),
+         N("Un'unità nemica che vedi, fuori dalle città, passa dalla tua parte."),
          "enemy_unit", 3, 0.65),
-    Card("commando", "Commando",
-         "Un'unità nemica accanto alle tue forze, fuori dalle città, viene eliminata.",
+    Card("commando", N("Commando"),
+         N("Un'unità nemica accanto alle tue forze, fuori dalle città, viene eliminata."),
          "enemy_unit", 2, 0.7),
-    Card("revolt", "Rivolta",
-         "Una città nemica di dimensione 1-2 (non la capitale principale della fazione) "
-         "insorge: diventa neutrale, o tua se hai truppe di terra accanto.", "enemy_city", 2, 0.6),
-    Card("coup", "Colpo di stato",
-         "Un paese neutrale con al massimo 4 città, dove hai un'unità entro 3 caselle, "
-         "passa con te.", "neutral_city", 1, 0.5),
-    Card("spy", "Spionaggio",
-         "Vedi tutte le unità di una fazione fino al tuo prossimo turno, con un rapporto "
-         "su città, eserciti, testate e produzione.", "faction", 3),
-    Card("sabotage", "Sabotaggio",
-         "In una città nemica la produzione riparte da zero e scoppiano 3 turni di disordini.",
+    Card("revolt", N("Rivolta"),
+         N("Una città nemica di dimensione 1-2 (non la capitale principale della fazione) "
+          "insorge: diventa neutrale, o tua se hai truppe di terra accanto."), "enemy_city", 2, 0.6),
+    Card("coup", N("Colpo di stato"),
+         N("Un paese neutrale con al massimo 4 città, dove hai un'unità entro 3 caselle, "
+          "passa con te."), "neutral_city", 1, 0.5),
+    Card("spy", N("Spionaggio"),
+         N("Vedi tutte le unità di una fazione fino al tuo prossimo turno, con un rapporto "
+          "su città, eserciti, testate e produzione."), "faction", 3),
+    Card("sabotage", N("Sabotaggio"),
+         N("In una città nemica la produzione riparte da zero e scoppiano 3 turni di disordini."),
          "enemy_city", 2, 0.75),
-    Card("shield", "Scudo antimissile",
-         "+50% di probabilità di intercettare i missili per 6 turni.", "none", 1),
-    Card("detente", "Distensione",
-         "Un vertice di pace: l'Orologio dell'Apocalisse torna indietro di 3 minuti.", "none", 2),
+    Card("shield", N("Scudo antimissile"),
+         N("+50% di probabilità di intercettare i missili per 6 turni."), "none", 1),
+    Card("detente", N("Distensione"),
+         N("Un vertice di pace: l'Orologio dell'Apocalisse torna indietro di 3 minuti."), "none", 2),
 )}
 
 
@@ -83,7 +83,8 @@ def draw(game: "Game", f: int, why: str) -> str | None:
         return None
     card = game.deck.pop()
     fac.cards.append(card)
-    game.log(f"♠ {why}: peschi la carta «{CARDS[card].name}» (K per giocarla).", [f], "alert", "card", f)
+    game.log(Msg("♠ {why}: peschi la carta «{card}» (K per giocarla).", why=why, card=CARDS[card].name),
+             [f], "alert", "card", f)
     return card
 
 
@@ -91,7 +92,7 @@ def end_of_turn(game: "Game", f: int) -> None:
     """Risiko's rule: whoever conquered this turn draws a card."""
     fac = game.factions[f]
     if fac.conquests > 0 and fac.alive:
-        draw(game, f, "Conquista")
+        draw(game, f, N("Conquista"))
     fac.conquests = 0
 
 
@@ -204,37 +205,39 @@ def _victim(game: "Game", cell: int | None, target: int | None) -> int | None:
     return owners[0] if owners else None
 
 
-def _announce(game: "Game", f: int, card: Card, text: str, cell: int | None,
+def _announce(game: "Game", f: int, card: Card, text: Msg, cell: int | None,
               target: int | None, public: bool = False, success: bool = True) -> None:
     victim = _victim(game, cell, target)
     audience = None if public else [f] + ([victim] if victim is not None and victim != f else [])
-    game.log(f"♠ {game.factions[f].name} gioca «{card.name}»: {text}", audience, "alert", "card", f)
+    game.log(Msg("♠ {faction} gioca «{card}»: {text}", faction=game.factions[f].name,
+                 card=card.name, text=text), audience, "alert", "card", f)
     if cell is not None and (victim is not None or public):
         game.record("card", cell, f, card=card.key, name=card.name, victim=victim,
-                    public=public, success=success, text=text)
+                    public=public, success=success, text=text.to_json())
 
 
 def _failed(game: "Game", f: int, card: Card, cell, target) -> None:
-    _announce(game, f, card, "il tentativo fallisce.", cell, target, success=False)
+    _announce(game, f, card, Msg("il tentativo fallisce."), cell, target, success=False)
 
 
 def _plan(game, f, cell, target) -> str:
     game.factions[f].effects["plan"] = game.turn + 2
-    _announce(game, f, CARDS["plan"], "produzione +50% per 3 turni.", None, None)
+    _announce(game, f, CARDS["plan"], Msg("produzione +50% per 3 turni."), None, None)
     return "ok"
 
 
 def _mobilize(game, f, cell, target) -> str:
     for c in game.cities_of(f):
         c.progress += game.production_rate(c)
-    _announce(game, f, CARDS["mobilize"], "le fabbriche lavorano giorno e notte.", None, None)
+    _announce(game, f, CARDS["mobilize"], Msg("le fabbriche lavorano giorno e notte."), None, None)
     return "ok"
 
 
 def _reinforce(game, f, cell, target) -> str:
     for kind in "IIA":
         game.create_unit(kind, f, cell)
-    _announce(game, f, CARDS["reinforce"], f"nuove truppe a {game.city(cell).name}.", None, None)
+    _announce(game, f, CARDS["reinforce"], Msg("nuove truppe a {city}.", city=game.city(cell).name),
+              None, None)
     return "ok"
 
 
@@ -252,8 +255,8 @@ def _defect(game, f, cell, target) -> str:
         v.moves = 0
     game._dirty()
     _announce(game, f, CARDS["defect"],
-              f"{u.type.name} di {game.faction_name(old)} diserta e passa con "
-              f"{game.factions[f].name}!", cell, old)
+              Msg("{unit} di {enemy} diserta e passa con {faction}!", unit=u.type.name,
+                  enemy=game.faction_name(old), faction=game.factions[f].name), cell, old)
     return "ok"
 
 
@@ -261,7 +264,8 @@ def _commando(game, f, cell, target) -> str:
     u = _best_enemy(game, f, cell)
     old, name = u.owner, u.type.name
     game.kill(u)
-    _announce(game, f, CARDS["commando"], f"{name} di {game.faction_name(old)} eliminato.", cell, old)
+    _announce(game, f, CARDS["commando"], Msg("{unit} di {enemy} eliminato.", unit=name,
+                                               enemy=game.faction_name(old)), cell, old)
     return "ok"
 
 
@@ -283,8 +287,11 @@ def _revolt(game, f, cell, target) -> str:
     if ours:
         city.production = game._default_production(city)
         game.factions[f].conquests += 1
-    who = f"si unisce a {game.factions[f].name}" if ours else "si proclama neutrale"
-    _announce(game, f, CARDS["revolt"], f"{city.name} insorge e {who}!", cell, old, public=True)
+    if ours:
+        text = Msg("{city} insorge e si unisce a {faction}!", city=city.name, faction=game.factions[f].name)
+    else:
+        text = Msg("{city} insorge e si proclama neutrale!", city=city.name)
+    _announce(game, f, CARDS["revolt"], text, cell, old, public=True)
     game._dirty()
     if old is not None and not game.cities_of(old):
         game.eliminate(old)
@@ -302,8 +309,9 @@ def _coup(game, f, cell, target) -> str:
         c.production = game._default_production(c)
     game.factions[f].conquests += 1
     names = ", ".join(c.name for c in country)
-    _announce(game, f, CARDS["coup"], f"il governo cambia: {names} passano con {game.factions[f].name}!", cell, None,
-              public=True)
+    _announce(game, f, CARDS["coup"], Msg("il governo cambia: {cities} passano con {faction}!",
+                                           cities=names, faction=game.factions[f].name),
+              cell, None, public=True)
     game._dirty()
     return "ok"
 
@@ -311,55 +319,86 @@ def _coup(game, f, cell, target) -> str:
 def _spy(game, f, cell, target) -> str:
     game.factions[f].effects["spy"] = [target, game.turn + 1]
     game._dirty()
-    for line in intel(game, target):
-        game.log(f"◈ {line}", [f], "info", "", f)
-    game.log(f"◈ Spionaggio su {game.factions[target].name}: rapporto completo qui sopra; "
-             "vedi le sue unità fino al tuo prossimo turno.", [f], "alert", "spy", f)
+    for line in report(game, target):
+        game.log(Msg("◈ {line}", line=line), [f], "info", "", f)
+    game.log(Msg("◈ Spionaggio su {faction}: rapporto completo qui sopra; "
+                 "vedi le sue unità fino al tuo prossimo turno.", faction=game.factions[target].name),
+             [f], "alert", "spy", f)
     return "ok"
 
 
-def intel(game: "Game", t: int) -> list[str]:
-    """The spy's report on faction ``t``."""
+# unit names inside a sentence (lower case in Italian), for the spy's report
+COMMON_NAMES = {"I": N("fanteria"), "A": N("corazzati"), "F": N("caccia"), "B": N("bombardiere"),
+                "D": N("cacciatorpediniere"), "S": N("sottomarino"), "T": N("trasporto"),
+                "R": N("incrociatore"), "C": N("portaerei")}
+
+
+def listing(items: list) -> "Msg | str":
+    """A comma-separated list of names or messages, still to translate (as
+    a message parameter)."""
+    out = items[0]
+    for item in items[1:]:
+        out = Msg("{a}, {b}", a=out, b=item)
+    return out
+
+
+def report(game: "Game", t: int) -> list[Msg]:
+    """The spy's report on faction ``t``, as log messages."""
     fac = game.factions[t]
     units = game.units_of(t)
     kinds = {}
     for u in units:
-        kinds[u.type.name] = kinds.get(u.type.name, 0) + 1
+        name = COMMON_NAMES.get(u.kind, u.type.name)
+        kinds[name] = kinds.get(name, 0) + 1
     building = {}
     for c in game.cities_of(t):
-        name = UNIT_TYPES[c.production].name if c.production in UNIT_TYPES else "armi speciali"
+        name = COMMON_NAMES.get(c.production, N("armi speciali"))
         building[name] = building.get(name, 0) + 1
-    army = ", ".join(f"{n} {k.lower()}" for k, n in sorted(kinds.items(), key=lambda kv: -kv[1]))
-    plans = ", ".join(f"{k.lower()} in {n} città" for k, n in sorted(building.items(), key=lambda kv: -kv[1])[:3])
-    capitals = [c.name for c in game.cities_of(t) if c.capital]
-    return [
-        f"Rapporto su {fac.name}: {len(game.cities_of(t))} città, {len(units)} unità.",
-        f"Esercito: {army or 'nessuno'}.",
-        f"Testate nucleari: {fac.warheads} · armi chimiche: {fac.chemicals} · carte in mano: {len(fac.cards)}.",
-        f"Produzione: {plans or 'ferma'}.",
-        f"Capitali: {', '.join(capitals) or 'nessuna'}.",
-    ] + ([f"Obiettivo segreto: {missions.text(game, t)}"] if fac.mission else [])
+    army = [Msg("{n} {unit}", n=n, unit=k) for k, n in sorted(kinds.items(), key=lambda kv: -kv[1])]
+    plans = [Msg("{unit} in {n} città", unit=k, n=n)
+             for k, n in sorted(building.items(), key=lambda kv: -kv[1])[:3]]
+    capitals = ", ".join(c.name for c in game.cities_of(t) if c.capital)
+    lines = [
+        Msg("Rapporto su {faction}: {cities} città, {units} unità.", faction=fac.name,
+            cities=len(game.cities_of(t)), units=len(units)),
+        Msg("Esercito: {army}.", army=listing(army)) if army else Msg("Esercito: nessuno."),
+        Msg("Testate nucleari: {warheads} · armi chimiche: {chemicals} · carte in mano: {cards}.",
+            warheads=fac.warheads, chemicals=fac.chemicals, cards=len(fac.cards)),
+        Msg("Produzione: {plans}.", plans=listing(plans)) if plans else Msg("Produzione: ferma."),
+        Msg("Capitali: {cities}.", cities=capitals) if capitals else Msg("Capitali: nessuna."),
+    ]
+    mission = missions.message(game, t) if fac.mission else None
+    if mission is not None:
+        lines.append(Msg("Obiettivo segreto: {mission}", mission=mission))
+    return lines
+
+
+def intel(game: "Game", t: int) -> list[str]:
+    """The spy's report on faction ``t``, in the current language."""
+    return [str(m) for m in report(game, t)]
 
 
 def _sabotage(game, f, cell, target) -> str:
     city = game.city(cell)
     city.progress = 0.0
     city.unrest = max(city.unrest, 3)
-    _announce(game, f, CARDS["sabotage"], f"esplosioni nelle fabbriche di {city.name}.", cell, city.owner)
+    _announce(game, f, CARDS["sabotage"], Msg("esplosioni nelle fabbriche di {city}.", city=city.name),
+              cell, city.owner)
     return "ok"
 
 
 def _shield(game, f, cell, target) -> str:
     game.factions[f].effects["shield"] = game.turn + 5
-    _announce(game, f, CARDS["shield"], "difesa antimissile potenziata per 6 turni.", None, None)
+    _announce(game, f, CARDS["shield"], Msg("difesa antimissile potenziata per 6 turni."), None, None)
     return "ok"
 
 
 def _detente(game, f, cell, target) -> str:
     before = game.doomsday
     game.doomsday = min(game.scenario.doomsday, game.doomsday + 3)
-    game.log(f"♠ {game.factions[f].name} convoca un vertice di pace: l'Orologio dell'Apocalisse "
-             f"passa da {before} a {game.doomsday} minuti.", None, "alert", "truce", f)
+    game.log(Msg("♠ {faction} convoca un vertice di pace: l'Orologio dell'Apocalisse "
+                 "passa da {before} a {after} minuti.", faction=game.factions[f].name,
+                 before=before, after=game.doomsday), None, "alert", "truce", f)
     return "ok"
 
 

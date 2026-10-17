@@ -10,6 +10,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from theempire.i18n import N, Msg
+
 if TYPE_CHECKING:
     from theempire.game import Game
 
@@ -27,27 +29,27 @@ def _r(key: str, name: str, short: str, isos: str) -> Region:
 
 
 REGIONS: dict[str, Region] = {r.key: r for r in (
-    _r("nam", "Nord America", "N. America", "USA CAN MEX BMU GRL"),
-    _r("cam", "America Centrale e Caraibi", "Centroamerica",
+    _r("nam", N("Nord America"), N("N. America"), "USA CAN MEX BMU GRL"),
+    _r("cam", N("America Centrale e Caraibi"), N("Centroamerica"),
        "GTM BLZ HND SLV NIC CRI PAN CUB HTI DOM JAM BHS TTO PRI KNA VCT LCA GRD ATG BRB DMA"),
-    _r("sam", "Sud America", "S. America", "BRA ARG CHL PER BOL COL VEN ECU PRY URY GUY SUR FLK"),
-    _r("weu", "Europa Occidentale", "Europa Occ.",
+    _r("sam", N("Sud America"), N("S. America"), "BRA ARG CHL PER BOL COL VEN ECU PRY URY GUY SUR FLK"),
+    _r("weu", N("Europa Occidentale"), N("Europa Occ."),
        "GBR IRL FRA ESP PRT DEU ITA CHE AUT BEL NLD LUX DNK NOR SWE FIN ISL MLT AND MCO SMR LIE"),
-    _r("eeu", "Europa Orientale e Balcani", "Europa Or.",
+    _r("eeu", N("Europa Orientale e Balcani"), N("Europa Or."),
        "POL CZE SVK HUN ROU BGR GRC ALB MNE SRB KOS HRV BIH SVN MKD UKR BLR MDA EST LVA LTU CYP"),
-    _r("rus", "Russia, Caucaso e Asia Centrale", "Russia-Asia C.",
+    _r("rus", N("Russia, Caucaso e Asia Centrale"), N("Russia-Asia C."),
        "RUS KAZ UZB TKM KGZ TJK ARM AZE GEO"),
-    _r("mde", "Medio Oriente", "Medio Oriente",
+    _r("mde", N("Medio Oriente"), N("Medio Oriente"),
        "TUR SYR IRQ IRN SAU YEM OMN ARE QAT KWT BHR JOR LBN ISR PSE"),
-    _r("naf", "Nord Africa", "Nord Africa", "EGY LBY TUN DZA MAR MRT SDN ESH"),
-    _r("saf", "Africa Subsahariana", "Africa Sub.",
+    _r("naf", N("Nord Africa"), N("Nord Africa"), "EGY LBY TUN DZA MAR MRT SDN ESH"),
+    _r("saf", N("Africa Subsahariana"), N("Africa Sub."),
        "NGA ETH COD TZA KEN UGA AGO MOZ GHA MDG CMR CIV NER BFA MLI MWI ZMB SEN TCD SOM ZWE "
        "GIN RWA BEN BDI TGO SLE LBR CAF ERI GMB GAB BWA NAM LSO SWZ GNB GNQ COG DJI SSD ZAF "
        "MUS COM CPV STP SYC"),
-    _r("sas", "Asia Meridionale", "Asia Merid.", "IND PAK BGD NPL BTN LKA MDV AFG"),
-    _r("eas", "Asia Orientale", "Asia Orient.", "CHN JPN KOR PRK TWN MNG"),
-    _r("sea", "Sud-Est Asiatico", "Sud-Est As.", "VNM THA KHM LAO MMR MYS SGP IDN PHL BRN TLS"),
-    _r("oce", "Oceania", "Oceania",
+    _r("sas", N("Asia Meridionale"), N("Asia Merid."), "IND PAK BGD NPL BTN LKA MDV AFG"),
+    _r("eas", N("Asia Orientale"), N("Asia Orient."), "CHN JPN KOR PRK TWN MNG"),
+    _r("sea", N("Sud-Est Asiatico"), N("Sud-Est As."), "VNM THA KHM LAO MMR MYS SGP IDN PHL BRN TLS"),
+    _r("oce", N("Oceania"), N("Oceania"),
        "AUS NZL PNG FJI SLB VUT WSM TON KIR MHL PLW TUV FSM NRU"),
 )}
 
@@ -152,8 +154,11 @@ def update(game: "Game") -> None:
             continue
         pct = int(bonus_of(game, key) * 100)
         if new is not None:
-            game.log(f"{game.factions[new].name} controlla tutta la regione {region.name}: "
-                     f"+{pct}% di produzione in tutte le sue città.", None, "alert", "capture", new)
+            game.log(Msg("{faction} controlla tutta la regione {region}: "
+                         "+{pct}% di produzione in tutte le sue città.",
+                         faction=game.factions[new].name, region=region.name, pct=pct),
+                     None, "alert", "capture", new)
         if old is not None:
-            game.log(f"{game.factions[old].name} perde il controllo della regione {region.name} "
-                     f"(-{pct}% di produzione).", None, "alert", "alert", old)
+            game.log(Msg("{faction} perde il controllo della regione {region} (-{pct}% di produzione).",
+                         faction=game.factions[old].name, region=region.name, pct=pct),
+                     None, "alert", "alert", old)
