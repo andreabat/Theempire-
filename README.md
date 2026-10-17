@@ -86,10 +86,28 @@ di secondi in `~/.theempire/sounds`.
     contro di te durano di più e sono segnalati come «ATTACCO CONTRO DI NOI»;
   - le città conquistate e perdute, le atomiche e le armi chimiche.
 
-  Alla fine compare la scheda riassuntiva: attacchi subiti e respinti,
-  scontri avvistati, città perse e conquistate, armi di distruzione di massa.
-  Un tasto qualunque salta avanti, `B` rivede l'ultimo bollettino. Il
-  bollettino rispetta la nebbia di guerra (online la applica il server),
+  Mentre scorre l'animazione, nel riquadro in basso si scrive la **cronaca**
+  di ogni scena. Alla fine compare il **bollettino scritto**, diviso in
+  sezioni:
+  - armi di distruzione di massa;
+  - il nostro fronte: ogni attacco subito, dove, con che unità e com'è finito;
+  - le città che hanno cambiato bandiera (quelle perse sono evidenziate);
+  - gli altri scontri avvistati;
+  - i movimenti osservati: quante unità e di che tipo, di quali fazioni, e
+    le zone più attive.
+
+  ```
+  IL NOSTRO FRONTE · 6 attacchi subiti, 2 respinti
+  ⚔ CONTRO DI NOI · Bombardiere (Unione Eurasiatica) sulla città di Kharkiv → RESPINTO
+  ⚔ CONTRO DI NOI · Corazzati (Unione Eurasiatica) sulla città di Kharkiv → LA CITTÀ CADE
+  CITTÀ CHE HANNO CAMBIATO BANDIERA · ne perdiamo 1
+  ⚑ Kharkiv conquistata da Unione Eurasiatica (prima: Alleanza Atlantica) — PERSA
+  ```
+
+  Un tasto qualunque salta l'animazione. `B` apre in ogni momento
+  l'**archivio dei bollettini** (gli ultimi 30 turni): ↑↓ scorre, ←→ passa
+  ai turni precedenti e successivi, `R` rivede l'animazione di quel turno.
+  Il bollettino rispetta la nebbia di guerra (online la applica il server),
   sfoltisce le marce troppo lunghe e non consuma il tempo del turno.
 - Senti solo gli eventi che conosci. Le battaglie lontane tra altri e le
   esplosioni nella nebbia di guerra restano mute. Le atomiche si sentono in
@@ -344,7 +362,7 @@ dell'altra né colpirla con armi chimiche o nucleari (nel pannello compare
 | `M` | audio: scegli musica ed effetti |
 | `N`, `C` | attacco nucleare / chimico sulla casella del cursore |
 | `O` | diplomazia: proponi una tregua o rispondi a una proposta |
-| `B` | rivedi il bollettino di guerra dell'ultimo turno |
+| `B` | archivio dei bollettini di guerra: leggi, sfoglia i turni, `R` per rivedere l'animazione |
 | `T` | chat (partite online) |
 | `E` | fine turno (segue il riepilogo animato delle mosse avversarie) |
 | `S`, `Q`, `?` | salva, esci (salvando), aiuto |

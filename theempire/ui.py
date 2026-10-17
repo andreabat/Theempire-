@@ -64,7 +64,7 @@ s                 sentinella (si sveglia se arriva il nemico)
 f                 fortifica (+25% difesa, resta di guardia)
 A                 automatica: l'unità viene guidata dall'IA
 O                 diplomazia: proponi o accetta una tregua
-B                 rivedi il bollettino di guerra dell'ultimo turno
+B                 bollettini di guerra: leggili, sfoglia i turni, R per rivederli
 T                 chat con gli altri giocatori (partite online)
 P                 direttiva di produzione: aria, terra, mare, sbarchi, difesa...
 g                 vai a... (sposta il cursore, Invio per confermare)
@@ -102,6 +102,8 @@ class UI:
         self.phantom: dict[int, tuple[str, int]] = {}  # newsreel: (glyph, owner)
         self.fx: dict[int, tuple[str, str, int]] = {}  # newsreel effects: (char, colour, attr)
         self.last_reel: list[dict] = []
+        self.bulletins: list[tuple[str, list[str], list[dict]]] = []  # archive: title, text, reel
+        self.ticker: list[str] | None = None   # the bulletin's running chronicle
         self.active_id: int | None = None
         self.turn_key: tuple[int, int] | None = None
         self.over_shown = False
@@ -530,6 +532,12 @@ class UI:
         mw = w - SIDEBAR - 1
         top = h - LOG_ROWS - 1
         self.put(top, 0, "─" * mw, self.color("dim"))
+        if self.ticker is not None:   # the bulletin's chronicle, line by line
+            self.put(top, 2, " BOLLETTINO DI GUERRA ", self.color("alert") | curses.A_REVERSE | curses.A_BOLD)
+            for k, line in enumerate(self.ticker[-(LOG_ROWS - 1):]):
+                attr = curses.A_BOLD if "NOI" in line or "PERSA" in line or "☢" in line else 0
+                self.put(top + 1 + k, 0, f" {line}"[:mw].ljust(mw), self.color("panel") | attr)
+            return
         events = [e for e in self.g.events if e.audience is None or self.viewer in e.audience]
         colors = {"info": "panel", "combat": "orange", "alert": "alert", "wmd": "wmd", "chat": "cyan"}
         for k, e in enumerate(events[-(LOG_ROWS - 1):]):
@@ -845,6 +853,9 @@ class UI:
         reel = self.session.take_reel(self.viewer) if hasattr(self.session, "take_reel") else []
         if reel:
             self.last_reel = reel
+            title = f"BOLLETTINO DI GUERRA · {self.date_text()} · turno {g.turn}"
+            self.bulletins.append((title, self.bulletin_text(reel), reel))
+            del self.bulletins[:-30]
             self.play_bulletin(reel)
         self.select_next()
         if self.active is None:
@@ -880,7 +891,7 @@ class UI:
     REEL_PACE = {"walk": 0.015, "march": 0.04, "capture": 0.35, "fall": 0.5,
                  "nuke": 0.6, "chem": 0.4}
 
-    def play_bulletin(self, reel: list[dict]) -> None:
+    def play_bulletin(self, reel: list[dict], then_read: bool = True) -> None:
         """The war bulletin, Theatre-Europe style: the camera follows what the
         others did since your last turn. Armies march as glowing marks, every
         attack gets its own close-up (the attacker flashes, fire, the
@@ -890,12 +901,11 @@ class UI:
             self.last_seq = max(self.last_seq, max(e.seq for e in g.events))
         saved_status = self.status
         self.scr.nodelay(True)
+        self.ticker = []
         last_unit = None
-        skipped = False
         try:
             for act in reel:
                 if self._skip_key():
-                    skipped = True
                     break
                 op = act["op"]
                 cell = act["cell"]
@@ -914,9 +924,11 @@ class UI:
                     continue
                 last_unit = None
                 self.phantom = {}
+                line = self.scene_line(act)
+                if line:
+                    self.ticker.append(line)
                 if op == "attack":
                     if self._attack_scene(act):
-                        skipped = True
                         break
                     continue
                 self._centre(cell)
@@ -945,11 +957,12 @@ class UI:
             self.reveal.clear()
             self.phantom.clear()
             self.fx.clear()
+            self.ticker = None
             self.status = saved_status
             self.follow_cursor()
-        if not g.over:
+        if then_read and not g.over:
             self.draw()
-            self.bulletin_card(reel, skipped)
+            self.read_bulletins(len(self.bulletins) - 1 if self.bulletins else None)
 
     def _skip_key(self) -> bool:
         key = self.scr.getch()
@@ -1020,35 +1033,149 @@ class UI:
         time.sleep(0.45 * slow)
         return self._skip_key()
 
-    def bulletin_card(self, reel: list[dict], skipped: bool) -> None:
-        """The summary at the end of the bulletin."""
+    # ------------------------------------------------- written bulletin
+    def _place(self, cell: int) -> str:
+        """'a Vilnius', 'presso Vilnius' or coordinates, for the chronicle."""
+        g = self.g
+        city = g.city(cell)
+        if city is not None:
+            return f"a {city.name}"
+        near = min(g.cities, key=lambda c: self.w.dist(c.cell, cell))
+        if self.w.dist(near.cell, cell) <= 4:
+            return f"presso {near.name}"
+        lon, lat = self.w.lonlat(cell)
+        return f"a {abs(lat):.0f}°{'N' if lat >= 0 else 'S'} {abs(lon):.0f}°{'E' if lon >= 0 else 'W'}"
+
+    def scene_line(self, act: dict) -> str:
+        """One line of chronicle for a bulletin scene (moves have none)."""
+        me = self.viewer
+        op = act["op"]
+        if op == "attack":
+            kind = act.get("glyph", "")
+            who = UNIT_TYPES[kind].name if kind in UNIT_TYPES else "Unità"
+            tgt = act.get("target") or ""
+            result = act.get("result")
+            city = self.g.city(act["cell"])
+            if tgt in UNIT_TYPES:
+                where = f"su {UNIT_TYPES[tgt].name} {self._place(act['cell'])}"
+            else:
+                where = f"sulla città di {city.name}" if city else f"{self._place(act['cell'])}"
+            if act.get("defender") == me:
+                outcome = {"lost": "RESPINTO", "captured": "LA CITTÀ CADE"}.get(
+                    result, "PERDIAMO l'unità" if tgt in UNIT_TYPES else "difese a terra")
+                return (f"⚔ CONTRO DI NOI · {who} ({self._faction(act.get('attacker'))}) "
+                        f"{where} → {outcome}")
+            outcome = {"lost": "fallisce", "captured": "la città cade"}.get(result, "bersaglio distrutto")
+            return (f"⚔ {who} ({self._faction(act.get('attacker'))}) {where} "
+                    f"({self._faction(act.get('defender'))}) → {outcome}")
+        if op == "capture":
+            lost = " — PERSA" if act.get("old") == me else ""
+            return (f"⚑ {act.get('name', '?')} conquistata da {self._faction(act.get('new'))} "
+                    f"(prima: {self._faction(act.get('old'))}){lost}")
+        if op == "fall":
+            return f"✖ {self._faction(act.get('old'))} ha perso l'ultima città: è fuori dalla guerra"
+        if op == "nuke":
+            return f"☢ {self._faction(act.get('actor'))} colpisce {act.get('name', '?')} con un'arma nucleare"
+        if op == "chem":
+            return f"☣ {self._faction(act.get('actor'))} usa armi chimiche su {act.get('name', '?')}"
+        return ""
+
+    def bulletin_text(self, reel: list[dict]) -> list[str]:
+        """The written bulletin: the front, the battles seen, the cities, the
+        weapons of mass destruction and the movements observed."""
         me = self.viewer
         attacks = [a for a in reel if a["op"] == "attack"]
         on_us = [a for a in attacks if a.get("defender") == me]
-        held = sum(1 for a in on_us if a.get("result") == "lost")
-        lines = []
-        if on_us:
-            lines.append(f"⚔ Attacchi contro di noi: {len(on_us)} (respinti {held})")
-        if len(attacks) > len(on_us):
-            lines.append(f"⚔ Altri scontri avvistati: {len(attacks) - len(on_us)}")
+        others = [a for a in attacks if a.get("defender") != me]
+        cities = [a for a in reel if a["op"] in ("capture", "fall")]
+        wmd = [a for a in reel if a["op"] in ("nuke", "chem")]
+        moves: dict[int, dict] = {}
         for a in reel:
-            if a["op"] == "capture":
-                mark = "✖ PERSA" if a.get("old") == me else "•"
-                lines.append(f"{mark} {a.get('name', '?')}: conquistata da {self._faction(a.get('new'))}")
-            elif a["op"] == "fall":
-                lines.append(f"✖ {self._faction(a.get('old'))} è fuori dalla guerra")
-            elif a["op"] == "nuke":
-                lines.append(f"☢ Attacco nucleare: {a.get('name', '?')} ({self._faction(a.get('actor'))})")
-            elif a["op"] == "chem":
-                lines.append(f"☣ Armi chimiche: {a.get('name', '?')} ({self._faction(a.get('actor'))})")
-        if not lines:
-            if skipped:
+            if a["op"] == "move":
+                moves[a["unit"]] = a          # last seen position of each unit
+        out: list[str] = []
+        if wmd:
+            out += ["ARMI DI DISTRUZIONE DI MASSA"] + [self.scene_line(a) for a in wmd] + [""]
+        if on_us:
+            held = sum(1 for a in on_us if a.get("result") == "lost")
+            out.append(f"IL NOSTRO FRONTE · {len(on_us)} attacchi subiti, {held} respinti")
+            out += [self.scene_line(a) for a in on_us] + [""]
+        if cities:
+            lost = sum(1 for a in cities if a["op"] == "capture" and a.get("old") == me)
+            out.append("CITTÀ CHE HANNO CAMBIATO BANDIERA" + (f" · ne perdiamo {lost}" if lost else ""))
+            out += [self.scene_line(a) for a in cities] + [""]
+        if others:
+            out.append(f"ALTRI SCONTRI AVVISTATI · {len(others)}")
+            out += [self.scene_line(a) for a in others] + [""]
+        if moves:
+            by_kind = Counter(UNIT_TYPES[a["glyph"]].name for a in moves.values() if a["glyph"] in UNIT_TYPES)
+            by_side = Counter(self._faction(a["owner"]) for a in moves.values())
+            out.append(f"MOVIMENTI OSSERVATI · {len(moves)} unità")
+            out.append("  " + ", ".join(f"{n} {k.lower()}" for k, n in by_kind.most_common()))
+            out.append("  " + ", ".join(f"{side}: {n}" for side, n in by_side.most_common()))
+            near = Counter(self._place(a["cell"]) for a in moves.values()).most_common(3)
+            out.append("  Zone più attive: " + ", ".join(f"{p.split(' ', 1)[1]} ({n})" for p, n in near))
+        return out or ["Nessuna novità di rilievo sul fronte."]
+
+    def read_bulletins(self, index: int | None) -> None:
+        """Read the written bulletins: ←/→ older and newer turns, ↑/↓ scroll,
+        R replays the animation, any other key closes."""
+        if index is None or not self.bulletins:
+            self.status = "Nessun bollettino ancora: arriverà a fine turno."
+            return
+        while True:
+            title, lines, reel = self.bulletins[index]
+            nav = f"{index + 1}/{len(self.bulletins)}"
+            key = self.pager(f"{title} ({nav})", lines,
+                             "↑↓ scorri · ←→ turni precedenti/successivi · R rivedi l'animazione · Esc chiudi")
+            if key == curses.KEY_LEFT and index > 0:
+                index -= 1
+            elif key == curses.KEY_RIGHT and index < len(self.bulletins) - 1:
+                index += 1
+            elif key in (ord("r"), ord("R")):
+                self.play_bulletin(reel, then_read=False)
+            elif key in (curses.KEY_LEFT, curses.KEY_RIGHT):
+                continue
+            else:
                 return
-            lines.append("Nessuna novità di rilievo sul fronte.")
-        if len(lines) > 14:
-            lines = lines[:13] + [f"... e altri {len(lines) - 13} fatti"]
-        lines += ["", "B: rivedi il bollettino"]
-        self.dialog(f"BOLLETTINO DI GUERRA · {self.date_text()}", lines, "premi un tasto")
+
+    def pager(self, title: str, lines: list[str], footer: str) -> int:
+        """A scrollable text window; returns the key that closed it."""
+        h, w = self.scr.getmaxyx()
+        width = min(w - 4, max(60, min(120, max((len(l) for l in lines), default=0) + 4)))
+        height = min(h - 2, len(lines) + 4)
+        body = height - 4
+        win = curses.newwin(height, width, (h - height) // 2, (w - width) // 2)
+        win.keypad(True)
+        top = 0
+        while True:
+            win.erase()
+            win.box()
+            try:
+                win.addstr(0, 2, f" {title} "[: width - 4], curses.A_BOLD)
+                for k, line in enumerate(lines[top: top + body]):
+                    attr = curses.A_BOLD if line.isupper() or "NOI" in line or "PERSA" in line else 0
+                    win.addstr(2 + k, 2, line[: width - 4], attr)
+                more = "▼" if top + body < len(lines) else " "
+                win.addstr(height - 1, 2, f" {footer} {more} "[: width - 4], curses.A_DIM)
+            except curses.error:
+                pass
+            win.refresh()
+            key = win.getch()
+            if key in (curses.KEY_DOWN, ord("j")) and top + body < len(lines):
+                top += 1
+            elif key in (curses.KEY_UP, ord("k")) and top > 0:
+                top -= 1
+            elif key == curses.KEY_NPAGE:
+                top = min(max(0, len(lines) - body), top + body)
+            elif key == curses.KEY_PPAGE:
+                top = max(0, top - body)
+            elif key in (curses.KEY_DOWN, curses.KEY_UP, -1):
+                continue
+            else:
+                del win
+                self.scr.touchwin()
+                return key
 
     def game_over(self) -> None:
         g = self.g
@@ -1168,10 +1295,7 @@ class UI:
         elif key == ord("O"):
             self.diplomacy_menu()
         elif key == ord("B"):
-            if self.last_reel:
-                self.play_bulletin(self.last_reel)
-            else:
-                self.status = "Nessun bollettino da rivedere."
+            self.read_bulletins(len(self.bulletins) - 1 if self.bulletins else None)
         elif key == ord("T"):
             if self.session.online:
                 self.chat()

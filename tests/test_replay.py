@@ -72,3 +72,44 @@ def test_bulletin_is_not_saved(world, tmp_path):
     path = tmp_path / "save.json"
     g.save_file(path)
     assert Game.load_file(path).reel == []
+
+
+def _ui(g, viewer=0):
+    from theempire.ui import UI
+    ui = object.__new__(UI)
+    ui.session = type("S", (), {"game": g})()
+    ui.viewer = viewer
+    ui.w = g.world
+    return ui
+
+
+def test_written_bulletin(world):
+    g = _game(world)
+    commands.advance(g)
+    commands.newsreel(g, 0)
+    commands.apply(g, 0, {"op": "end_turn"})
+    reel = commands.newsreel(g, 0)
+    ui = _ui(g)
+    text = ui.bulletin_text(reel)
+    assert text and all(isinstance(line, str) for line in text)
+    attacks_on_us = [a for a in reel if a["op"] == "attack" and a["defender"] == 0]
+    if attacks_on_us:
+        assert any(line.startswith("IL NOSTRO FRONTE") for line in text)
+        assert sum("CONTRO DI NOI" in line for line in text) == len(attacks_on_us)
+    for a in reel:
+        if a["op"] == "capture":
+            assert any(a["name"] in line for line in text)
+
+
+def test_scene_lines_speak_from_our_side(world):
+    g = _game(world)
+    ui = _ui(g)
+    city = next(c for c in g.cities if c.owner == 0)
+    lost = {"op": "capture", "cell": city.cell, "actor": 1, "old": 0, "new": 1, "name": city.name}
+    assert "PERSA" in ui.scene_line(lost)
+    held = {"op": "attack", "cell": city.cell, "actor": 1, "attacker": 1, "defender": 0,
+            "glyph": "A", "target": "I", "result": "lost", "frm": city.cell}
+    line = ui.scene_line(held)
+    assert "CONTRO DI NOI" in line and "RESPINTO" in line and city.name in line
+    assert ui.scene_line({"op": "move", "cell": 0}) == ""
+    assert ui.bulletin_text([]) == ["Nessuna novità di rilievo sul fronte."]
