@@ -103,6 +103,12 @@ MONTHS = N("gen feb mar apr mag giu lug ago set ott nov dic")
 BRAILLE_DOTS = ((0x01, 0x02, 0x04, 0x40), (0x08, 0x10, 0x20, 0x80))  # [column][row]
 
 
+def lower_noun(name: str) -> str:
+    """A unit name inside a sentence: lower case, except in German, where
+    nouns keep their capital letter."""
+    return name if i18n.language() == "de" else name.lower()
+
+
 def zoom_tile(world, cell: int, k: int) -> tuple[str, ...]:
     """The land of a cell drawn k × k characters large, as rows of Braille.
 
@@ -1369,11 +1375,12 @@ class UI:
                       "  " + tr("Chi completa il suo obiettivo vince subito."), ""]
         lines += [tr("⚑ REGIONI: chi ne tiene tutte le città ha un bonus di produzione in tutto l'impero"), ""]
         mine = {k: (n, t) for k, n, t in regions.progress(g, me)}
+        width = max(len(word(r.name)) for r in regions.REGIONS.values())
         for key, region in regions.REGIONS.items():
             n, t = mine.get(key, (0, len(regions.cities_in(g, key))))
             owner = g.region_holders.get(key)
             who = f"  ← {word(g.factions[owner].name)}" if owner is not None else ""
-            lines.append(f"  {word(region.name):34s} {n:3d}/{t:<3d} +{int(regions.bonus_of(g, key) * 100):2d}%{who}")
+            lines.append(f"  {word(region.name):{width}s} {n:3d}/{t:<3d} +{int(regions.bonus_of(g, key) * 100):2d}%{who}")
         lines += ["", tr("✦ EVENTI MONDIALI (uno ogni 5-8 turni)")]
         active = events.describe_active(g)
         lines += ["  " + tr("In corso: {effects}", effects=", ".join(active))] if active \
@@ -1509,7 +1516,7 @@ class UI:
         kind = act.get("glyph", "")
         colour = self.owner_color(act.get("attacker"))
         tgt = act.get("target") or ""
-        tname = word(UNIT_TYPES[tgt].name).lower() if tgt in UNIT_TYPES else tr("la città")
+        tname = lower_noun(word(UNIT_TYPES[tgt].name)) if tgt in UNIT_TYPES else tr("la città")
         head = N("⚔ ATTACCO CONTRO DI NOI: {who} attacca {target} ({defender})") if on_us else \
             N("⚔ Scontro: {who} attacca {target} ({defender})")
         self.status = tr(head, who=self._who(act), target=tname, defender=self._faction(act.get("defender")))
@@ -1651,7 +1658,7 @@ class UI:
             by_kind = Counter(UNIT_TYPES[a["glyph"]].name for a in moves.values() if a["glyph"] in UNIT_TYPES)
             by_side = Counter(self._faction(a["owner"]) for a in moves.values())
             out.append(tr("MOVIMENTI OSSERVATI · {n} unità", n=len(moves)))
-            out.append("  " + ", ".join(f"{n} {word(k).lower()}" for k, n in by_kind.most_common()))
+            out.append("  " + ", ".join(f"{n} {lower_noun(word(k))}" for k, n in by_kind.most_common()))
             out.append("  " + ", ".join(f"{word(side)}: {n}" for side, n in by_side.most_common()))
             near = Counter(self._place(a["cell"], bare=True) for a in moves.values()).most_common(3)
             out.append("  " + tr("Zone più attive: {places}", places=", ".join(f"{p} ({n})" for p, n in near)))
