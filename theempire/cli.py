@@ -34,6 +34,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--autoplay", type=int, metavar="TURNI",
                    help="partita IA contro IA senza interfaccia, per TURNI turni")
     p.add_argument("--list", action="store_true", help="elenca scenari e fazioni")
+    p.add_argument("--senza-obiettivi", dest="objectives", action="store_false", default=None,
+                   help="niente obiettivi segreti")
+    p.add_argument("--senza-eventi", dest="world_events", action="store_false", default=None,
+                   help="niente eventi mondiali")
     p.add_argument("--audio", choices=["all", "sfx", "off"],
                    help="musica ed effetti, solo effetti, o niente (predefinito: l'ultima scelta; tasto M per il menu audio)")
     p.add_argument("--muto", dest="audio", action="store_const", const="off", help="niente audio")
@@ -41,7 +45,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     online.add_argument("--serve", type=int, nargs="?", const=DEFAULT_PORT, metavar="PORTA",
                         help=f"ospita una partita online (porta predefinita {DEFAULT_PORT}); "
                              "le fazioni date con --faction sono i posti per i giocatori, "
-                             "le altre le guida l'IA")
+                             "le altre le guida l'IA. Senza --scenario né --load si apre "
+                             "la schermata di configurazione")
     online.add_argument("--bind", default="0.0.0.0", help="indirizzo su cui ascoltare (server)")
     online.add_argument("--play", metavar="FAZIONE",
                         help="con --serve: gioca anche tu, da questo terminale, con FAZIONE")
@@ -68,7 +73,8 @@ def list_scenarios() -> None:
 
 
 def autoplay(args: argparse.Namespace) -> int:
-    g = Game(args.scenario or "ww3", difficulty=args.difficulty, seed=args.seed)
+    g = Game(args.scenario or "ww3", difficulty=args.difficulty, seed=args.seed,
+             objectives=args.objectives, world_events=args.world_events)
     t0 = time.time()
     while not g.over and g.turn <= args.autoplay:
         AI(g, g.current).play()
@@ -91,11 +97,48 @@ def _address(text: str) -> tuple[str, int]:
     return (host or "127.0.0.1"), int(port) if port else DEFAULT_PORT
 
 
+def configure_server(args: argparse.Namespace) -> bool:
+    """The setup screen of --serve: fills ``args`` like the command line
+    would. False if the player cancelled."""
+    from theempire.serversetup import Config, server_setup
+    config = Config(port=args.serve or DEFAULT_PORT, password=args.password, name=args.name,
+                    turn_time=args.turn_time, difficulty=args.difficulty)
+    if args.web is not None:
+        config.web_port = args.web
+    locale.setlocale(locale.LC_ALL, "")
+    chosen = curses.wrapper(lambda scr: server_setup(scr, config))
+    if chosen is None:
+        return False
+    args.serve, args.load = chosen.port, chosen.load
+    args.scenario, args.faction = chosen.scenario, chosen.seats()
+    args.play, args.name = chosen.play or None, chosen.name
+    args.difficulty, args.turn_time = chosen.difficulty, chosen.turn_time
+    args.objectives, args.world_events = chosen.objectives, chosen.world_events
+    args.web = chosen.web_port if chosen.web else None
+    args.password = chosen.password
+    print("Comando equivalente, per la prossima volta:\n  " + chosen.command() + "\n")
+    return True
+
+
+def _welcome(args: argparse.Namespace, port: int) -> None:
+    """How the others get in, printed when the server starts."""
+    from theempire.serversetup import lan_address
+    ip = lan_address()
+    print(f"I giocatori entrano con:  python3 -m theempire --join {ip}:{port}"
+          + ("  --password ..." if args.password else ""))
+    if args.web is not None:
+        print(f"Oppure dal browser:       http://{ip}:{args.web}/")
+    print("Ctrl+C ferma il server (la partita viene salvata).\n", flush=True)
+
+
 def serve(args: argparse.Namespace) -> int:
     import getpass
     import threading
 
     from theempire.net import GameServer, RemoteSession
+    if args.scenario is None and args.load is None and sys.stdin.isatty() and sys.stdout.isatty():
+        if not configure_server(args):
+            return 0
     save = args.save if args.save != Path.home() / ".theempire" / "save.json" else \
         Path.home() / ".theempire" / f"server-{args.serve}.json"
     if args.load:
@@ -103,7 +146,8 @@ def serve(args: argparse.Namespace) -> int:
     else:
         scenario = args.scenario or "ww3"
         humans = tuple(args.faction) or tuple(f.key for f in SCENARIOS[scenario].factions)
-        game = Game(scenario, humans=humans, difficulty=args.difficulty, seed=args.seed)
+        game = Game(scenario, humans=humans, difficulty=args.difficulty, seed=args.seed,
+                    objectives=args.objectives, world_events=args.world_events)
     log_lines: list[str] = []
 
     def log(line: str) -> None:
@@ -125,6 +169,7 @@ def serve(args: argparse.Namespace) -> int:
             return 1
         threading.Thread(target=gateway.serve_forever, daemon=True).start()
     if not args.play:
+        _welcome(args, server.port)
         try:
             server.serve_forever()
         except KeyboardInterrupt:
@@ -230,6 +275,7 @@ def main(argv: list[str] | None = None) -> int:
             return 2
 
     audio = _audio(args)
+    wants_server: list[bool] = []
 
     def run(scr) -> None:
         from theempire.net import LocalSession
@@ -240,10 +286,14 @@ def main(argv: list[str] | None = None) -> int:
             game = Game.load_file(args.load)
         elif args.scenario:
             humans = tuple(args.faction) or (SCENARIOS[args.scenario].factions[0].key,)
-            game = Game(args.scenario, humans=humans, difficulty=args.difficulty, seed=args.seed)
+            game = Game(args.scenario, humans=humans, difficulty=args.difficulty, seed=args.seed,
+                        objectives=args.objectives, world_events=args.world_events)
         else:
             choice = setup_menu(scr)
             if choice is None:
+                return
+            if choice.get("serve"):
+                wants_server.append(True)
                 return
             if "load" in choice:
                 if not choice["load"].exists():
@@ -259,6 +309,9 @@ def main(argv: list[str] | None = None) -> int:
         curses.wrapper(run)
     finally:
         audio.close()
+    if wants_server:            # "Ospita una partita online" in the menu
+        args.serve = args.serve or DEFAULT_PORT
+        return serve(args)
     return 0
 
 

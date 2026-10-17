@@ -204,6 +204,31 @@ terminale o da un altro computer. Le fazioni indicate con `--faction` sono i
 posti per i giocatori umani; le altre le gioca l'IA. Senza `--faction`, tutte
 le fazioni sono posti umani.
 
+### La schermata di configurazione
+Il modo più semplice per ospitare: `python3 -m theempire --serve` (senza
+scenario), oppure la voce **«Ospita una partita online...»** del menu
+iniziale. Si apre una pagina con tutte le opzioni:
+
+| Opzione | Cosa decide |
+|---|---|
+| Partita | nuova, o una salvata da un server precedente |
+| Scenario | quale guerra |
+| Una riga per fazione | giocatore umano (un posto) oppure IA |
+| Difficoltà dell'IA | facile, normale, difficile |
+| Obiettivi segreti, Eventi mondiali | sì o no |
+| Tempo per turno | nessun limite, 60, 90, 120, 180 o 300 secondi |
+| Tu giochi con | nessuna (solo server) o la fazione con cui giochi da questo terminale, e il tuo nome |
+| Porta di gioco, Web TUI, Porta web | dove entrano i client e il browser |
+| Password | vuota = partita aperta a tutti |
+
+Si sceglie con ↑↓, si cambia con ←→ o spazio, nei campi di testo si scrive.
+Un avviso spiega cosa non va (nessun posto umano, porte uguali...). In
+fondo alla pagina c'è sempre il **comando equivalente**, da copiare per la
+volta dopo. All'avvio il server stampa come entrare: il comando `--join`
+con l'indirizzo della macchina nella rete locale e l'indirizzo per il browser.
+
+### Da riga di comando
+
 ```bash
 # chi ospita: server su porta 7777, posti per NATO e Patto, 3 minuti a turno
 python3 -m theempire --serve --scenario coldwar --faction nato --faction pact \
@@ -228,6 +253,8 @@ python3 -m theempire --join mioserver.example.org:7777 --faction east
   comando, quindi non si può muovere un'unità altrui né agire fuori turno.
 - Con `--turn-time` il server chiude da solo il turno di chi supera il
   tempo. Il conto alla rovescia compare in alto.
+- `--senza-obiettivi` e `--senza-eventi` tolgono obiettivi segreti ed
+  eventi mondiali (valgono anche nelle partite in locale).
 - **Rientro.** Se cadi, rilancia lo stesso `--join`: il client ha salvato in
   `~/.theempire/online.json` un gettone che ti restituisce il tuo posto.
 - Il server salva da sé a ogni turno in `~/.theempire/server-<porta>.json`.
@@ -662,6 +689,7 @@ theempire/
   web.py        web TUI: gateway HTTP/WebSocket che porta il client nel browser
   assets/web/   pagina della web TUI e xterm.js (MIT)
   cli.py        riga di comando
+  serversetup.py  la schermata di configurazione del server
   assets/world.json   mappa generata da Natural Earth
   assets/land_hd.bin  terraferma 4 volte più fine, per lo zoom
 tools/build_world.py  rigenera la mappa (richiede numpy e Pillow)

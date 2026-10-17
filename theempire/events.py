@@ -151,7 +151,7 @@ def new_round(game: "Game") -> None:
     """Called at the start of every round: time for an event?"""
     for key in [k for k, end in game.world_effects.items() if end < game.turn]:
         del game.world_effects[key]
-    if not game.scenario.world_events or game.over:
+    if not game.options["world_events"] or game.over:
         return
     if not game.next_event:
         schedule(game)

@@ -2253,11 +2253,15 @@ def setup_menu(scr) -> dict | None:
         keys = list(SCENARIOS)
         k = menu(scr, "Scegli lo scenario",
                  [(SCENARIOS[s].name, SCENARIOS[s].description) for s in keys]
-                 + [("Carica la partita salvata", str(SAVE_PATH))])
+                 + [("Carica la partita salvata", str(SAVE_PATH)),
+                    ("Ospita una partita online...",
+                     "configura un server: posti, IA, timer, web TUI, password")])
         if k is None:
             return None
         if k == len(keys):
             return {"load": SAVE_PATH}
+        if k == len(keys) + 1:
+            return {"serve": True}
         sc = SCENARIOS[keys[k]]
         if sc.key == "tutorial":
             return {"scenario": sc.key, "humans": (sc.factions[0].key,),

@@ -133,10 +133,16 @@ class Event:
 class Game:
     def __init__(self, scenario: str = "ww3", humans: tuple[str, ...] = (),
                  difficulty: str = "normale", seed: int | None = None,
-                 world: World | None = None, _empty: bool = False):
+                 world: World | None = None, _empty: bool = False,
+                 objectives: bool | None = None, world_events: bool | None = None):
         self.world = world or load_world()
         self.scenario: Scenario = SCENARIOS[scenario]
         self.difficulty = difficulty
+        # rules that can be switched off (default: as the scenario says)
+        self.options = {
+            "missions": self.scenario.missions if objectives is None else objectives,
+            "world_events": self.scenario.world_events if world_events is None else world_events,
+        }
         self.rng = random.Random(seed)
         self.turn = 1
         self.current = 0
@@ -191,9 +197,9 @@ class Game:
                 c.production = self._default_production(c)
         self.deck = cards.new_deck(self.rng)
         regions.update(self)
-        if self.scenario.missions:
+        if self.options["missions"]:
             missions.assign(self)
-        if self.scenario.world_events:
+        if self.options["world_events"]:
             events.schedule(self)
         self.log(f"{self.scenario.name}: la guerra è cominciata. Orologio dell'Apocalisse "
                  f"a {self.doomsday} minuti dalla mezzanotte.", level="alert")
@@ -1160,6 +1166,7 @@ class Game:
             "version": 1,
             "scenario": self.scenario.key,
             "difficulty": self.difficulty,
+            "options": self.options,
             "turn": self.turn, "current": self.current,
             "doomsday": self.doomsday, "quiet_turns": self.quiet_turns,
             "fallout": [[k, v] for k, v in self.fallout.items()],
@@ -1180,6 +1187,7 @@ class Game:
     @classmethod
     def from_dict(cls, d: dict, world: World | None = None) -> "Game":
         g = cls(d["scenario"], difficulty=d["difficulty"], world=world, _empty=True)
+        g.options.update(d.get("options", {}))
         g.turn, g.current = d["turn"], d["current"]
         g.doomsday, g.quiet_turns = d["doomsday"], d["quiet_turns"]
         g.fallout = {int(k): v for k, v in d["fallout"]}
