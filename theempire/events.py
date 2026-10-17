@@ -161,14 +161,18 @@ def new_round(game: "Game") -> None:
     keys = list(EVENTS)
     game.rng.shuffle(keys)
     for key in keys:
-        if key in game.world_effects:
-            continue
-        event = EVENTS[key]
-        detail = event.act(game)
-        if detail is None:
-            continue
-        game.log(f"EVENTO MONDIALE · {event.name}: {event.text} {detail}", None, "world", "alert")
-        return
+        if key not in game.world_effects and fire(game, key):
+            return
+
+
+def fire(game: "Game", key: str) -> bool:
+    """Make event ``key`` happen now and announce it. False if it cannot."""
+    event = EVENTS[key]
+    detail = event.act(game)
+    if detail is None:
+        return False
+    game.log(f"EVENTO MONDIALE · {event.name}: {event.text} {detail}", None, "world", "alert")
+    return True
 
 
 def describe_active(game: "Game") -> list[str]:

@@ -5,6 +5,9 @@ totale** di *Theatre Europe* (1985: armate, attacchi aerei, armi chimiche,
 escalation nucleare, l'apocalisse come sconfitta di tutti) e un classico
 **sistema di conquista** a griglia (città che producono unità, trasporti,
 portaerei, carburante degli aerei, nebbia di guerra) e li porta **sulla scala del mondo intero**.
+Dai giochi da tavolo prende le **carte** (alla Futurisiko), gli **obiettivi
+segreti** e i **bonus continentali** (alla Risiko) e gli **eventi mondiali**
+che rimescolano i piani.
 
 La mappa è il mondo reale: viene dai dati Natural Earth ed è disegnata in
 caratteri Braille come in [Terrascope](https://github.com/a-shygun/Terrascope),
@@ -18,6 +21,27 @@ coste Natural Earth.
 
 ![Europa al turno 4 della Terza Guerra Mondiale](docs/screenshot.png)
 
+### In breve: come si vince
+
+Ogni fazione ha un **obiettivo segreto** (per esempio «conquista Nord
+Africa e Medio Oriente» o «elimina il Blocco Orientale»): chi lo completa
+vince subito. Altrimenti vince chi **domina** il mondo (55% delle città),
+chi elimina tutti i rivali o chi ha più punti allo scadere dei turni. Se
+l'**Orologio dell'Apocalisse** arriva a mezzanotte, perdono tutti.
+
+Per arrivarci:
+- **conquisti città** con fanteria e corazzati: ogni città produce un'unità
+  alla volta, e le **direttive** (`P`) riconvertono tutte le fabbriche;
+- tieni **intere regioni** (13 nel mondo) per un bonus di produzione dal
+  +10% al +30% in tutto l'impero;
+- giochi le **carte** (`K`): spionaggio, diserzioni, rivolte, colpi di stato;
+- sfrutti gli **eventi mondiali**, che ogni 5-8 turni cambiano le regole
+  per tutti (crisi petrolifera, carestia, boom, vertice dell'ONU...);
+- usi la **diplomazia** (`O`) per firmare tregue sul fronte secondario.
+
+Il tasto `o` mostra tutto in una pagina: il tuo obiettivo e a che punto
+sei, le regioni con chi le tiene, gli eventi in corso.
+
 ## Avvio
 
 Se è la prima volta, comincia dal **tutorial**: è il primo scenario del menu
@@ -25,8 +49,11 @@ Se è la prima volta, comincia dal **tutorial**: è il primo scenario del menu
 riquadro sulla mappa, ti spiega una cosa alla volta e aspetta che tu la
 faccia davvero: guardare la mappa, selezionare e muovere un'unità, dare un
 ordine di marcia, scegliere la produzione e una direttiva, finire il turno
-e leggere il bollettino, conquistare una città, giocare una carta. Alla fine
-ti lascia l'obiettivo: prendere Tirana, con una carta Rinforzi in regalo. `h` nasconde o mostra il riquadro.
+e leggere il bollettino, conquistare una città, giocare una carta. Poi ti
+presenta l'obiettivo segreto e le regioni (aprendo la pagina `o`) e ti fa
+vedere un evento mondiale vero, un boom economico da sfruttare. Alla fine
+ti lascia l'obiettivo: prendere Tirana, con una carta Rinforzi in regalo.
+`h` nasconde o mostra il riquadro.
 
 
 Serve Python 3.10+ e un terminale UTF-8, meglio se a 256 colori. Il gioco
@@ -273,9 +300,13 @@ Le città producono anche **testate nucleari** (45 punti, città di dimensione
 - Gli aerei consumano 1 di carburante per casella e si riforniscono in città
   o su una portaerei. A zero precipitano: il pannello mostra il carburante.
 - **Zoom**: `+` e `-` (o i pulsanti «Zoom +» e «Zoom -» in fondo al
-  pannello; sul telefono il pizzico con due dita) ingrandiscono la mappa a
-  2 o 4 caratteri per casella: le coste si vedono più dettagliate e le unità
-  si cliccano meglio. Per vedere più mondo c'è la panoramica (`m`).
+  pannello; sul telefono il pizzico con due dita) ingrandiscono la mappa
+  ×2 o ×4. Come in Terrascope la mappa non si deforma e non ripete gli
+  stessi punti: ogni casella diventa un quadrato di 2×2 o 4×4 caratteri e
+  la costa viene ridisegnata da una mappa della terraferma 4 volte più fine
+  (`assets/land_hd.bin`, da Natural Earth). Il cursore diventa il blocco
+  intero, e unità e città stanno al centro del loro blocco. Per vedere più
+  mondo c'è la panoramica (`m`).
 - **Col mouse**:
   - clic su una tua unità: la selezioni (clic di nuovo per passare alla
     successiva nella stessa città);
@@ -548,6 +579,18 @@ cinese.
 3. Hai solo 10 testate: costruiscine altre nelle grandi città se il
    conflitto si inasprisce, perché il deterrente conta anche se non lo usi.
 
+**Obiettivi, regioni ed eventi**
+- Il tuo obiettivo segreto decide dove attaccare: non disperdere le forze su
+  fronti che non ti servono. Un colpo di stato o una rivolta (carte) sono il
+  modo più rapido per chiudere una regione.
+- Guarda chi sta per completare una regione (`o`): strappargli una sola
+  città gli toglie il bonus, e forse gli blocca l'obiettivo.
+- Gioca una carta Spionaggio sul rivale più minaccioso: oltre all'esercito
+  ti rivela il suo obiettivo segreto.
+- Un boom economico è il momento di mettere tutte le città su una direttiva
+  di produzione; una crisi petrolifera ferma flotte e aviazione, quindi è
+  il momento delle offensive di terra.
+
 **In generale**
 - Attento a vincere troppo in fretta: quando una fazione si avvicina al
   dominio (92% della soglia), le IA si sentono perse e diventano molto più
@@ -602,7 +645,7 @@ online, client web, editor di scenari.
 
 ```
 theempire/
-  world.py      griglia, vicinanze con avvolgimento, distanze, BFS
+  world.py      griglia, vicinanze con avvolgimento, distanze, BFS, terraferma fine per lo zoom
   units.py      tipi di unità e costi
   scenarios.py  fazioni, paesi, testate, dottrine
   game.py       regole: movimento, combattimento, produzione, armi DM, vittoria, salvataggi
@@ -620,6 +663,7 @@ theempire/
   assets/web/   pagina della web TUI e xterm.js (MIT)
   cli.py        riga di comando
   assets/world.json   mappa generata da Natural Earth
+  assets/land_hd.bin  terraferma 4 volte più fine, per lo zoom
 tools/build_world.py  rigenera la mappa (richiede numpy e Pillow)
 tests/                test pytest
 ```
@@ -627,6 +671,7 @@ tests/                test pytest
 ```bash
 pip install pytest && python3 -m pytest           # test
 pip install numpy Pillow && python3 tools/build_world.py --source /tmp/ne   # rigenera la mappa
+python3 tools/build_world.py --source /tmp/ne --hd-only   # solo la terraferma fine dello zoom
 ```
 
 ## Crediti

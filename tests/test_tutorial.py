@@ -86,7 +86,13 @@ def test_walkthrough():
     assert "spy" in g.factions[0].cards              # the instructor's gift
     assert cards.play(g, 0, "spy", target=1) == "ok"
     t.update()
-    # two explanations are read through, then the final objective waits
+    assert t.step.title == "Obiettivo segreto e regioni"
+    assert g.factions[0].mission == {"kind": "eliminate", "target": 1}
+    t.seen_objectives = True                         # the player pressed o
+    t.update()
+    # the world event is shown and read, two explanations follow, then the
+    # final objective waits
+    assert any(e.level == "world" for e in g.events) and "boom" in g.world_effects
     assert t.step.title == "Obiettivo finale: Tirana"
     assert "reinforce" in g.factions[0].cards        # the instructor's second gift
     assert "✔ Ben fatto!" in ui.dialogs

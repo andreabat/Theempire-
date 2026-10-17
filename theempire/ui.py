@@ -1311,6 +1311,8 @@ class UI:
     def objectives(self) -> None:
         """Secret objective, regions and world events on one page."""
         g = self.g
+        if getattr(self, "tutorial", None) is not None:
+            self.tutorial.seen_objectives = True
         me = self.viewer
         lines = []
         if g.factions[me].mission.get("kind") in ("regions", "eliminate", "cities", "capitals"):

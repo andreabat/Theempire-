@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable
 
-from theempire import cards
+from theempire import cards, events
 
 
 @dataclass
@@ -46,6 +46,18 @@ def _give_spy(t) -> None:
 
 def _give_reinforcements(t) -> None:
     _gift(t, "reinforce")
+
+
+def _give_mission(t) -> None:
+    """In a real game the objective is drawn at random; here it is the war."""
+    t.ui.g.factions[t.ui.viewer].mission = {"kind": "eliminate", "target": 1}
+
+
+def _boom(t) -> None:
+    """A world event on purpose, to see one."""
+    g = t.ui.g
+    events.fire(g, "boom")
+    t.ui.world_seen = g.event_seq     # already explained here: no second box
 
 
 STEPS = [
@@ -112,6 +124,21 @@ STEPS = [
         "un'altra). Premi K, scegli Spionaggio e giocalo sulla Repubblica",
         "Ribelle: vedrai tutto il suo esercito e un rapporto segreto.",
     ], check=lambda t: cards.spied(t.ui.g, t.ui.viewer) is not None, enter=_give_spy),
+    Step("Obiettivo segreto e regioni", [
+        "In ogni partita vera ricevi un OBIETTIVO SEGRETO: chi lo completa",
+        "vince subito (due regioni, N città, capitali nemiche, eliminare una",
+        "fazione). Qui il tuo è eliminare la Repubblica Ribelle (◎ nel pannello).",
+        "Il mondo è diviso in 13 REGIONI: chi ne tiene tutte le città produce",
+        "di più in tutto l'impero (⚑ nel pannello). Premi o: obiettivo, regioni",
+        "e bonus, eventi mondiali, tutto in una pagina.",
+    ], check=lambda t: t.seen_objectives, enter=_give_mission),
+    Step("Eventi mondiali", [
+        "Ogni 5-8 turni scoppia un EVENTO MONDIALE che tocca tutti: crisi",
+        "petrolifera, carestia, inverno rigido, vertice dell'ONU, uragano...",
+        "Eccone uno: BOOM ECONOMICO, +25% di produzione per 3 turni. Lo vedi",
+        "nel pannello (✦) e in azzurro nel registro. Approfittane per",
+        "costruire truppe: gli eventi aiutano chi è pronto a sfruttarli.",
+    ], enter=_boom),
     Step("Il mare e il cielo", [
         "Le navi entrano solo nei porti amici. Il Trasporto (T) porta 6",
         "unità di terra: muovi la fanteria sulla nave per imbarcarla e verso",
@@ -143,6 +170,7 @@ class Tutorial:
         self.index = -1
         self.seen_overview = False
         self.goto_given = False
+        self.seen_objectives = False
         self.mark = 0
         self.cities_at_start = 0
         self.turn_at_step = 0
