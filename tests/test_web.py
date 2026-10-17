@@ -143,3 +143,22 @@ def test_bad_browser_id_is_refused(gateway):
     with pytest.raises(ConnectionError):   # closed at once, no game client started
         ws.read_until(rb"THE EMPIRE", timeout=5)
     ws.close()
+
+
+def test_language_reaches_the_client(gateway, monkeypatch):
+    import theempire.web as web
+    envs = []
+
+    def fake_popen(argv, env=None, **kw):
+        envs.append(env)
+        raise OSError("no client in this test")
+    monkeypatch.setattr(web.subprocess, "Popen", fake_popen)
+    gw, _ = gateway
+    for lang in ("en", "xx"):
+        ws = WSClient(gw.port, f"/ws?name=X&lang={lang}&id={os.urandom(16).hex()}")
+        ws.send({"t": "p", "d": ""})
+        with pytest.raises(ConnectionError):
+            ws.read_until(rb"THE EMPIRE", timeout=5)
+        ws.close()
+    # an unknown language falls back to the server's own
+    assert [e["THEEMPIRE_LANG"] for e in envs] == ["en", web.i18n.language()]

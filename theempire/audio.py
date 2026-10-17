@@ -22,6 +22,8 @@ import wave
 from array import array
 from pathlib import Path
 
+from theempire.i18n import N, word
+
 RATE = 22050
 VERSION = "v4"  # bump whenever a sound changes, so caches are rebuilt
 CACHE = Path.home() / ".theempire" / "sounds" / VERSION
@@ -32,16 +34,16 @@ LOOPING = {"menu", "war", "tension", "kalinka", "anthem"}
 # all, anything else is a specific tune played on a loop.
 MUSIC_CHOICES = ("auto", "off", "kalinka", "anthem", "menu", "war", "tension",
                  "victory", "defeat", "midnight")
-MUSIC_NAMES = {"auto": "automatica (a seconda del momento)",
-               "off": "nessuna musica (restano gli effetti)",
+MUSIC_NAMES = {"auto": N("automatica (a seconda del momento)"),
+               "off": N("nessuna musica (restano gli effetti)"),
                "kalinka": "Kalinka",
-               "anthem": "inno sovietico",
-               "menu": "Toccata di Bach (menu)",
-               "war": "marcia di guerra",
-               "tension": "tensione",
-               "victory": "vittoria",
-               "defeat": "sconfitta",
-               "midnight": "mezzanotte"}
+               "anthem": N("inno sovietico"),
+               "menu": N("Toccata di Bach (menu)"),
+               "war": N("marcia di guerra"),
+               "tension": N("tensione"),
+               "victory": N("vittoria"),
+               "defeat": N("sconfitta"),
+               "midnight": N("mezzanotte")}
 MUSIC_KEYS = {"a": "auto", "o": "off", "k": "kalinka", "s": "anthem",
               "m": "menu", "w": "war", "t": "tension", "v": "victory",
               "d": "defeat", "n": "midnight"}
@@ -59,8 +61,9 @@ def music_choices() -> tuple[str, ...]:
 
 
 def music_name(choice: str) -> str:
+    """The tune's name as the menu shows it, in the player's language."""
     if choice in MUSIC_NAMES:
-        return MUSIC_NAMES[choice]
+        return word(MUSIC_NAMES[choice])
     from theempire import midi
     path = user_tracks().get(choice)
     return midi.title(path) if path else choice

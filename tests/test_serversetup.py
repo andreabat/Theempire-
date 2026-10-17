@@ -51,3 +51,19 @@ def test_playing_seat_must_be_human():
     toggle = next(r for r in _rows(c) if r.label.strip() == "Unione Eurasiatica")
     toggle.change(1)                                 # east goes to the AI
     assert c.play == ""
+
+
+def test_language_row_switches_at_once(tmp_path, monkeypatch):
+    from theempire import i18n
+    monkeypatch.setattr(i18n, "SETTINGS", tmp_path / "settings.json")
+    monkeypatch.setenv("THEEMPIRE_LANG", "it")
+    i18n.set_language("it")
+    c = Config()
+    try:
+        lang = next(r for r in _rows(c) if r.label == "Lingua")
+        assert lang.value == "Italiano" and "--lang" not in c.argv()
+        lang.change(1)                               # → English, saved for next time
+        assert i18n.language() == "en" and i18n._saved() == "en"
+        assert c.argv()[-2:] == ["--lang", "en"]
+    finally:
+        i18n.set_language("it")

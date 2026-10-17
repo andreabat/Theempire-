@@ -15,7 +15,9 @@ import socket
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from theempire import i18n
 from theempire.game import DIFFICULTY
+from theempire.i18n import tr, word
 from theempire.net import DEFAULT_PORT
 from theempire.scenarios import SCENARIOS
 
@@ -55,11 +57,11 @@ class Config:
     def problem(self) -> str | None:
         """Why the server cannot start like this (None: it can)."""
         if self.load is None and not self.seats():
-            return "Serve almeno un posto per un giocatore umano."
+            return tr("Serve almeno un posto per un giocatore umano.")
         if self.web and self.web_port == self.port:
-            return "La porta web deve essere diversa da quella di gioco."
+            return tr("La porta web deve essere diversa da quella di gioco.")
         if not (1 <= self.port <= 65535 and 1 <= self.web_port <= 65535):
-            return "Le porte vanno da 1 a 65535."
+            return tr("Le porte vanno da 1 a 65535.")
         return None
 
     def argv(self) -> list[str]:
@@ -85,11 +87,15 @@ class Config:
             out += ["--play", self.play]
             if self.name:
                 out += ["--name", self.name]
+        if i18n.language() != i18n.DEFAULT:
+            out += ["--lang", i18n.language()]
         return out
 
     def command(self) -> str:
         line = "python3 -m theempire " + " ".join(shlex.quote(a) for a in self.argv())
-        return line + ("  --password ... (o la variabile THEEMPIRE_PASSWORD)" if self.password else "")
+        if self.password:
+            line += "  " + tr("--password ... (o la variabile THEEMPIRE_PASSWORD)")
+        return line
 
 
 def saved_games() -> list[Path]:
@@ -125,16 +131,25 @@ def _rows(c: Config) -> list[Row]:
     names = {f.key: f.name for f in sc.factions}
     saves = saved_games()
     rows: list[Row] = []
+    yes, no = tr("sì"), tr("no")
 
     def cycle(options, current, step):
         k = options.index(current) if current in options else 0
         return options[(k + step) % len(options)]
 
+    def set_lang(step):
+        # immediate: the form is redrawn in the new language
+        i18n.set_language(cycle(list(i18n.LANGS), i18n.language(), step))
+        i18n.save_language(i18n.language())
+    rows.append(Row(tr("Lingua"), i18n.LANGS[i18n.language()],
+                    tr("La lingua del gioco (chi entra dal browser sceglie la sua)."), set_lang))
+
     def set_load(step):
         options = [None] + saves
         c.load = cycle(options, c.load, step)
-    rows.append(Row("Partita", "nuova" if c.load is None else f"riprendi {c.load.name}",
-                    "Una partita nuova, o una salvata da un server precedente (si salva da sola).",
+    rows.append(Row(tr("Partita"),
+                    tr("nuova") if c.load is None else tr("riprendi {file}", file=c.load.name),
+                    tr("Una partita nuova, o una salvata da un server precedente (si salva da sola)."),
                     set_load if saves else None))
     if c.load is None:
         keys = [k for k in SCENARIOS if k != "tutorial"]
@@ -142,64 +157,70 @@ def _rows(c: Config) -> list[Row]:
         def set_scenario(step):
             c.scenario = cycle(keys, c.scenario, step)
             c.reset_seats()
-        rows.append(Row("Scenario", sc.name, sc.description, set_scenario))
+        rows.append(Row(tr("Scenario"), word(sc.name), word(sc.description), set_scenario))
         for f in sc.factions:
             def toggle(step, key=f.key):
                 c.humans[key] = not c.humans[key]
                 if not c.humans[key] and c.play == key:
                     c.play = ""
-            rows.append(Row(f"  {f.name}", "giocatore umano" if c.humans[f.key] else "IA",
-                            "Un posto per un giocatore (dal terminale o dal browser), o guidata dall'IA.",
+            rows.append(Row(f"  {word(f.name)}", tr("giocatore umano") if c.humans[f.key] else tr("IA"),
+                            tr("Un posto per un giocatore (dal terminale o dal browser), "
+                               "o guidata dall'IA."),
                             toggle))
 
         def set_difficulty(step):
             c.difficulty = cycle(list(DIFFICULTY), c.difficulty, step)
-        rows.append(Row("Difficoltà dell'IA", c.difficulty,
-                        "facile: IA con industria al 75% · normale · difficile: al 130%.", set_difficulty))
+        rows.append(Row(tr("Difficoltà dell'IA"), word(c.difficulty),
+                        tr("facile: IA con industria al 75% · normale · difficile: al 130%."),
+                        set_difficulty))
 
         def set_objectives(step):
             c.objectives = not c.objectives
-        rows.append(Row("Obiettivi segreti", "sì" if c.objectives else "no",
-                        "Ogni fazione riceve un obiettivo segreto: chi lo completa vince subito.",
+        rows.append(Row(tr("Obiettivi segreti"), yes if c.objectives else no,
+                        tr("Ogni fazione riceve un obiettivo segreto: chi lo completa vince subito."),
                         set_objectives))
 
         def set_events(step):
             c.world_events = not c.world_events
-        rows.append(Row("Eventi mondiali", "sì" if c.world_events else "no",
-                        "Ogni 5-8 turni un evento per tutti: crisi petrolifera, carestia, ONU...",
+        rows.append(Row(tr("Eventi mondiali"), yes if c.world_events else no,
+                        tr("Ogni 5-8 turni un evento per tutti: crisi petrolifera, carestia, ONU..."),
                         set_events))
 
     def set_time(step):
         c.turn_time = cycle(list(TURN_TIMES), c.turn_time, step)
-    rows.append(Row("Tempo per turno", f"{c.turn_time} secondi" if c.turn_time else "nessun limite",
-                    "Allo scadere il turno del giocatore finisce da solo: dà ritmo alla partita.",
+    rows.append(Row(tr("Tempo per turno"),
+                    tr("{seconds} secondi", seconds=c.turn_time) if c.turn_time else tr("nessun limite"),
+                    tr("Allo scadere il turno del giocatore finisce da solo: dà ritmo alla partita."),
                     set_time))
     seats = [""] + (c.seats() if c.load is None else [])
 
     def set_play(step):
         c.play = cycle(seats, c.play, step)
-    rows.append(Row("Tu giochi con", names.get(c.play, "nessuna: solo server"),
-                    "Gioca anche tu da questo terminale, o lascia il server solo ad aspettare.",
+    rows.append(Row(tr("Tu giochi con"), word(names[c.play]) if c.play in names else
+                    tr("nessuna: solo server"),
+                    tr("Gioca anche tu da questo terminale, o lascia il server solo ad aspettare."),
                     set_play if len(seats) > 1 else None))
     if c.play:
-        rows.append(Row("Il tuo nome", c.name or getpass.getuser(), "Come ti vedono gli altri.",
+        rows.append(Row(tr("Il tuo nome"), c.name or getpass.getuser(), tr("Come ti vedono gli altri."),
                         text=(lambda: c.name, lambda v: setattr(c, "name", v), 24, False)))
-    rows.append(Row("Porta di gioco", str(c.port), "I client entrano con: --join INDIRIZZO:PORTA.",
+    rows.append(Row(tr("Porta di gioco"), str(c.port),
+                    tr("I client entrano con: --join INDIRIZZO:PORTA."),
                     text=(lambda: str(c.port), lambda v: setattr(c, "port", int(v or 0)), 5, True)))
 
     def set_web(step):
         c.web = not c.web
-    rows.append(Row("Web TUI (browser)", "sì" if c.web else "no",
-                    "Si gioca anche dal browser, senza installare nulla.", set_web))
+    rows.append(Row(tr("Web TUI (browser)"), yes if c.web else no,
+                    tr("Si gioca anche dal browser, senza installare nulla."), set_web))
     if c.web:
-        rows.append(Row("Porta web", str(c.web_port), "L'indirizzo da aprire: http://INDIRIZZO:PORTA",
+        rows.append(Row(tr("Porta web"), str(c.web_port),
+                        tr("L'indirizzo da aprire: http://INDIRIZZO:PORTA"),
                         text=(lambda: str(c.web_port), lambda v: setattr(c, "web_port", int(v or 0)),
                               5, True)))
-    rows.append(Row("Password", "•" * len(c.password) or "nessuna",
-                    "Chi entra deve conoscerla (vuota: partita aperta a tutti).",
+    rows.append(Row(tr("Password"), "•" * len(c.password) or tr("nessuna"),
+                    tr("Chi entra deve conoscerla (vuota: partita aperta a tutti)."),
                     text=(lambda: c.password, lambda v: setattr(c, "password", v), 32, False)))
-    rows.append(Row("▶ Avvia il server", "", "Invio per partire.", action="start"))
-    rows.append(Row("Annulla", "", "Torna indietro senza avviare nulla.", action="cancel"))
+    rows.append(Row(tr("▶ Avvia il server"), "", tr("Invio per partire."), action="start"))
+    rows.append(Row(tr("Annulla"), "", tr("Torna indietro senza avviare nulla."), action="cancel"))
     return rows
 
 
@@ -214,9 +235,9 @@ def server_setup(scr, config: Config | None = None) -> Config | None:
         sel = max(0, min(sel, len(rows) - 1))
         scr.erase()
         h, w = scr.getmaxyx()
-        _put(scr, 1, 2, "THE EMPIRE · ospita una partita online", curses.A_BOLD)
-        _put(scr, 2, 2, "↑↓ scegli · ←→ o spazio cambia · scrivi nei campi di testo · "
-                        "Invio avvia · Esc annulla", curses.A_DIM)
+        _put(scr, 1, 2, tr("THE EMPIRE · ospita una partita online"), curses.A_BOLD)
+        _put(scr, 2, 2, tr("↑↓ scegli · ←→ o spazio cambia · scrivi nei campi di testo · "
+                           "Invio avvia · Esc annulla"), curses.A_DIM)
         y = 4
         for k, row in enumerate(rows):
             if row.action:
@@ -231,7 +252,7 @@ def server_setup(scr, config: Config | None = None) -> Config | None:
         _put(scr, y, 4, rows[sel].help, 0)
         problem = c.problem()
         _put(scr, y + 2, 4, message or (f"⚠ {problem}" if problem else ""), curses.A_BOLD)
-        _put(scr, h - 3, 2, "Comando equivalente:", curses.A_DIM)
+        _put(scr, h - 3, 2, tr("Comando equivalente:"), curses.A_DIM)
         _put(scr, h - 2, 2, c.command(), curses.A_DIM)
         scr.refresh()
         key = scr.getch()

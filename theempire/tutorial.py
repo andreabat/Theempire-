@@ -7,16 +7,18 @@ just explanations: they advance when the player presses a key.
 
 from __future__ import annotations
 
+import textwrap
 from dataclasses import dataclass
 from typing import Callable
 
 from theempire import cards, events
+from theempire.i18n import N, tr, word
 
 
 @dataclass
 class Step:
     title: str
-    text: list[str]
+    text: str                           # one paragraph, wrapped where it is shown
     check: Callable | None = None       # check(tutorial) -> bool; None = read and continue
     enter: Callable | None = None       # called once when the step starts
 
@@ -61,106 +63,106 @@ def _boom(t) -> None:
 
 
 STEPS = [
-    Step("Benvenuto, comandante", [
-        "Questa è la guerra a scala mondiale: la mappa è il mondo vero.",
-        "Guidi il Comando Italiano (blu). In Albania si è insediata la",
-        "Repubblica Ribelle (rosso). Tutto il verde è neutrale.",
-        "A destra c'è il pannello: le tue città, le unità, le fazioni.",
-        "In alto a destra l'Orologio dell'Apocalisse: se arriva a mezzanotte",
-        "per la guerra nucleare, perdono tutti.",
-    ]),
-    Step("Guardarsi intorno", [
-        "Muovi il cursore con le FRECCE (o con il mouse; trascina per",
-        "spostare la mappa). Premi m per la panoramica del mondo intero,",
-        "poi m di nuovo per tornare qui.",
-    ], check=lambda t: t.seen_overview),
-    Step("Prendere il comando di un'unità", [
-        "Le unità in città sono fortificate o di sentinella e non chiedono",
-        "ordini. Porta il cursore su Roma (★ blu) e premi INVIO: selezioni",
-        "un'unità (Invio di nuovo passa alla successiva). Oppure cliccala.",
-        "Nel pannello leggi punti vita (PV), mosse e carburante.",
-    ], check=lambda t: t.ui.active is not None),
-    Step("Muovere", [
-        "Muovi l'unità con  q w e / a d / z x c  (le 8 direzioni) o con il",
-        "tastierino numerico. Col mouse: clic su una casella accanto.",
-        "La fanteria ha 1 mossa, i corazzati 2, gli aerei 8 (ma consumano",
-        "carburante: riforniscili in città o su una portaerei).",
-    ], check=_moved),
-    Step("Ordini di marcia", [
-        "Per andare lontano: seleziona un corazzato, premi g, porta il",
-        "cursore su Ljubljana o Zagreb (a nord-est) e premi Invio. Vedi il",
-        "percorso; l'unità proseguirà da sola nei turni successivi.",
-        "Col mouse: clic sulla destinazione e secondo clic per partire.",
-        "Altri ordini: s sentinella, f fortifica, A affida l'unità all'IA.",
-    ], check=lambda t: t.goto_given or any(
+    Step(N("Benvenuto, comandante"), N(
+        "Questa è la guerra a scala mondiale: la mappa è il mondo vero. Guidi il "
+        "Comando Italiano (blu). In Albania si è insediata la Repubblica Ribelle "
+        "(rosso). Tutto il verde è neutrale. A destra c'è il pannello: le tue "
+        "città, le unità, le fazioni. In alto a destra l'Orologio "
+        "dell'Apocalisse: se arriva a mezzanotte per la guerra nucleare, perdono "
+        "tutti."
+    )),
+    Step(N("Guardarsi intorno"), N(
+        "Muovi il cursore con le FRECCE (o con il mouse; trascina per spostare la"
+        " mappa). Premi m per la panoramica del mondo intero, poi m di nuovo per "
+        "tornare qui."
+    ), check=lambda t: t.seen_overview),
+    Step(N("Prendere il comando di un'unità"), N(
+        "Le unità in città sono fortificate o di sentinella e non chiedono "
+        "ordini. Porta il cursore su Roma (★ blu) e premi INVIO: selezioni "
+        "un'unità (Invio di nuovo passa alla successiva). Oppure cliccala. Nel "
+        "pannello leggi punti vita (PV), mosse e carburante."
+    ), check=lambda t: t.ui.active is not None),
+    Step(N("Muovere"), N(
+        "Muovi l'unità con  q w e / a d / z x c  (le 8 direzioni) o con il "
+        "tastierino numerico. Col mouse: clic su una casella accanto. La fanteria"
+        " ha 1 mossa, i corazzati 2, gli aerei 8 (ma consumano carburante: "
+        "riforniscili in città o su una portaerei)."
+    ), check=_moved),
+    Step(N("Ordini di marcia"), N(
+        "Per andare lontano: seleziona un corazzato, premi g, porta il cursore su"
+        " Ljubljana o Zagreb (a nord-est) e premi Invio. Vedi il percorso; "
+        "l'unità proseguirà da sola nei turni successivi. Col mouse: clic sulla "
+        "destinazione e secondo clic per partire. Altri ordini: s sentinella, f "
+        "fortifica, A affida l'unità all'IA."
+    ), check=lambda t: t.goto_given or any(
         u.order == "goto" for u in t.ui.g.units_of(t.ui.viewer))),
-    Step("La produzione", [
-        "Ogni città costruisce una cosa alla volta. Porta il cursore su",
-        "Napoli e premi p (o Invio su una città vuota): scegli cosa costruire.",
-        "Le città grandi e le capitali producono di più. Le navi si fanno solo",
-        "nei porti. C'è un limite di unità (Unità n/limite nel pannello).",
-    ], check=lambda t: any(c.manual for c in t.ui.g.cities_of(t.ui.viewer))),
-    Step("Le direttive", [
-        "Con un impero grande non serve decidere città per città: premi P",
-        "e scegli una direttiva (per esempio 2, offensiva terrestre).",
-        "Tutte le città si riconvertono; quelle scelte a mano restano tali.",
-    ], check=lambda t: t.ui.g.factions[t.ui.viewer].directive != ""),
-    Step("Fine del turno", [
-        "Quando hai dato gli ordini premi E (fine turno). Poi muove la",
-        "Repubblica Ribelle e all'inizio del tuo turno vedrai il BOLLETTINO",
-        "DI GUERRA: cosa hanno fatto gli altri, attacco per attacco.",
-        "B rilegge i bollettini quando vuoi.",
-    ], check=lambda t: t.ui.g.turn > t.turn_at_step),
-    Step("La prima conquista", [
-        "Le città neutrali hanno una milizia. Per prenderle porta FANTERIA o",
-        "CORAZZATI accanto e muovili contro la città: nel pannello vedi la",
-        "probabilità di vittoria prima di attaccare. Più unità attorno al",
-        "bersaglio = più forza (+15% ciascuna). Aerei e navi possono solo",
-        "indebolirla. Conquista una città qualunque (Ljubljana, Zagreb...).",
-    ], check=_more_cities),
-    Step("Disordini e carte", [
-        "La città conquistata è in DISORDINI per 5 turni: produce la metà.",
-        "Conquistando hai guadagnato anche una CARTA (e qui te ne regalo",
-        "un'altra). Premi K, scegli Spionaggio e giocalo sulla Repubblica",
-        "Ribelle: vedrai tutto il suo esercito e un rapporto segreto.",
-    ], check=lambda t: cards.spied(t.ui.g, t.ui.viewer) is not None, enter=_give_spy),
-    Step("Obiettivo segreto e regioni", [
-        "In ogni partita vera ricevi un OBIETTIVO SEGRETO: chi lo completa",
-        "vince subito (due regioni, N città, capitali nemiche, eliminare una",
-        "fazione). Qui il tuo è eliminare la Repubblica Ribelle (◎ nel pannello).",
-        "Il mondo è diviso in 13 REGIONI: chi ne tiene tutte le città produce",
-        "di più in tutto l'impero (⚑ nel pannello). Premi o: obiettivo, regioni",
-        "e bonus, eventi mondiali, tutto in una pagina.",
-    ], check=lambda t: t.seen_objectives, enter=_give_mission),
-    Step("Eventi mondiali", [
-        "Ogni 5-8 turni scoppia un EVENTO MONDIALE che tocca tutti: crisi",
-        "petrolifera, carestia, inverno rigido, vertice dell'ONU, uragano...",
-        "Eccone uno: BOOM ECONOMICO, +25% di produzione per 3 turni. Lo vedi",
-        "nel pannello (✦) e in azzurro nel registro. Approfittane per",
-        "costruire truppe: gli eventi aiutano chi è pronto a sfruttarli.",
-    ], enter=_boom),
-    Step("Il mare e il cielo", [
-        "Le navi entrano solo nei porti amici. Il Trasporto (T) porta 6",
-        "unità di terra: muovi la fanteria sulla nave per imbarcarla e verso",
-        "terra per sbarcare. Sottomarini invisibili, cacciatorpediniere che",
-        "li scovano, incrociatori che bombardano la costa, portaerei.",
-    ]),
-    Step("L'Orologio dell'Apocalisse", [
-        "Negli altri scenari hai testate nucleari (N) e armi chimiche (C).",
-        "Ogni uso avvicina la mezzanotte, e il nemico può rispondere.",
-        "Le tregue (O) fermano la guerra con una fazione per 15 turni.",
-        "Qui sei senza testate: vinci con l'esercito.",
-    ]),
-    Step("Obiettivo finale: Tirana", [
-        "Conquista Tirana, la capitale della Repubblica Ribelle (★ rossa,",
-        "oltre l'Adriatico): marcia attraverso i Balcani o sbarca dal mare.",
-        "Ti ho dato la carta RINFORZI (K): fa comparire 2 fanterie e 1",
-        "corazzato in una tua città. Giocala su una città conquistata vicino",
-        "a Tirana (Podgorica, Skopje...): le truppe nascono già al fronte.",
-        "Se peschi un PIANO QUINQUENNALE, giocalo: +50% di produzione per",
-        "3 turni = più truppe per l'assalto. Attacca con più unità attorno a",
-        "Tirana: ognuna dà +15%. Quando Tirana cade, il tutorial è finito.",
-    ], check=lambda t: False, enter=_give_reinforcements),
+    Step(N("La produzione"), N(
+        "Ogni città costruisce una cosa alla volta. Porta il cursore su Napoli e "
+        "premi p (o Invio su una città vuota): scegli cosa costruire. Le città "
+        "grandi e le capitali producono di più. Le navi si fanno solo nei porti. "
+        "C'è un limite di unità (Unità n/limite nel pannello)."
+    ), check=lambda t: any(c.manual for c in t.ui.g.cities_of(t.ui.viewer))),
+    Step(N("Le direttive"), N(
+        "Con un impero grande non serve decidere città per città: premi P e "
+        "scegli una direttiva (per esempio 2, offensiva terrestre). Tutte le "
+        "città si riconvertono; quelle scelte a mano restano tali."
+    ), check=lambda t: t.ui.g.factions[t.ui.viewer].directive != ""),
+    Step(N("Fine del turno"), N(
+        "Quando hai dato gli ordini premi E (fine turno). Poi muove la Repubblica"
+        " Ribelle e all'inizio del tuo turno vedrai il BOLLETTINO DI GUERRA: cosa"
+        " hanno fatto gli altri, attacco per attacco. B rilegge i bollettini "
+        "quando vuoi."
+    ), check=lambda t: t.ui.g.turn > t.turn_at_step),
+    Step(N("La prima conquista"), N(
+        "Le città neutrali hanno una milizia. Per prenderle porta FANTERIA o "
+        "CORAZZATI accanto e muovili contro la città: nel pannello vedi la "
+        "probabilità di vittoria prima di attaccare. Più unità attorno al "
+        "bersaglio = più forza (+15% ciascuna). Aerei e navi possono solo "
+        "indebolirla. Conquista una città qualunque (Ljubljana, Zagreb...)."
+    ), check=_more_cities),
+    Step(N("Disordini e carte"), N(
+        "La città conquistata è in DISORDINI per 5 turni: produce la metà. "
+        "Conquistando hai guadagnato anche una CARTA (e qui te ne regalo "
+        "un'altra). Premi K, scegli Spionaggio e giocalo sulla Repubblica "
+        "Ribelle: vedrai tutto il suo esercito e un rapporto segreto."
+    ), check=lambda t: cards.spied(t.ui.g, t.ui.viewer) is not None, enter=_give_spy),
+    Step(N("Obiettivo segreto e regioni"), N(
+        "In ogni partita vera ricevi un OBIETTIVO SEGRETO: chi lo completa vince "
+        "subito (due regioni, N città, capitali nemiche, eliminare una fazione). "
+        "Qui il tuo è eliminare la Repubblica Ribelle (◎ nel pannello). Il mondo "
+        "è diviso in 13 REGIONI: chi ne tiene tutte le città produce di più in "
+        "tutto l'impero (⚑ nel pannello). Premi o: obiettivo, regioni e bonus, "
+        "eventi mondiali, tutto in una pagina."
+    ), check=lambda t: t.seen_objectives, enter=_give_mission),
+    Step(N("Eventi mondiali"), N(
+        "Ogni 5-8 turni scoppia un EVENTO MONDIALE che tocca tutti: crisi "
+        "petrolifera, carestia, inverno rigido, vertice dell'ONU, uragano... "
+        "Eccone uno: BOOM ECONOMICO, +25% di produzione per 3 turni. Lo vedi nel "
+        "pannello (✦) e in azzurro nel registro. Approfittane per costruire "
+        "truppe: gli eventi aiutano chi è pronto a sfruttarli."
+    ), enter=_boom),
+    Step(N("Il mare e il cielo"), N(
+        "Le navi entrano solo nei porti amici. Il Trasporto (T) porta 6 unità di "
+        "terra: muovi la fanteria sulla nave per imbarcarla e verso terra per "
+        "sbarcare. Sottomarini invisibili, cacciatorpediniere che li scovano, "
+        "incrociatori che bombardano la costa, portaerei."
+    )),
+    Step(N("L'Orologio dell'Apocalisse"), N(
+        "Negli altri scenari hai testate nucleari (N) e armi chimiche (C). Ogni "
+        "uso avvicina la mezzanotte, e il nemico può rispondere. Le tregue (O) "
+        "fermano la guerra con una fazione per 15 turni. Qui sei senza testate: "
+        "vinci con l'esercito."
+    )),
+    Step(N("Obiettivo finale: Tirana"), N(
+        "Conquista Tirana, la capitale della Repubblica Ribelle (★ rossa, oltre "
+        "l'Adriatico): marcia attraverso i Balcani o sbarca dal mare. Ti ho dato "
+        "la carta RINFORZI (K): fa comparire 2 fanterie e 1 corazzato in una tua "
+        "città. Giocala su una città conquistata vicino a Tirana (Podgorica, "
+        "Skopje...): le truppe nascono già al fronte. Se peschi un PIANO "
+        "QUINQUENNALE, giocalo: +50% di produzione per 3 turni = più truppe per "
+        "l'assalto. Attacca con più unità attorno a Tirana: ognuna dà +15%. "
+        "Quando Tirana cade, il tutorial è finito."
+    ), check=lambda t: False, enter=_give_reinforcements),
 ]
 
 
@@ -196,10 +198,11 @@ class Tutorial:
         self.turn_at_step = g.turn
         if step.enter:
             step.enter(self)
-        title = f"TUTORIAL {self.index + 1}/{len(STEPS)} · {step.title}"
-        footer = "premi un tasto" if step.check else "premi un tasto per continuare"
+        title = tr("TUTORIAL {n}/{total} · {title}", n=self.index + 1, total=len(STEPS),
+                   title=step.title)
+        footer = tr("premi un tasto") if step.check else tr("premi un tasto per continuare")
         ui.draw()
-        ui.dialog(title, step.text, footer)
+        ui.dialog(title, self.lines(step), footer)
         if step.check is None:
             self.next()
 
@@ -214,7 +217,8 @@ class Tutorial:
         if step.check(self):
             ui.audio.sfx("capture")
             ui.draw()
-            ui.dialog("✔ Ben fatto!", [f"Passo completato: {step.title}."], "premi un tasto")
+            ui.dialog(tr("✔ Ben fatto!"), [tr("Passo completato: {title}.", title=step.title)],
+                      tr("premi un tasto"))
             self.next()
 
     def box(self) -> tuple[str, list[str]] | None:
@@ -222,4 +226,11 @@ class Tutorial:
         step = self.step
         if step is None or not self.visible:
             return None
-        return f" TUTORIAL {self.index + 1}/{len(STEPS)} · {step.title} · h nasconde ", step.text
+        title = tr(" TUTORIAL {n}/{total} · {title} · h nasconde ", n=self.index + 1,
+                   total=len(STEPS), title=step.title)
+        return title, self.lines(step)
+
+    @staticmethod
+    def lines(step: Step) -> list[str]:
+        """The step's text in the language, wrapped to the instructor's box."""
+        return textwrap.wrap(word(step.text), 70)
