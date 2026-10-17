@@ -64,6 +64,7 @@ s                 sentinella (si sveglia se arriva il nemico)
 f                 fortifica (+25% difesa, resta di guardia)
 A                 automatica: l'unità viene guidata dall'IA
 O                 diplomazia: proponi o accetta una tregua
+B                 rivedi il bollettino di guerra dell'ultimo turno
 T                 chat con gli altri giocatori (partite online)
 P                 direttiva di produzione: aria, terra, mare, sbarchi, difesa...
 g                 vai a... (sposta il cursore, Invio per confermare)
@@ -99,6 +100,8 @@ class UI:
         self.view_y = 0
         self.reveal: set[int] = set()     # newsreel: cells the player may peek at
         self.phantom: dict[int, tuple[str, int]] = {}  # newsreel: (glyph, owner)
+        self.fx: dict[int, tuple[str, str, int]] = {}  # newsreel effects: (char, colour, attr)
+        self.last_reel: list[dict] = []
         self.active_id: int | None = None
         self.turn_key: tuple[int, int] | None = None
         self.over_shown = False
@@ -285,6 +288,9 @@ class UI:
         units = [u for u in g.units_at(cell)
                  if (seen or cell in self.reveal) and (g.sees(self.viewer, u) or cell in self.reveal)] \
             if cell in g.at else []
+        if cell in self.fx:
+            ch, color, extra = self.fx[cell]
+            return ch, self.color(color, bg) | curses.A_BOLD | extra
         if cell in self.phantom:
             kind, owner = self.phantom[cell]
             return kind, self.color(self.owner_color(owner), bg) | curses.A_BOLD
@@ -836,6 +842,10 @@ class UI:
             self.scr.refresh()
             self.dialog("Passaggio di consegne", [f"Tocca a: {g.faction.name}",
                                                   "Gli altri giocatori distolgano lo sguardo."])
+        reel = self.session.take_reel(self.viewer) if hasattr(self.session, "take_reel") else []
+        if reel:
+            self.last_reel = reel
+            self.play_bulletin(reel)
         self.select_next()
         if self.active is None:
             self.cursor = self._home_cell()
@@ -853,9 +863,6 @@ class UI:
         if g.events:  # the newsreel will ring every event; quiet the summary
             self.last_seq = max(self.last_seq, max(e.seq for e in g.events))
         self.do({"op": "end_turn"})
-        self._replay_ai_turn()
-        if self.my_turn() and hasattr(self.session, "start_clock"):
-            self.session.start_clock()  # the newsreel does not eat your time
 
     # ------------------------------------------------------- newsreel
     def _focus(self, cell: int) -> None:
@@ -869,98 +876,179 @@ class UI:
             self.view_y = cy - mh // 2
         self.view_y = max(0, min(self.view_y, max(0, self.w.height - mh)))
 
-    def _replay_sound(self, act: dict) -> str | None:
-        """The effect that goes with one newsreel frame, for this player."""
-        me = self.viewer
-        op = act["op"]
-        if op == "nuke":
-            return "nuke"
-        if op == "chem":
-            return "gas"
-        if op == "fall":
-            return "fall"
-        if op == "capture":
-            return "loss" if act["old"] == me else None
-        if op == "attack":
-            return f"fire_{act['glyph']}" if act.get("glyph") else "battle"
-        if op == "move" and act.get("new_unit"):
-            return f"move_{act['glyph']}"
-        return None
+    # Each frame of the bulletin: how long it stays on screen (seconds).
+    REEL_PACE = {"walk": 0.015, "march": 0.04, "capture": 0.35, "fall": 0.5,
+                 "nuke": 0.6, "chem": 0.4}
 
-    MAX_REEL_MOVES = 120
-
-    def _visible_acts(self, acts: list[dict]) -> list[dict]:
-        """Keep what this player could know: strikes and captures are news
-        for everybody; moves and battles only where our forces see, or when
-        they touch us. Each unit's march is cut to its visible steps, and a
-        very long reel keeps the battles but thins out the marching."""
+    def play_bulletin(self, reel: list[dict]) -> None:
+        """The war bulletin, Theatre-Europe style: the camera follows what the
+        others did since your last turn. Armies march as glowing marks, every
+        attack gets its own close-up (the attacker flashes, fire, the
+        explosion, the outcome), then a summary card. A key skips ahead."""
         g = self.g
-        vis = g.visible(self.viewer)
-        me = self.viewer
-        kept = []
-        for act in acts:
-            op = act["op"]
-            if op in ("nuke", "chem", "capture", "fall"):
-                kept.append(act)
-            elif op == "attack":
-                if act.get("defender") == me or act["cell"] in vis:
-                    kept.append(act)
-            elif act["cell"] in vis:
-                kept.append(act)
-        moves = [a for a in kept if a["op"] == "move"]
-        if len(moves) > self.MAX_REEL_MOVES:
-            step = len(moves) / self.MAX_REEL_MOVES
-            keep = {id(moves[int(k * step)]) for k in range(self.MAX_REEL_MOVES)}
-            kept = [a for a in kept if a["op"] != "move" or id(a) in keep]
-        return kept
-
-    def _replay_ai_turn(self) -> None:
-        """Show what the AI did this round, Theatre-Europe style: the camera
-        pans over every move and battle, moving armies show as glowing marks
-        and the battles ring. Any key skips straight to your turn."""
-        g = self.g
-        acts = g.replay
-        if not acts or self.session.online or g.over:
-            return
-        g.replay = []
-        acts = self._visible_acts(acts)
-        if not acts:
-            return
-        if g.events:  # the frames play the sounds; don't replay them after
+        if g.events:  # the frames play the sounds; don't ring the events after
             self.last_seq = max(self.last_seq, max(e.seq for e in g.events))
         saved_status = self.status
-        self.status = "⌛ Riepilogo del turno: premi un tasto per saltare"
         self.scr.nodelay(True)
-        last_unit: int | None = None
+        last_unit = None
+        skipped = False
         try:
-            for act in acts:
-                key = self.scr.getch()  # any character key skips the reel
-                if 0 <= key <= 255:
+            for act in reel:
+                if self._skip_key():
+                    skipped = True
                     break
+                op = act["op"]
                 cell = act["cell"]
                 self.reveal = {cell}
-                if act["op"] == "move":
+                self.fx = {}
+                if op == "move":
                     self.phantom = {cell: (act["glyph"], act["owner"])}
-                    same = act.get("unit") == last_unit
-                    act = {**act, "new_unit": not same}
-                    pause = 0.015 if same else 0.04   # walking vs new army
+                    new_unit = act.get("unit") != last_unit
                     last_unit = act.get("unit")
-                else:
-                    self.phantom = {}
-                    last_unit = None
-                    pause = 0.2 if act["op"] in ("capture", "fall", "nuke") else 0.12
-                self._focus(cell)
-                sound = self._replay_sound(act)
-                if sound:
-                    self.audio.sfx(sound, force=act["op"] not in ("attack", "move"))
+                    if new_unit:
+                        self.audio.sfx(f"move_{act['glyph']}")
+                    self.status = f"▶ Bollettino: {self._who(act)} in movimento"
+                    self._focus(cell)
+                    self.draw()
+                    time.sleep(self.REEL_PACE["walk" if not new_unit else "march"])
+                    continue
+                last_unit = None
+                self.phantom = {}
+                if op == "attack":
+                    if self._attack_scene(act):
+                        skipped = True
+                        break
+                    continue
+                self._centre(cell)
+                if op == "capture":
+                    lost = act.get("old") == self.viewer
+                    self.fx = {cell: ("⚑", self.owner_color(act.get("new")), curses.A_REVERSE)}
+                    self.status = (f"▶ {self._faction(act.get('new'))} conquista {act.get('name', '')}"
+                                   + (" — LA PERDIAMO!" if lost else ""))
+                    if lost:
+                        self.audio.sfx("loss", force=True)
+                elif op == "fall":
+                    self.status = f"▶ {self._faction(act.get('old'))} è caduta!"
+                    self.audio.sfx("fall", force=True)
+                elif op == "nuke":
+                    self.fx = {c: ("☢", "fallout", curses.A_REVERSE) for c in self.w.ring(cell, 1)}
+                    self.status = f"▶ ☢ Attacco nucleare su {act.get('name', '')}"
+                    self.audio.sfx("nuke", force=True)
+                elif op == "chem":
+                    self.fx = {c: ("☣", "green", 0) for c in self.w.ring(cell, 1)}
+                    self.status = f"▶ ☣ Armi chimiche su {act.get('name', '')}"
+                    self.audio.sfx("gas", force=True)
                 self.draw()
-                time.sleep(pause)
+                time.sleep(self.REEL_PACE.get(op, 0.2))
         finally:
             self.scr.nodelay(False)
             self.reveal.clear()
             self.phantom.clear()
+            self.fx.clear()
             self.status = saved_status
             self.follow_cursor()
+        if not g.over:
+            self.draw()
+            self.bulletin_card(reel, skipped)
+
+    def _skip_key(self) -> bool:
+        key = self.scr.getch()
+        return 0 <= key <= 255 or key in (curses.KEY_ENTER,)
+
+    def _faction(self, owner) -> str:
+        return self.g.faction_name(owner)
+
+    def _who(self, act: dict) -> str:
+        kind = act.get("glyph", "")
+        name = UNIT_TYPES[kind].name if kind in UNIT_TYPES else "unità"
+        return f"{name} ({self._faction(act.get('owner'))})"
+
+    def _centre(self, cell: int) -> None:
+        mw, mh = self.map_size()
+        cx, cy = self.w.xy(cell)
+        self.view_x = (cx - mw // 2) % self.w.width
+        self.view_y = max(0, min(cy - mh // 2, max(0, self.w.height - mh)))
+
+    def _attack_scene(self, act: dict) -> bool:
+        """Close-up of one attack. Returns True if the player skipped."""
+        me = self.viewer
+        target, frm = act["cell"], act.get("frm", act["cell"])
+        on_us = act.get("defender") == me
+        kind = act.get("glyph", "")
+        colour = self.owner_color(act.get("attacker"))
+        tgt = act.get("target") or ""
+        tname = UNIT_TYPES[tgt].name.lower() if tgt in UNIT_TYPES else "la città"
+        head = "⚔ ATTACCO CONTRO DI NOI" if on_us else "⚔ Scontro"
+        self.status = f"{head}: {self._who(act)} attacca {tname} ({self._faction(act.get('defender'))})"
+        self._centre(target)
+        self.reveal = {target, frm}
+        slow = 1.0 if on_us else 0.6
+        # 1. the attacker comes into the light
+        ring = [c for c in self.w.neighbors[target] if c != frm]
+        for k in range(4):
+            self.phantom = {frm: (kind, act.get("owner"))} if k % 2 == 0 else {}
+            self.fx = {target: ("◎", "alert", curses.A_REVERSE)}
+            if k % 2 == 0:   # a blinking ring draws the eye to the battle
+                self.fx.update({c: ("·", "alert", curses.A_BOLD) for c in ring})
+            self.draw()
+            time.sleep(0.12 * slow)
+            if self._skip_key():
+                return True
+        # 2. fire: the unit's own weapon, a flash travelling to the target
+        self.phantom = {frm: (kind, act.get("owner"))}
+        self.audio.sfx(f"fire_{kind}" if kind in UNIT_TYPES else "battle", force=on_us)
+        for ch, col in (("✶", "fallout"), ("✸", "alert"), ("✹", "orange"), ("✸", "fallout"), ("✶", "alert")):
+            self.fx = {target: (ch, col, curses.A_REVERSE)}
+            self.draw()
+            time.sleep(0.09 * slow)
+        # 3. the outcome
+        result = act.get("result")
+        if result == "lost":
+            self.phantom = {}
+            self.fx = {frm: ("✕", colour, curses.A_REVERSE)}
+            outcome = "l'attaccante è distrutto" + (" — la difesa tiene!" if on_us else "")
+        elif result == "captured":
+            self.fx = {target: ("⚑", colour, curses.A_REVERSE)}
+            outcome = "la città cade"
+        else:
+            self.fx = {target: ("✕", "alert", curses.A_REVERSE)}
+            outcome = "il bersaglio è distrutto" if tgt else "le difese della città crollano"
+            if on_us:
+                self.audio.sfx("loss")
+        self.status += f" → {outcome}"
+        self.draw()
+        time.sleep(0.45 * slow)
+        return self._skip_key()
+
+    def bulletin_card(self, reel: list[dict], skipped: bool) -> None:
+        """The summary at the end of the bulletin."""
+        me = self.viewer
+        attacks = [a for a in reel if a["op"] == "attack"]
+        on_us = [a for a in attacks if a.get("defender") == me]
+        held = sum(1 for a in on_us if a.get("result") == "lost")
+        lines = []
+        if on_us:
+            lines.append(f"⚔ Attacchi contro di noi: {len(on_us)} (respinti {held})")
+        if len(attacks) > len(on_us):
+            lines.append(f"⚔ Altri scontri avvistati: {len(attacks) - len(on_us)}")
+        for a in reel:
+            if a["op"] == "capture":
+                mark = "✖ PERSA" if a.get("old") == me else "•"
+                lines.append(f"{mark} {a.get('name', '?')}: conquistata da {self._faction(a.get('new'))}")
+            elif a["op"] == "fall":
+                lines.append(f"✖ {self._faction(a.get('old'))} è fuori dalla guerra")
+            elif a["op"] == "nuke":
+                lines.append(f"☢ Attacco nucleare: {a.get('name', '?')} ({self._faction(a.get('actor'))})")
+            elif a["op"] == "chem":
+                lines.append(f"☣ Armi chimiche: {a.get('name', '?')} ({self._faction(a.get('actor'))})")
+        if not lines:
+            if skipped:
+                return
+            lines.append("Nessuna novità di rilievo sul fronte.")
+        if len(lines) > 14:
+            lines = lines[:13] + [f"... e altri {len(lines) - 13} fatti"]
+        lines += ["", "B: rivedi il bollettino"]
+        self.dialog(f"BOLLETTINO DI GUERRA · {self.date_text()}", lines, "premi un tasto")
 
     def game_over(self) -> None:
         g = self.g
@@ -991,7 +1079,7 @@ class UI:
         self.quit = True
 
     # ----------------------------------------------------------- input
-    VIEW_KEYS = {ord("m"), ord("M"), ord("r"), ord("?"), ord("Q"), ord("T"), ord("n"), 9}
+    VIEW_KEYS = {ord("m"), ord("M"), ord("r"), ord("?"), ord("Q"), ord("T"), ord("n"), ord("B"), 9}
 
     def handle(self, key: int) -> None:
         g = self.g
@@ -1079,6 +1167,11 @@ class UI:
                 self.select_next()
         elif key == ord("O"):
             self.diplomacy_menu()
+        elif key == ord("B"):
+            if self.last_reel:
+                self.play_bulletin(self.last_reel)
+            else:
+                self.status = "Nessun bollettino da rivedere."
         elif key == ord("T"):
             if self.session.online:
                 self.chat()

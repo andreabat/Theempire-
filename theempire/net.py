@@ -124,6 +124,7 @@ class GameServer:
         if not self.slots:
             raise ValueError("serve almeno una fazione umana")
         self.started = False
+        self.reels: dict[int, list[dict]] = {}   # bulletins waiting for their player
         self.turn_key: tuple[int, int] | None = None
         self.turn_started = time.time()
         self.stopping = threading.Event()
@@ -306,11 +307,20 @@ class GameServer:
         if key != self.turn_key:
             self.turn_key = key
             self.turn_started = time.time()
+            f = self.game.current
+            if self.started and f in self.slots and not self.game.over:
+                # the war bulletin: what happened since this player's last turn
+                self.reels[f] = self.reels.get(f, []) + commands.newsreel(self.game, f)
         lobby = self.lobby()
         for slot in self.slots.values():
             if slot.conn is not None:
-                slot.conn.send({"type": "state", "state": commands.view_for(self.game, slot.faction),
-                                "lobby": lobby, "started": self.started, "deadline": self._deadline()})
+                msg = {"type": "state", "state": commands.view_for(self.game, slot.faction),
+                       "lobby": lobby, "started": self.started, "deadline": self._deadline()}
+                reel = self.reels.get(slot.faction)
+                if reel and self.game.current == slot.faction:
+                    msg["reel"] = reel
+                if slot.conn.send(msg) and reel and "reel" in msg:
+                    self.reels.pop(slot.faction, None)
 
     def _timer(self) -> None:
         while not self.stopping.wait(1.0):
@@ -363,6 +373,7 @@ class RemoteSession:
         self.deadline_at = time.time()
         self.closed = False
         self.error = ""
+        self.reel: list[dict] = []
         self._pending: dict | None = None
         self._results: dict[int, str] = {}
         self._next = 0
@@ -425,11 +436,18 @@ class RemoteSession:
         if msg is None:
             return False
         self.game = Game.from_dict(msg["state"])
+        if msg.get("reel"):
+            self.reel = msg["reel"]
         self.lobby = msg.get("lobby", self.lobby)
         self.started = bool(msg.get("started"))
         self.deadline = msg.get("deadline")
         self.deadline_at = time.time()
         return True
+
+    def take_reel(self, f: int) -> list[dict]:
+        """The bulletin the server sent with this turn (once)."""
+        reel, self.reel = self.reel, []
+        return reel
 
     def seconds_left(self) -> int | None:
         if self.deadline is None:
@@ -494,6 +512,9 @@ class LocalSession:
 
     def poll(self) -> bool:
         return False
+
+    def take_reel(self, f: int) -> list[dict]:
+        return commands.newsreel(self.game, f)
 
     def start_clock(self) -> None:
         """A human turn begins: the turn timer, if any, starts counting."""

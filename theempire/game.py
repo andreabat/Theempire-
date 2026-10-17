@@ -148,8 +148,9 @@ class Game:
         self.units: dict[int, Unit] = {}
         self.at: dict[int, list[int]] = {}
         self.next_id = 1
-        self.replay: list[dict] = []   # AI actions to show as the newsreel
-        self.recording = False         # set while the AI plays its factions
+        self.reel: list[dict] = []     # every action, for the war bulletin (not saved)
+        self.reel_seq = 0
+        self.reel_mark: dict[int, int] = {}  # faction -> last action it has been shown
         self._vis: dict[int, set[int]] = {}
         self._det: dict[int, set[int]] = {}
         if _empty:
@@ -220,11 +221,22 @@ class Game:
         return "A" if c.size >= 2 else "I"
 
     # ---------------------------------------------------------------- queries
-    def record(self, op: str, cell: int, **extra) -> None:
-        """Collect one AI action for the end-of-turn newsreel: only active
-        while the AI plays its factions (see commands.advance)."""
-        if self.recording:
-            self.replay.append({"op": op, "cell": cell, **extra})
+    def record(self, op: str, cell: int, actor: int | None, **extra) -> dict:
+        """Note one action for the war bulletin, whoever made it (AI or
+        another player): each faction is later shown what happened since
+        its own last turn (see take_reel)."""
+        self.reel_seq += 1
+        self.reel.append({"op": op, "cell": cell, "actor": actor, "seq": self.reel_seq,
+                          "turn": self.turn, **extra})
+        if len(self.reel) > 20000:
+            del self.reel[:5000]
+        return self.reel[-1]
+
+    def take_reel(self, f: int) -> list[dict]:
+        """The actions of others since faction ``f`` last saw the bulletin."""
+        mark = self.reel_mark.get(f, 0)
+        self.reel_mark[f] = self.reel_seq
+        return [a for a in self.reel if a["seq"] > mark and a["actor"] != f]
 
     def log(self, text: str, audience: list[int] | None = None, level: str = "info",
             sound: str = "", actor: int | None = None, kind: str = "") -> None:
@@ -439,7 +451,7 @@ class Game:
         self._dirty()
         self._wake_sentries(u)
         if u.id in self.units:
-            self.record("move", cell, unit=u.id, glyph=u.kind, owner=u.owner)
+            self.record("move", cell, u.owner, unit=u.id, glyph=u.kind, owner=u.owner)
         return "moved" if u.id in self.units else "crashed"
 
     def _spend(self, u: Unit) -> None:
@@ -646,11 +658,19 @@ class Game:
         return int(SUPPLY_FACTOR * base * fac.industry) + 20
 
     def attack(self, u: Unit, cell: int) -> str:
+        """Fight at ``cell``; the bulletin keeps who attacked from where,
+        what defended and how it ended, to replay the battle."""
         city = self.city(cell)
         d = self.defender_at(u, cell)
         defender = d.owner if d is not None else (city.owner if city else None)
-        self.record("attack", cell, glyph=u.kind, owner=u.owner,
-                    attacker=u.owner, defender=defender)
+        act = self.record("attack", cell, u.owner, glyph=u.kind, owner=u.owner,
+                          attacker=u.owner, defender=defender, frm=u.cell,
+                          target=d.kind if d is not None else "")
+        result = self._attack(u, cell, city, d)
+        act["result"] = result
+        return result
+
+    def _attack(self, u: Unit, cell: int, city: City | None, d: Unit | None) -> str:
         av = self.attack_value(u, cell, d)
         self._spend(u)
         if u.type.domain == "land" and u.carrier is not None:
@@ -717,9 +737,9 @@ class Game:
         self.log(f"{self.factions[u.owner].name} conquista {tag}{city.name} "
                  f"(prima: {self.faction_name(old)}).", audience,
                  "alert" if city.capital or old is not None else "info", "capture", u.owner)
-        self.record("capture", city.cell, old=old, new=u.owner)
+        self.record("capture", city.cell, u.owner, old=old, new=u.owner, name=city.name)
         if old is not None and not self.cities_of(old):
-            self.record("fall", city.cell)
+            self.record("fall", city.cell, u.owner, old=old)
             self.eliminate(old)
         self._dirty()
 
@@ -777,7 +797,7 @@ class Game:
                 if c == cell and hit.size > 1:
                     hit.size -= 1
         self.doomsday -= 3 if city else 2
-        self.record("nuke", cell)
+        self.record("nuke", cell, f, name=place)
         self.log(f"☢ {fac.name} colpisce {place} con un'arma nucleare: {killed} unità "
                  f"annientate. Orologio dell'Apocalisse: {max(0, self.doomsday)} min.", None, "wmd",
                  "nuke", f)
@@ -818,9 +838,9 @@ class Game:
             if hit is not None:
                 hit.militia //= 2
         self.doomsday -= 1
-        self.record("chem", cell)
         city = self.city(cell)
         place = city.name if city else _coords(self.world, cell)
+        self.record("chem", cell, f, name=place)
         self.log(f"☣ {fac.name} usa armi chimiche su {place}: {hurt} unità colpite. "
                  f"Orologio dell'Apocalisse: {max(0, self.doomsday)} min.", None, "wmd",
                  "gas", f)

@@ -113,3 +113,27 @@ def test_truce_blocks_attacks():
     g.turn += 20
     g._new_round()
     assert g.truce_left(0, 1) == 0 and g.classify(a, n) == "attack"
+
+
+def test_online_players_get_their_bulletin(tmp_path):
+    game = Game("ww3", humans=("west", "east"), seed=5, world=load_world())
+    srv = GameServer(game, "127.0.0.1", 0, log=lambda line: None)
+    srv.listen()
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    try:
+        a = RemoteSession("127.0.0.1", srv.port, "anna", "west", tokens_file=tmp_path / "a.json")
+        b = RemoteSession("127.0.0.1", srv.port, "bruno", "east", tokens_file=tmp_path / "b.json")
+        assert wait_for(a, lambda g: True)
+        a.take_reel(0)
+        assert a.do(0, {"op": "end_turn"}) == "ok"
+        assert wait_for(b, lambda g: g.current == 1)
+        assert b.do(1, {"op": "end_turn"}) == "ok"      # then the AI (China) plays
+        assert wait_for(a, lambda g: g.current == 0 and g.turn == 2)
+        reel = a.take_reel(0)
+        assert reel, "west receives what the others did"
+        assert all(x["actor"] != 0 for x in reel)
+        assert a.take_reel(0) == []                      # only once
+        a.close()
+        b.close()
+    finally:
+        srv.stop()

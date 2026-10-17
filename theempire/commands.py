@@ -17,19 +17,12 @@ ORDERS = (None, "sentry", "fortify", "auto", "goto")
 
 
 def advance(game: Game, progress: Callable[[str], None] | None = None) -> None:
-    """Play AI factions until a human is to move, then prepare that turn.
-    Every AI action is recorded in ``game.replay`` so the interface can show
-    the turn as an animated newsreel afterwards."""
-    game.replay = []
-    game.recording = True
-    try:
-        while not game.over and not game.faction.human:
-            if progress:
-                progress(game.faction.name)
-            AI(game, game.current).play()
-            game.end_turn()
-    finally:
-        game.recording = False
+    """Play AI factions until a human is to move, then prepare that turn."""
+    while not game.over and not game.faction.human:
+        if progress:
+            progress(game.faction.name)
+        AI(game, game.current).play()
+        game.end_turn()
     if not game.over:
         prepare_human_turn(game)
 
@@ -178,6 +171,33 @@ def apply(game: Game, f: int, cmd: dict, name: str = "",
             return "illegal"
         return game.answer_truce(f, target, bool(cmd.get("accept")))
     return "unknown"
+
+
+MAX_REEL_MOVES = 120
+
+
+def newsreel(game: Game, f: int) -> list[dict]:
+    """The war bulletin for faction ``f``: what the others did since its
+    last turn, as far as it may know. Strikes, captures and falls are news
+    for everybody; moves and battles only where its forces see, or when
+    they hit it. A very long reel keeps every battle but thins the marches."""
+    vis = game.visible(f)
+    kept = []
+    for act in game.take_reel(f):
+        op = act["op"]
+        if op in ("nuke", "chem", "capture", "fall"):
+            kept.append(act)
+        elif op == "attack":
+            if act.get("defender") == f or act["cell"] in vis:
+                kept.append(act)
+        elif act["cell"] in vis:
+            kept.append(act)
+    moves = [a for a in kept if a["op"] == "move"]
+    if len(moves) > MAX_REEL_MOVES:
+        step = len(moves) / MAX_REEL_MOVES
+        keep = {moves[int(k * step)]["seq"] for k in range(MAX_REEL_MOVES)}
+        kept = [a for a in kept if a["op"] != "move" or a["seq"] in keep]
+    return kept
 
 
 def printable(text: str) -> str:

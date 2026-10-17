@@ -74,14 +74,23 @@ di secondi in `~/.theempire/sounds`.
 
   Le battaglie che ti riguardano suonano con le armi di chi attacca: senti
   arrivare il siluro del sottomarino nemico.
-- **Il turno delle avversarie si guarda.** Quando finisci il tuo turno,
-  la telecamera passa sopra tutto quello che le altre fazioni hanno fatto,
-  come nel Theatre Europe: le armate che avanzano, le battaglie con i loro
-  suoni, le città conquistate e perdute, le atomiche e le armi chimiche.
-  Un tasto qualunque salta subito al tuo turno. Il riepilogo rispetta la
-  nebbia di guerra: mostra solo ciò che le tue forze vedono, gli attacchi
-  contro di te, le città che cambiano padrone e le armi di distruzione di
-  massa. Le marce troppo lunghe vengono sfoltite.
+- **Bollettino di guerra.** All'inizio di ogni tuo turno la telecamera
+  ripercorre quello che gli altri hanno fatto dal tuo turno precedente,
+  come nel Theatre Europe. Vale per le fazioni dell'IA e per gli altri
+  giocatori, in hot-seat e online:
+  - le armate in marcia, con la voce di ogni unità;
+  - **ogni attacco in primo piano**: la mappa si centra sullo scontro, un
+    anello lampeggia intorno al bersaglio, l'attaccante si illumina, poi
+    fuoco ed esplosione con il suono della sua arma e infine l'esito
+    (bersaglio distrutto, attaccante respinto, città caduta). Gli attacchi
+    contro di te durano di più e sono segnalati come «ATTACCO CONTRO DI NOI»;
+  - le città conquistate e perdute, le atomiche e le armi chimiche.
+
+  Alla fine compare la scheda riassuntiva: attacchi subiti e respinti,
+  scontri avvistati, città perse e conquistate, armi di distruzione di massa.
+  Un tasto qualunque salta avanti, `B` rivede l'ultimo bollettino. Il
+  bollettino rispetta la nebbia di guerra (online la applica il server),
+  sfoltisce le marce troppo lunghe e non consuma il tempo del turno.
 - Senti solo gli eventi che conosci. Le battaglie lontane tra altri e le
   esplosioni nella nebbia di guerra restano mute. Le atomiche si sentono in
   tutto il mondo.
@@ -335,6 +344,7 @@ dell'altra né colpirla con armi chimiche o nucleari (nel pannello compare
 | `M` | audio: scegli musica ed effetti |
 | `N`, `C` | attacco nucleare / chimico sulla casella del cursore |
 | `O` | diplomazia: proponi una tregua o rispondi a una proposta |
+| `B` | rivedi il bollettino di guerra dell'ultimo turno |
 | `T` | chat (partite online) |
 | `E` | fine turno (segue il riepilogo animato delle mosse avversarie) |
 | `S`, `Q`, `?` | salva, esci (salvando), aiuto |
