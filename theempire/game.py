@@ -16,6 +16,7 @@ from dataclasses import asdict, dataclass, field
 from functools import lru_cache
 from pathlib import Path
 
+from theempire import cards
 from theempire.scenarios import SCENARIOS, Scenario
 from theempire.units import (CHEMICAL, UNIT_TYPES, WARHEAD, UnitType,
                              production_cost)
@@ -111,6 +112,9 @@ class Faction:
     start_cities: int = 0
     auto_production: bool = False       # let the AI pick what human cities build
     directive: str = ""                 # production directive ("" = by hand), see DIRECTIVES
+    cards: list[str] = field(default_factory=list)     # the hand (see cards.py)
+    effects: dict = field(default_factory=dict)        # card effects: name -> last turn
+    conquests: int = 0                  # cities taken this turn (earns a card)
 
 
 @dataclass
@@ -148,6 +152,8 @@ class Game:
         self.units: dict[int, Unit] = {}
         self.at: dict[int, list[int]] = {}
         self.next_id = 1
+        self.deck: list[str] = []      # the card deck (top = end) and the discards
+        self.discard: list[str] = []
         self.reel: list[dict] = []     # every action, for the war bulletin (not saved)
         self.reel_seq = 0
         self.reel_mark: dict[int, int] = {}  # faction -> last action it has been shown
@@ -179,6 +185,7 @@ class Game:
         for f in self.factions:
             for c in self.cities_of(f.idx):
                 c.production = self._default_production(c)
+        self.deck = cards.new_deck(self.rng)
         self.log(f"{self.scenario.name}: la guerra è cominciata. Orologio dell'Apocalisse "
                  f"a {self.doomsday} minuti dalla mezzanotte.", level="alert")
         self.begin_turn()
@@ -275,6 +282,9 @@ class Game:
             for u in self.units.values():
                 if u.owner == f and u.carrier is None:
                     vis.update(w.ring(u.cell, u.type.vision))
+            spied = cards.spied(self, f)
+            if spied is not None:   # the spies report every enemy position
+                vis.update(u.cell for u in self.units.values() if u.owner == spied)
             self._vis[f] = vis
         return vis
 
@@ -724,6 +734,8 @@ class Game:
 
     def capture(self, city: City, u: Unit) -> None:
         old = city.owner
+        if u.owner == self.current:
+            self.factions[u.owner].conquests += 1   # earns a card at the end of the turn
         city.owner = u.owner
         city.progress = 0.0
         city.unrest = UNREST_TURNS
@@ -773,7 +785,10 @@ class Game:
             fac.used_wmd -= 1
             return "truce"
         place = city.name if city else _coords(w, cell)
-        if victim is not None and victim != f and self.rng.random() < self.factions[victim].abm:
+        abm = 0.0
+        if victim is not None:
+            abm = self.factions[victim].abm + (0.5 if cards.active(self, victim, "shield") else 0.0)
+        if victim is not None and victim != f and self.rng.random() < abm:
             self.doomsday -= 1
             self.log(f"☢ {fac.name} lancia un missile nucleare su {place}: intercettato "
                      f"dalla difesa antimissile di {self.factions[victim].name}!", None, "wmd",
@@ -929,6 +944,8 @@ class Game:
             rate *= DIFFICULTY.get(self.difficulty, 1.0)
         if c.unrest:
             rate *= 0.5
+        if cards.active(self, c.owner, "plan"):
+            rate *= 1.5
         return rate
 
     def can_build(self, c: City, key: str) -> bool:
@@ -975,6 +992,8 @@ class Game:
     def begin_turn(self) -> None:
         f = self.current
         fac = self.factions[f]
+        if self.turn % cards.BRIEFING_EVERY == 0:
+            cards.draw(self, f, "Rapporto dei servizi segreti")
         room = self.supply_limit(f) - len(self.units_of(f))
         for c in self.cities:
             if c.owner != f:
@@ -1023,6 +1042,7 @@ class Game:
         """Finish the current faction's turn and start the next living one."""
         if self.over:
             return
+        cards.end_of_turn(self, self.current)
         self._check_victory()
         n = len(self.factions)
         for _ in range(n):
@@ -1106,6 +1126,7 @@ class Game:
             "next_id": self.next_id,
             "rng": [state[0], list(state[1]), state[2]],
             "event_seq": self.event_seq,
+            "deck": self.deck, "discard": self.discard,
             "factions": [asdict(f) for f in self.factions],
             "cities": [asdict(c) for c in self.cities],
             "units": [asdict(u) for u in self.units.values()],
@@ -1136,6 +1157,10 @@ class Game:
                 g.at.setdefault(u.cell, []).append(u.id)
         g.events = [Event(**e) for e in d["events"]]
         g.event_seq = d.get("event_seq", len(g.events))
+        g.deck = list(d.get("deck", []))
+        g.discard = list(d.get("discard", []))
+        if not g.deck and not g.discard and not any(f.cards for f in g.factions):
+            g.deck = cards.new_deck(g.rng)   # a save from before the cards
         return g
 
     def save_file(self, path: Path) -> None:

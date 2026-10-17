@@ -22,7 +22,7 @@ from array import array
 from pathlib import Path
 
 RATE = 22050
-VERSION = "v2"  # bump whenever a sound changes, so caches are rebuilt
+VERSION = "v3"  # bump whenever a sound changes, so caches are rebuilt
 CACHE = Path.home() / ".theempire" / "sounds" / VERSION
 SETTINGS = Path.home() / ".theempire" / "settings.json"
 LOOPING = {"menu", "war", "tension", "cossack", "anthem"}
@@ -272,6 +272,16 @@ def _unit_sounds() -> dict[str, Track]:
 
 def _sfx() -> dict[str, Track]:
     out: dict[str, Track] = _unit_sounds()
+    t = Track(0.9)  # a card snapped onto the table, then a sting
+    t.add(0, noise(0.06, vol=0.6, cutoff=0.9, seed=151, attack=0.001, decay=0.015, sustain=0.0))
+    t.add(0.08, noise(0.05, vol=0.4, cutoff=0.9, seed=152, attack=0.001, decay=0.012, sustain=0.0))
+    sequence(t, [("R", 0.5), ("E5", 0.5), ("A5", 1.5)], 200, square, vol=0.2, duty=0.25)
+    out["card"] = t
+    t = Track(1.6)  # the spies' telegraph
+    for k, length in enumerate((0.06, 0.06, 0.18, 0.06, 0.18, 0.18, 0.06)):
+        at = sum((0.06, 0.06, 0.18, 0.06, 0.18, 0.18, 0.06)[:k]) + 0.07 * k
+        t.add(at, square(880, length, vol=0.18, duty=0.5, attack=0.003, release=0.01))
+    out["spy"] = t
     t = Track(0.7)  # cannon fire and explosions
     t.add(0, sine_sweep(90, 30, 0.4, vol=0.9, release=0.2))
     for k, at in enumerate((0.0, 0.12, 0.3)):
@@ -497,7 +507,7 @@ def generate(cache: Path = CACHE) -> None:
 
 UNIT_KINDS = "IAFBDSTRC"
 _SFX_NAMES = ("battle", "capture", "loss", "fall", "nuke", "intercept", "gas", "crash",
-              "truce", "turn", "alert") + tuple(
+              "truce", "turn", "alert", "card", "spy") + tuple(
     f"{what}_{k}" for k in UNIT_KINDS for what in ("move", "fire"))
 _MUSIC_NAMES = ("menu", "war", "tension", "victory", "defeat", "midnight",
                  "cossack", "anthem")

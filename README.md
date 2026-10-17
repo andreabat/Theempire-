@@ -323,6 +323,44 @@ Guerra Fredda) e sta in alto a destra, insieme al livello DEFCON.
   l'orologio recupera un minuto.
 - **A mezzanotte la partita finisce e perdono tutti.**
 
+### Carte (alla Futurisiko)
+Oltre a muovere le unità puoi giocare **carte segrete** che cambiano la
+guerra. Si guadagnano in due modi:
+- **conquistando**: come in Risiko, a fine turno peschi una carta se nel
+  turno hai preso almeno una città, con le armi, una rivolta o un colpo di
+  stato;
+- **dai servizi segreti**: tutti ricevono una carta ogni 6 turni.
+
+Si tengono al massimo 5 carte. Il tasto `K` mostra la tua mano e gioca una
+carta; nel pannello vedi quante ne hai (♠) e quante ne ha ogni rivale.
+
+| Carta | Effetto | Riesce |
+|---|---|---|
+| Piano quinquennale (×3) | +50% di produzione in tutte le città per 3 turni | sempre |
+| Mobilitazione generale (×2) | ogni città guadagna subito un turno di produzione | sempre |
+| Rinforzi (×3) | 2 fanterie e 1 corazzato in una tua città, oltre il limite logistico | sempre |
+| Diserzione (×3) | un'unità nemica che vedi, fuori dalle città, passa con te | 65% |
+| Commando (×2) | elimina un'unità nemica accanto alle tue forze | 70% |
+| Rivolta (×2) | una città nemica piccola (non capitale) insorge: neutrale, o tua se hai truppe di terra accanto (e la guarnigione passa con te) | 60% |
+| Colpo di stato (×1) | un paese neutrale con al massimo 4 città, dove hai un'unità entro 3 caselle, passa tutto con te | 50% |
+| Spionaggio (×3) | vedi tutte le unità di una fazione fino al tuo prossimo turno, più un rapporto su città, eserciti, testate, carte e produzione | sempre |
+| Sabotaggio (×2) | in una città nemica la produzione riparte da zero, con 3 turni di disordini | 75% |
+| Scudo antimissile (×1) | +50% di intercettazione dei missili per 6 turni | sempre |
+| Distensione (×2) | vertice di pace: l'Orologio dell'Apocalisse torna indietro di 3 minuti | sempre |
+
+- Una carta che fallisce è comunque spesa, e la vittima viene a sapere del
+  tentativo.
+- Le carte giocate contro di te compaiono nel bollettino di guerra (sezione
+  «Carte e colpi di mano»). Rivolte e colpi di stato sono notizie pubbliche.
+- **Anche l'IA gioca le carte**: usa subito quelle economiche, tiene scudo e
+  distensione per quando l'orologio si avvicina alla mezzanotte, e usa
+  diserzioni, commando e sabotaggi dove fanno più male.
+- **Online le carte sono segrete**: il server non manda a nessuno la mano
+  degli altri né l'ordine del mazzo, solo quante carte ha ciascuno.
+- Strategia: tieni una Distensione per i momenti di crisi nucleare e uno
+  Spionaggio prima di un'offensiva. Una Diserzione su una portaerei o su un
+  trasporto carico vale una battaglia vinta.
+
 ### Diplomazia: le tregue
 Con `O` proponi una **tregua di 15 turni** a un'altra fazione. Durante la
 tregua le due fazioni non possono attaccarsi, entrare nelle caselle
@@ -362,6 +400,7 @@ dell'altra né colpirla con armi chimiche o nucleari (nel pannello compare
 | `M` | audio: scegli musica ed effetti |
 | `N`, `C` | attacco nucleare / chimico sulla casella del cursore |
 | `O` | diplomazia: proponi una tregua o rispondi a una proposta |
+| `K` | le tue carte: leggile e giocane una |
 | `B` | archivio dei bollettini di guerra: leggi, sfoglia i turni, `R` per rivedere l'animazione |
 | `T` | chat (partite online) |
 | `E` | fine turno (segue il riepilogo animato delle mosse avversarie) |
@@ -464,7 +503,8 @@ theempire/
   units.py      tipi di unità e costi
   scenarios.py  fazioni, paesi, testate, dottrine
   game.py       regole: movimento, combattimento, produzione, armi DM, vittoria, salvataggi
-  ai.py         avversari (campi di distanza condivisi, sbarchi, raid aerei, escalation, tregue)
+  ai.py         avversari (campi di distanza condivisi, sbarchi, raid aerei, escalation, tregue, carte)
+  cards.py      le carte alla Futurisiko: mazzo, pesca, effetti
   commands.py   i comandi del giocatore, validati: unica via per cambiare la partita
   net.py        multiplayer: server autoritativo, client, protocollo JSON su TCP
   ui.py         interfaccia curses: mappa Braille, pannello, registro, lobby, menu

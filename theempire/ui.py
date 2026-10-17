@@ -9,6 +9,7 @@ import time
 from collections import Counter, deque
 from pathlib import Path
 
+from theempire import cards
 from theempire.audio import MUSIC_KEYS, MUSIC_NAMES, Audio
 from theempire.commands import describe
 from theempire.game import CHEM_RANGE, DIRECTIVES, Unit
@@ -64,6 +65,7 @@ s                 sentinella (si sveglia se arriva il nemico)
 f                 fortifica (+25% difesa, resta di guardia)
 A                 automatica: l'unità viene guidata dall'IA
 O                 diplomazia: proponi o accetta una tregua
+K                 carte: diserzione, rivolta, spionaggio, piano quinquennale...
 B                 bollettini di guerra: leggili, sfoglia i turni, R per rivederli
 T                 chat con gli altri giocatori (partite online)
 P                 direttiva di produzione: aria, terra, mare, sbarchi, difesa...
@@ -102,6 +104,7 @@ class UI:
         self.phantom: dict[int, tuple[str, int]] = {}  # newsreel: (glyph, owner)
         self.fx: dict[int, tuple[str, str, int]] = {}  # newsreel effects: (char, colour, attr)
         self.last_reel: list[dict] = []
+        self.pending_card: str | None = None
         self.bulletins: list[tuple[str, list[str], list[dict]]] = []  # archive: title, text, reel
         self.ticker: list[str] | None = None   # the bulletin's running chronicle
         self.active_id: int | None = None
@@ -421,6 +424,18 @@ class UI:
         row += 1
         self.put(row, x, f"Unità {len(units):3d}/{g.supply_limit(self.viewer)}  ☢ {fac.warheads:2d}  ☣ {fac.chemicals}")
         row += 1
+        effects = []
+        if cards.active(g, self.viewer, "plan"):
+            effects.append("piano")
+        if cards.active(g, self.viewer, "shield"):
+            effects.append("scudo")
+        spied = cards.spied(g, self.viewer)
+        if spied is not None:
+            effects.append(f"spie su {g.factions[spied].name.split()[-1]}")
+        hand = f"Carte ♠ {len(fac.cards)}/{cards.HAND_LIMIT} (K)"
+        self.put(row, x, (hand + ("  " + ", ".join(effects) if effects else ""))[:SIDEBAR - 1],
+                 self.color("cyan") if fac.cards else self.color("dim"))
+        row += 1
         if fac.directive:
             label = DIRECTIVES[fac.directive].split(" (")[0]
             self.put(row, x, f"Direttiva: {label} (P)"[:SIDEBAR - 1], self.color("dim"))
@@ -430,7 +445,8 @@ class UI:
         for f in others:
             state = f"{len(g.cities_of(f.idx)):3d} città" if f.alive else "  sconfitto"
             mark = "≈" if g.truce_left(self.viewer, f.idx) else " "
-            self.put(row, x, f"{f.name[:21]:21s}{mark}{state}", self.color(f.color))
+            hand = f" ♠{len(f.cards)}" if f.alive and f.cards else ""
+            self.put(row, x, f"{f.name[:21]:21s}{mark}{state}{hand}"[:SIDEBAR - 1], self.color(f.color))
             row += 1
             if f.idx in names:
                 self.put(row, x, f"  giocatore: {names[f.idx]}"[:SIDEBAR - 1], self.color("dim"))
@@ -551,6 +567,8 @@ class UI:
             "goto": "VAI A: sposta il cursore e premi Invio (Esc annulla)",
             "nuke": "☢ BERSAGLIO NUCLEARE: sposta il cursore e premi Invio (Esc annulla)",
             "chem": "☣ BERSAGLIO CHIMICO: sposta il cursore e premi Invio (Esc annulla)",
+            "card": f"♠ {cards.CARDS[self.pending_card].name if self.pending_card else ''}: "
+                    "scegli il bersaglio e premi Invio (Esc annulla)",
             "overview": "PANORAMICA",
         }[self.mode]
         text = self.status or hint
@@ -671,6 +689,59 @@ class UI:
         label = DIRECTIVES[name].split(" (")[0]
         self.status = f"Direttiva: {label}. Città riconvertite: {changed}." if name else \
             "Produzione manuale: ogni città continua con quello che sta costruendo."
+
+    def cards_menu(self) -> None:
+        """The hand: read your cards and play one."""
+        g = self.g
+        hand = g.factions[self.viewer].cards
+        if not hand:
+            self.dialog("Carte", ["Non hai carte.", "",
+                                  "Ne peschi una a fine turno se nel turno hai conquistato una città,",
+                                  f"e una ogni {cards.BRIEFING_EVERY} turni dai servizi segreti "
+                                  f"(massimo {cards.HAND_LIMIT} in mano)."])
+            return
+        letters = "abcde"
+        lines = []
+        for k, key in enumerate(hand):
+            c = cards.CARDS[key]
+            odds = f" · riesce nel {int(c.chance * 100)}% dei casi" if c.chance < 1 else ""
+            lines += [f"{letters[k]}  ♠ {c.name}{odds}", f"     {c.text}"]
+        playing = self.my_turn()
+        footer = "lettera per giocarla, Esc per chiudere" if playing else "le giochi nel tuo turno"
+        key = self.dialog(f"Le tue carte ({len(hand)}/{cards.HAND_LIMIT})", lines, footer)
+        if not playing or key < 0 or key > 255 or chr(key) not in letters[:len(hand)]:
+            return
+        card = cards.CARDS[hand[letters.index(chr(key))]]
+        if card.target == "none":
+            self.play_card(card.key)
+        elif card.target == "faction":
+            rivals = [f for f in g.factions if f.alive and f.idx != self.viewer]
+            choice = self.dialog(f"♠ {card.name}: su quale fazione?",
+                                 [f"{k + 1}  {f.name}" for k, f in enumerate(rivals)], "numero, Esc")
+            if ord("1") <= choice < ord("1") + len(rivals):
+                self.play_card(card.key, target=rivals[choice - ord("1")].idx)
+        else:
+            self.pending_card = card.key
+            self.mode = "card"
+            hint = {"own_city": "una tua città", "enemy_unit": "un'unità nemica fuori dalle città",
+                    "enemy_city": "una città nemica", "neutral_city": "una città neutrale"}[card.target]
+            self.status = f"♠ {card.name}: porta il cursore su {hint} e premi Invio."
+
+    def play_card(self, key: str, cell: int | None = None, target: int | None = None) -> None:
+        result = self.do({"op": "card", "card": key, "cell": cell, "target": target})
+        name = cards.CARDS[key].name
+        if result == "ok":
+            self.audio.sfx("spy" if key == "spy" else "card")
+            self.status = f"♠ {name}: fatto!"
+            if key == "spy":
+                report = [e.text.lstrip("◈ ") for e in self.g.events if e.text.startswith("◈")][-6:]
+                self.dialog("◈ RAPPORTO DEI SERVIZI SEGRETI", report)
+        elif result == "failed":
+            self.audio.sfx("loss")
+            self.status = f"♠ {name}: il tentativo è fallito, la carta è persa."
+        else:
+            self.status = describe(result) or f"♠ {name}: non si può giocare così."
+        self.last_seq = max([self.last_seq] + [e.seq for e in self.g.events])
 
     def diplomacy_menu(self) -> None:
         g = self.g
@@ -946,6 +1017,10 @@ class UI:
                     self.fx = {c: ("☢", "fallout", curses.A_REVERSE) for c in self.w.ring(cell, 1)}
                     self.status = f"▶ ☢ Attacco nucleare su {act.get('name', '')}"
                     self.audio.sfx("nuke", force=True)
+                elif op == "card":
+                    self.fx = {cell: ("♠", "magenta", curses.A_REVERSE)}
+                    self.status = f"▶ {self.scene_line(act)}"
+                    self.audio.sfx("card", force=act.get("victim") == self.viewer)
                 elif op == "chem":
                     self.fx = {c: ("☣", "green", 0) for c in self.w.ring(cell, 1)}
                     self.status = f"▶ ☣ Armi chimiche su {act.get('name', '')}"
@@ -1078,6 +1153,9 @@ class UI:
             return f"☢ {self._faction(act.get('actor'))} colpisce {act.get('name', '?')} con un'arma nucleare"
         if op == "chem":
             return f"☣ {self._faction(act.get('actor'))} usa armi chimiche su {act.get('name', '?')}"
+        if op == "card":
+            us = " — CONTRO DI NOI" if act.get("victim") == me else ""
+            return f"♠ {self._faction(act.get('actor'))} gioca «{act.get('name', '?')}»: {act.get('text', '')}{us}"
         return ""
 
     def bulletin_text(self, reel: list[dict]) -> list[str]:
@@ -1089,6 +1167,7 @@ class UI:
         others = [a for a in attacks if a.get("defender") != me]
         cities = [a for a in reel if a["op"] in ("capture", "fall")]
         wmd = [a for a in reel if a["op"] in ("nuke", "chem")]
+        played = [a for a in reel if a["op"] == "card"]
         moves: dict[int, dict] = {}
         for a in reel:
             if a["op"] == "move":
@@ -1096,6 +1175,8 @@ class UI:
         out: list[str] = []
         if wmd:
             out += ["ARMI DI DISTRUZIONE DI MASSA"] + [self.scene_line(a) for a in wmd] + [""]
+        if played:
+            out += ["CARTE E COLPI DI MANO"] + [self.scene_line(a) for a in played] + [""]
         if on_us:
             held = sum(1 for a in on_us if a.get("result") == "lost")
             out.append(f"IL NOSTRO FRONTE · {len(on_us)} attacchi subiti, {held} respinti")
@@ -1206,7 +1287,8 @@ class UI:
         self.quit = True
 
     # ----------------------------------------------------------- input
-    VIEW_KEYS = {ord("m"), ord("M"), ord("r"), ord("?"), ord("Q"), ord("T"), ord("n"), ord("B"), 9}
+    VIEW_KEYS = {ord("m"), ord("M"), ord("r"), ord("?"), ord("Q"), ord("T"), ord("n"), ord("B"),
+                 ord("K"), 9}
 
     def handle(self, key: int) -> None:
         g = self.g
@@ -1226,7 +1308,7 @@ class UI:
                 self.mode = "normal"
                 self.center()
             return
-        if self.mode in ("goto", "nuke", "chem"):
+        if self.mode in ("goto", "nuke", "chem", "card"):
             if key in CURSOR_KEYS:
                 self.move_cursor(*CURSOR_KEYS[key])
             elif key in DIRECTIONS:
@@ -1294,6 +1376,8 @@ class UI:
                 self.select_next()
         elif key == ord("O"):
             self.diplomacy_menu()
+        elif key == ord("K"):
+            self.cards_menu()
         elif key == ord("B"):
             self.read_bulletins(len(self.bulletins) - 1 if self.bulletins else None)
         elif key == ord("T"):
@@ -1358,6 +1442,11 @@ class UI:
     def confirm_target(self) -> None:
         g = self.g
         mode, self.mode = self.mode, "normal"
+        if mode == "card":
+            key, self.pending_card = self.pending_card, None
+            if key:
+                self.play_card(key, cell=self.cursor)
+            return
         if mode == "goto":
             a = self.active
             if a is not None:
@@ -1461,7 +1550,7 @@ class UI:
         if cell is None:
             return
         g = self.g
-        if self.mode in ("goto", "nuke", "chem"):
+        if self.mode in ("goto", "nuke", "chem", "card"):
             if cell == self.cursor:
                 self.confirm_target()        # second click on the target: go
             else:
@@ -1576,7 +1665,7 @@ class UI:
 
 
 SOUND_PRIORITY = ("nuke", "fall", "capture", "loss", "intercept", "gas", "crash",
-                  "truce", "alert", "battle")
+                  "card", "spy", "truce", "alert", "battle")
 
 
 def pick_sound(g, viewer: int, events) -> str | None:

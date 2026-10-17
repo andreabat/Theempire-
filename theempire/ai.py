@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import math
 
+from theempire import cards
 from theempire.game import Game, Unit
 from theempire.units import UNIT_TYPES, WARHEAD
 
@@ -48,6 +49,7 @@ class AI:
         if g.over:
             return
         self.diplomacy()
+        self.play_cards()
         self.production()
         units = sorted(g.units_of(self.f), key=lambda u: "FBTSDRCAI".find(u.kind))
         for u in units:
@@ -242,6 +244,105 @@ class AI:
             cell = self._best_tactical_target(minimum=2, chemical=True)
             if cell is not None:
                 g.chemical_strike(self.f, cell)
+
+    def play_cards(self) -> None:
+        """Simple card sense: economy cards at once, the shield and peace
+        summits when the clock gets close, subversion where it hurts."""
+        g, f = self.g, self.f
+        for key in list(self.fac.cards):
+            if g.over:
+                return
+            cell, target = None, None
+            if key in ("plan", "mobilize"):
+                pass
+            elif key == "shield":
+                if g.doomsday > 7:
+                    continue
+            elif key == "detente":
+                if g.doomsday > 5:
+                    continue
+            elif key == "reinforce":
+                cell = self._threatened_city()
+            elif key in ("defect", "commando"):
+                cell = self._card_unit_target(adjacent=key == "commando")
+            elif key == "revolt":
+                cell = self._revolt_target()
+            elif key == "coup":
+                cell = self._coup_target()
+            elif key == "sabotage":
+                rivals = [c for c in g.cities if c.owner is not None and g.hostile(f, c.owner)]
+                cell = max(rivals, key=lambda c: (g.production_rate(c), c.id)).cell if rivals else None
+            elif key == "spy":
+                if cards.spied(g, f) is not None:
+                    continue
+                rivals = [o for o in g.factions if o.alive and o.idx != f and g.hostile(f, o.idx)]
+                if not rivals:
+                    continue
+                target = max(rivals, key=lambda o: len(g.cities_of(o.idx))).idx
+            if cards.CARDS[key].target not in ("none", "faction") and cell is None:
+                continue
+            cards.play(g, f, key, cell, target)
+
+    def _threatened_city(self) -> int | None:
+        g, w = self.g, self.w
+        mine = g.cities_of(self.f)
+        if not mine:
+            return None
+        vis = g.visible(self.f)
+        enemies = [u.cell for u in g.units.values()
+                   if g.hostile(self.f, u.owner) and u.carrier is None and u.cell in vis]
+
+        def danger(c):
+            return sum(1 for e in enemies if w.dist(e, c.cell) <= 3)
+        best = max(mine, key=lambda c: (danger(c), c.capital, c.size))
+        return best.cell
+
+    def _card_unit_target(self, adjacent: bool) -> int | None:
+        g, w = self.g, self.w
+        vis = g.visible(self.f)
+        best, value = None, 0
+        for u in g.units.values():
+            if not g.hostile(self.f, u.owner) or u.owner is None or u.carrier is not None:
+                continue
+            if u.cell not in vis or g.city(u.cell) is not None or not g.sees(self.f, u):
+                continue
+            if adjacent and not any(o.owner == self.f for c in w.ring(u.cell, 1) for o in g.units_at(c)):
+                continue
+            v = u.type.cost + 5 * len(u.cargo)
+            if v > value:
+                best, value = u.cell, v
+        return best
+
+    def _revolt_target(self) -> int | None:
+        g, w = self.g, self.w
+        options = [c for c in g.cities if c.owner is not None and g.hostile(self.f, c.owner)
+                   and not c.capital and c.size <= 2]
+        if not options:
+            return None
+
+        def near(c):
+            return any(o.owner == self.f and o.type.domain == "land"
+                       for n in w.neighbors[c.cell] for o in g.units_at(n))
+        options.sort(key=lambda c: (not near(c), -c.size, c.id))
+        return options[0].cell if near(options[0]) or g.rng.random() < 0.3 else None
+
+    def _coup_target(self) -> int | None:
+        g, w = self.g, self.w
+        mine = g.cities_of(self.f)
+        best = None
+        for c in g.cities:
+            if c.owner is not None:
+                continue
+            country = [x for x in g.cities if x.iso == c.iso]
+            if len(country) > 4 or any(x.owner is not None for x in country):
+                continue
+            if cards._check(g, self.f, cards.CARDS["coup"], c.cell, None) is not None:
+                continue
+            d = min((w.dist(c.cell, m.cell) for m in mine), default=999)
+            score = (len(country) * 10 + sum(x.size for x in country)) / (1 + d / 10)
+            if best is None or score > best[0]:
+                best = (score, c.cell)
+        return best[1] if best else None
 
     def diplomacy(self) -> None:
         """Answer truce offers; offer one when the war is going badly."""

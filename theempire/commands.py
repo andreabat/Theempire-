@@ -10,6 +10,7 @@ from __future__ import annotations
 import random
 from typing import Callable
 
+from theempire import cards
 from theempire.ai import AI
 from theempire.game import DIRECTIVES, Game
 
@@ -160,6 +161,12 @@ def apply(game: Game, f: int, cmd: dict, name: str = "",
         if cell is None:
             return "illegal"
         return game.chemical_strike(f, cell)
+    if op == "card":
+        target = cmd.get("target")
+        cell = cmd.get("cell")
+        return cards.play(game, f, str(cmd.get("card", "")),
+                          cell if isinstance(cell, int) else None,
+                          target if isinstance(target, int) else None)
     if op == "truce":
         target = cmd.get("target")
         if not isinstance(target, int) or not 0 <= target < len(game.factions) or target == f:
@@ -187,6 +194,9 @@ def newsreel(game: Game, f: int) -> list[dict]:
         op = act["op"]
         if op in ("nuke", "chem", "capture", "fall"):
             kept.append(act)
+        elif op == "card":
+            if act.get("public") or act.get("victim") == f:
+                kept.append(act)
         elif op == "attack":
             if act.get("defender") == f or act["cell"] in vis:
                 kept.append(act)
@@ -222,6 +232,12 @@ def view_for(game: Game, f: int) -> dict:
             units.append({**ud, "cargo": [], "order": None, "target": None})
     d["units"] = units
     d["events"] = [e for e in d["events"] if e["audience"] is None or f in e["audience"]]
+    # cards are secret: rivals only show how many they hold
+    for fd in d["factions"]:
+        if fd["idx"] != f:
+            fd["cards"] = ["?"] * len(fd["cards"])
+            fd["effects"] = {}
+    d["deck"] = ["?"] * len(d["deck"])
     state = random.Random(0).getstate()
     d["rng"] = [state[0], list(state[1]), state[2]]
     return d
@@ -248,7 +264,8 @@ def describe(result: str) -> str:
         "notyourturn": "Non è il tuo turno.", "unreachable": "Destinazione irraggiungibile.",
         "intercepted": "Missile intercettato!", "nowarheads": "Nessuna testata disponibile.",
         "own": "Non puoi colpire una tua città.", "truce": "C'è una tregua in corso con quella fazione.",
-        "over": "La partita è finita.", "cooldown": "Hai già proposto una tregua di recente.",
+        "over": "La partita è finita.", "failed": "Carta giocata, ma il tentativo è fallito.",
+        "notarget": "Bersaglio non valido per questa carta.", "cooldown": "Hai già proposto una tregua di recente.",
         "pending": "Proposta di tregua inviata.", "accepted": "Tregua accettata!",
         "refused": "Proposta di tregua respinta.",
     }.get(result, "")
