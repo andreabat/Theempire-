@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>The Empire</title>
+<link rel="stylesheet" href="vendor/xterm.css">
+<style>
+  :root { --bg: #07090d; --panel: #11151c; --line: #263040; --text: #d6dde8; --dim: #8592a6;
+          --accent: #ff4d4d; --ok: #63d471; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+               font: 15px/1.4 "DejaVu Sans Mono", Menlo, Consolas, monospace; }
+  #login { max-width: 560px; margin: 0 auto; padding: 24px 16px; }
+  pre.logo { color: var(--accent); font-size: 11px; line-height: 1.1; overflow: hidden; margin: 0 0 8px; }
+  h1 { font-size: 18px; margin: 0 0 4px; letter-spacing: .08em; }
+  .sub { color: var(--dim); margin: 0 0 20px; }
+  label { display: block; margin: 14px 0 4px; color: var(--dim); font-size: 13px; }
+  input, select, button { font: inherit; width: 100%; padding: 10px 12px; border-radius: 6px;
+                          border: 1px solid var(--line); background: var(--panel); color: var(--text); }
+  button { cursor: pointer; }
+  button.go { margin-top: 22px; background: var(--accent); border-color: var(--accent); color: #fff;
+              font-weight: bold; letter-spacing: .05em; }
+  .seats { margin-top: 18px; color: var(--dim); font-size: 13px; }
+  .seats b { color: var(--text); }
+  #error { color: var(--accent); margin-top: 12px; min-height: 1.4em; }
+  #game { display: none; position: fixed; inset: 0; flex-direction: column; }
+  #bar { display: flex; gap: 6px; align-items: center; padding: 4px 6px; background: var(--panel);
+         border-bottom: 1px solid var(--line); font-size: 13px; }
+  #bar .title { flex: 1; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #bar button { width: auto; padding: 4px 10px; font-size: 13px; }
+  #term { flex: 1; min-height: 0; padding: 2px; }
+  #pad { display: none; padding: 6px; gap: 6px; background: var(--panel); border-top: 1px solid var(--line);
+         justify-content: center; flex-wrap: wrap; }
+  #pad.on { display: flex; }
+  #pad .grid { display: grid; grid-template-columns: repeat(3, 44px); gap: 4px; }
+  #pad .keys { display: grid; grid-template-columns: repeat(4, 58px); gap: 4px; }
+  #pad button { padding: 8px 0; font-size: 14px; touch-action: manipulation; }
+  #pad .center { visibility: hidden; }
+  #ended { display: none; position: fixed; inset: auto 0 0 0; padding: 10px; text-align: center;
+           background: var(--accent); color: #fff; }
+</style>
+</head>
+<body>
+<section id="login">
+<pre class="logo">████ █  █ ███    ███ █   █ ████ ███ ████ ███
+ ██  ████ ██     ██  ██ ██ ██▄█  █  ██▄▀ ██
+ ██  █  █ ███    ███ █ ▀ █ █    ███ █ ▀▄ ███</pre>
+  <h1>THE EMPIRE</h1>
+  <p class="sub" id="scenario">Strategia globale a turni · Theatre Europe × Empire</p>
+  <form id="form">
+    <label for="name">Il tuo nome</label>
+    <input id="name" maxlength="24" autocomplete="nickname" required>
+    <label for="faction">Fazione</label>
+    <select id="faction"><option value="">la prima libera</option></select>
+    <label for="password">Password della partita (se c'è)</label>
+    <input id="password" type="password" maxlength="64" autocomplete="current-password">
+    <button class="go" type="submit">ENTRA IN GUERRA</button>
+  </form>
+  <div id="error"></div>
+  <div class="seats" id="seats"></div>
+</section>
+
+<section id="game">
+  <div id="bar">
+    <span class="title" id="title">The Empire</span>
+    <button id="smaller" title="Testo più piccolo">A−</button>
+    <button id="bigger" title="Testo più grande">A+</button>
+    <button id="padToggle" title="Pulsantiera per schermi touch">⌨</button>
+    <button id="soundToggle" title="Audio del browser">🔊</button>
+  </div>
+  <div id="term"></div>
+  <div id="pad">
+    <div class="grid">
+      <button data-k="q">↖</button><button data-k="w">↑</button><button data-k="e">↗</button>
+      <button data-k="a">←</button><button class="center">·</button><button data-k="d">→</button>
+      <button data-k="z">↙</button><button data-k="x">↓</button><button data-k="c">↘</button>
+    </div>
+    <div class="grid">
+      <button data-arrow="ul">⇱</button><button data-arrow="A">▲</button><button data-arrow="ur">⇲</button>
+      <button data-arrow="D">◀</button><button class="center">·</button><button data-arrow="C">▶</button>
+      <button data-k="m">🗺</button><button data-arrow="B">▼</button><button data-k="?">?</button>
+    </div>
+    <div class="keys">
+      <button data-k="&#13;">Invio</button><button data-k="n">Pross.</button>
+      <button data-k=" ">Salta</button><button data-k="g">Vai a</button>
+      <button data-k="s">Sentin.</button><button data-k="f">Fortif.</button>
+      <button data-k="p">Prod.</button><button data-k="A">Auto</button>
+      <button data-k="v">Sveglia</button><button data-k="O">Diplom.</button>
+      <button data-k="T">Chat</button><button data-k="M">Audio</button>
+      <button data-k="&#27;">Esc</button><button data-k="N">☢</button>
+      <button data-k="S">Salva</button><button data-k="E">FINE TURNO</button>
+    </div>
+  </div>
+  <div id="ended"></div>
+</section>
+
+<script src="vendor/xterm.js"></script>
+<script src="vendor/xterm-addon-fit.js"></script>
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const store = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : v; } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} },
+};
+
+// A stable id for this browser: the server keeps this player's seat token
+// and audio choices under it, so a reload takes you back to your seat.
+let browserId = store.get("theempire.browser", "");
+if (!/^[0-9a-f]{32}$/.test(browserId)) {
+  const b = new Uint8Array(16); crypto.getRandomValues(b);
+  browserId = Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
+  store.set("theempire.browser", browserId);
+}
+$("name").value = store.get("theempire.name", "");
+
+fetch("info").then((r) => r.json()).then((info) => {
+  if (info.scenario) $("scenario").textContent = info.scenario + " · " + (info.started ? "partita in corso" : "in attesa dei giocatori");
+  const sel = $("faction");
+  for (const s of info.seats || []) {
+    const o = document.createElement("option");
+    o.value = s.key;
+    o.textContent = s.faction + (s.taken ? " — " + s.name + (s.online ? "" : " (offline)") : " — libera");
+    sel.appendChild(o);
+  }
+  const last = store.get("theempire.faction", "");
+  if (last) sel.value = last;
+  if (info.ai && info.ai.length) $("seats").innerHTML = "Guidate dall'IA: <b>" + info.ai.join(", ") + "</b>";
+  if (!info.password) $("password").parentElement && ($("password").placeholder = "non serve");
+}).catch(() => {});
+
+// ------------------------------------------------------------- audio
+const audio = {
+  ctx: null, buffers: {}, running: [], music: null, musicName: "", on: store.get("theempire.sound", "1") === "1",
+  start() { if (!this.ctx) { try { this.ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} } },
+  async load(name) {
+    if (this.buffers[name]) return this.buffers[name];
+    const data = await (await fetch("sounds/" + name + ".wav")).arrayBuffer();
+    return (this.buffers[name] = await this.ctx.decodeAudioData(data));
+  },
+  async play(name, loop, gain) {
+    const buf = await this.load(name);
+    const src = this.ctx.createBufferSource();
+    const g = this.ctx.createGain(); g.gain.value = gain;
+    src.buffer = buf; src.loop = loop; src.connect(g).connect(this.ctx.destination); src.start();
+    return src;
+  },
+  async sfx(name, force) {
+    if (!this.on || !this.ctx) return;
+    this.running = this.running.filter((s) => !s.ended);
+    if (force) { this.running.forEach((s) => { try { s.stop(); } catch (e) {} }); this.running = []; }
+    if (this.running.length >= 3) return;
+    try { const s = await this.play(name, false, 1.0); s.onended = () => (s.ended = true); this.running.push(s); } catch (e) {}
+  },
+  async setMusic(name, loop) {
+    this.musicName = name; this.musicLoop = loop;
+    if (this.music) { try { this.music.stop(); } catch (e) {} this.music = null; }
+    if (!name || !this.on || !this.ctx) return;
+    try { const s = await this.play(name, loop, 0.8); if (this.musicName === name) this.music = s; else s.stop(); } catch (e) {}
+  },
+  toggle() {
+    this.on = !this.on; store.set("theempire.sound", this.on ? "1" : "0");
+    $("soundToggle").textContent = this.on ? "🔊" : "🔇";
+    if (this.on) this.setMusic(this.musicName, this.musicLoop); else this.setMusic("", false).then(() => {});
+    if (!this.on && this.music) { try { this.music.stop(); } catch (e) {} }
+  },
+};
+$("soundToggle").textContent = audio.on ? "🔊" : "🔇";
+
+// ------------------------------------------------------------- terminal
+let term, fit, ws;
+let fontSize = parseInt(store.get("theempire.font", "0"), 10) ||
+  Math.max(7, Math.min(15, Math.floor(window.innerWidth / (118 * 0.6))));
+
+function send(obj) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(obj)); }
+function resize() {
+  if (!term) return;
+  fit.fit();
+  send({ t: "r", c: term.cols, r: term.rows });
+}
+function setFont(size) {
+  fontSize = Math.max(6, Math.min(24, size)); store.set("theempire.font", String(fontSize));
+  term.options.fontSize = fontSize; resize();
+}
+
+function start(name, faction, password) {
+  $("login").style.display = "none";
+  $("game").style.display = "flex";
+  $("title").textContent = "The Empire · " + name;
+  if (matchMedia("(pointer: coarse)").matches) $("pad").classList.add("on");
+  term = new Terminal({
+    fontSize, fontFamily: '"DejaVu Sans Mono", Menlo, Consolas, "Liberation Mono", monospace',
+    theme: { background: "#07090d" }, cursorBlink: false, scrollback: 0, allowProposedApi: true,
+  });
+  fit = new FitAddon.FitAddon();
+  term.loadAddon(fit);
+  term.open($("term"));
+  fit.fit();
+  // The game's sound cues travel as invisible OSC 7777 sequences.
+  term.parser.registerOscHandler(7777, (data) => {
+    const [kind, name, flag] = data.split(";");
+    if (kind === "sfx") audio.sfx(name, flag === "1");
+    else if (kind === "music") audio.setMusic(name, flag === "1");
+    return true;
+  });
+  const proto = location.protocol === "https:" ? "wss:" : "ws:";
+  const q = new URLSearchParams({ name, faction, id: browserId, cols: term.cols, rows: term.rows });
+  ws = new WebSocket(proto + "//" + location.host + location.pathname.replace(/[^/]*$/, "") + "ws?" + q);
+  ws.binaryType = "arraybuffer";
+  ws.onopen = () => { send({ t: "p", d: password }); term.focus(); };
+  ws.onmessage = (ev) => term.write(new Uint8Array(ev.data));
+  ws.onclose = () => {
+    audio.setMusic("", false);
+    $("ended").style.display = "block";
+    $("ended").textContent = "Sessione terminata. Ricarica la pagina per rientrare al tuo posto.";
+  };
+  term.onData((d) => send({ t: "i", d }));
+  window.addEventListener("resize", resize);
+  setTimeout(resize, 50);
+}
+
+$("form").addEventListener("submit", (ev) => {
+  ev.preventDefault();
+  const name = $("name").value.trim();
+  if (!name) return;
+  store.set("theempire.name", name);
+  store.set("theempire.faction", $("faction").value);
+  audio.start();  // browsers only allow sound after a click
+  start(name, $("faction").value, $("password").value);
+});
+$("bigger").onclick = () => setFont(fontSize + 1);
+$("smaller").onclick = () => setFont(fontSize - 1);
+$("padToggle").onclick = () => { $("pad").classList.toggle("on"); resize(); };
+$("soundToggle").onclick = () => { audio.start(); audio.toggle(); };
+for (const b of document.querySelectorAll("#pad button[data-k]")) {
+  b.addEventListener("click", () => { send({ t: "i", d: b.dataset.k }); term && term.focus(); });
+}
+for (const b of document.querySelectorAll("#pad button[data-arrow]")) {
+  b.addEventListener("click", () => {
+    const app = term && term.modes && term.modes.applicationCursorKeysMode;
+    const seq = { A: "A", B: "B", C: "C", D: "D" }[b.dataset.arrow];
+    if (seq) send({ t: "i", d: (app ? "\x1bO" : "\x1b[") + seq });
+    else send({ t: "i", d: b.dataset.arrow === "ul" ? "\x1b[5~" : "\x1b[6~" });  // page up / down
+  });
+}
+</script>
+</body>
+</html>

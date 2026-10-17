@@ -713,3 +713,58 @@ class Audio:
                 if p.poll() is None:
                     p.terminate()
             self.running.clear()
+
+
+class EscapeAudio:
+    """Audio for the web terminal: instead of playing anything, the client
+    writes an invisible escape sequence (OSC 7777) that the browser page
+    catches and plays with the Web Audio API. Same interface as Audio."""
+
+    available = True
+
+    def __init__(self, write=None):
+        self.write = write or self._stdout
+        self.music_choice = load_music()
+        self.effects = load_effects()
+        self.track: str | None = None
+        self.wanted: str | None = None
+
+    @staticmethod
+    def _stdout(data: bytes) -> None:
+        import os
+        try:
+            os.write(1, data)
+        except OSError:
+            pass
+
+    def _send(self, *parts: str) -> None:
+        self.write(("\x1b]7777;" + ";".join(parts) + "\x07").encode("ascii"))
+
+    def sfx(self, name: str, force: bool = False) -> None:
+        if self.effects and name.replace("_", "").isalnum():
+            self._send("sfx", name, "1" if force else "0")
+
+    def music(self, track: str | None) -> None:
+        self.wanted = track
+        if self.music_choice == "off":
+            track = None
+        elif self.music_choice != "auto":
+            track = self.music_choice
+        if track == self.track:
+            return
+        self.track = track
+        self._send("music", track or "", "1" if track in LOOPING else "0")
+
+    def select_music(self, choice: str) -> None:
+        if choice in MUSIC_CHOICES:
+            self.music_choice = choice
+            save_music(choice)
+            self.music(self.wanted)
+
+    def toggle_effects(self) -> bool:
+        self.effects = not self.effects
+        save_effects(self.effects)
+        return self.effects
+
+    def close(self) -> None:
+        self._send("music", "", "0")

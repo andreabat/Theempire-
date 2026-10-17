@@ -49,19 +49,39 @@ di secondi in `~/.theempire/sounds`.
   partita c'è una fanfara di vittoria, un lamento per la sconfitta o il vento
   sul mondo morto a mezzanotte. Con il tasto `M` puoi scegliere la musica:
   automatica, nessuna, **Cossack Patrol** (la canzone dei cosacchi, con il
-  galoppo), l'**inno sovietico** (il «Союз нерушимый» di Aleksandrov), la
+  galoppo), l'**inno sovietico** (il «Союз нерушимый» di Aleksandrov,
+  trascritto dalla partitura ufficiale: strofa e ritornello completi), la
   Toccata, la marcia, la tensione, la vittoria, la sconfitta o la mezzanotte.
 - **Effetti**:
   - battaglie, città conquistate o perdute, crolli di una fazione;
   - attacco nucleare (sirena, fischio, esplosione), missile intercettato,
     gas, aereo abbattuto;
   - tregua, inizio del tuo turno online, allarmi.
+- **Ogni unità ha la sua voce**, come in Empire: un suono quando si muove e
+  uno quando apre il fuoco.
+
+  | Unità | Movimento | Fuoco |
+  |---|---|---|
+  | Fanteria | passi di marcia | raffica di fucili |
+  | Corazzati | motore diesel e cingoli | colpo del cannone |
+  | Caccia | jet che passa | raffiche di cannoncino |
+  | Bombardiere | motori pesanti che ronzano | fischio delle bombe ed esplosioni |
+  | Cacciatorpediniere | fischio e eliche veloci | cannoni a tiro rapido |
+  | Sottomarino | ping del sonar | siluro in corsa e impatto |
+  | Trasporto | motore lento e sirena bassa | — |
+  | Incrociatore | sirena profonda | bordata dei cannoni pesanti |
+  | Portaerei | sirena e decollo degli aerei | stormo che decolla |
+
+  Le battaglie che ti riguardano suonano con le armi di chi attacca: senti
+  arrivare il siluro del sottomarino nemico.
 - **Il turno delle avversarie si guarda.** Quando finisci il tuo turno,
   la telecamera passa sopra tutto quello che le altre fazioni hanno fatto,
   come nel Theatre Europe: le armate che avanzano, le battaglie con i loro
   suoni, le città conquistate e perdute, le atomiche e le armi chimiche.
-  Un tasto qualunque salta subito al tuo turno. Qui si è fatto un'eccezione
-  alla regola delle battaglie lontane mute: nel riepilogo le senti tutte.
+  Un tasto qualunque salta subito al tuo turno. Il riepilogo rispetta la
+  nebbia di guerra: mostra solo ciò che le tue forze vedono, gli attacchi
+  contro di te, le città che cambiano padrone e le armi di distruzione di
+  massa. Le marce troppo lunghe vengono sfoltite.
 - Senti solo gli eventi che conosci. Le battaglie lontane tra altri e le
   esplosioni nella nebbia di guerra restano mute. Le atomiche si sentono in
   tutto il mondo.
@@ -75,6 +95,36 @@ di secondi in `~/.theempire/sounds`.
   il gioco funziona lo stesso e usa il beep del terminale per gli eventi
   importanti. Il server online non suona: l'audio è sul computer di ogni
   giocatore.
+
+## Giocare dal browser (web TUI)
+
+Il gioco si può giocare anche da un browser: stessa mappa Braille, stessi
+colori, tasti e mouse del terminale, e l'audio suona nel browser.
+
+```bash
+# server di gioco su 7777 + pagina web su 8080
+python3 -m theempire --serve --web --scenario ww3 --faction west --faction east --password segreta
+# poi i giocatori aprono http://<indirizzo-del-server>:8080/
+```
+
+- La pagina chiede nome, fazione e password. Il server avvia per ogni browser
+  un client vero in un terminale virtuale e lo mostra con
+  [xterm.js](https://xtermjs.org/) (MIT, incluso nel progetto: non serve
+  internet).
+- **Tablet e telefoni**: il tasto ⌨ mostra una pulsantiera con le direzioni,
+  le frecce del cursore e i comandi principali (Invio, prossima, vai a,
+  produzione, fine turno...). Con A− / A+ cambi la dimensione del testo.
+- **Audio nel browser**: effetti e musiche viaggiano come segnali invisibili
+  nel flusso del terminale, e la pagina li suona con la Web Audio API. Il
+  pulsante 🔊 li spegne.
+- **Rientro**: il browser ricorda il tuo posto. Se ricarichi la pagina torni
+  alla tua fazione.
+- Si può mettere la pagina web davanti a un server di gioco altrui:
+  `python3 -m theempire --join host:7777 --web 8080`.
+- La password non passa mai nell'indirizzo: viaggia dentro la connessione.
+  Su internet mettete comunque la pagina dietro HTTPS (un reverse proxy come
+  Caddy o nginx) o una VPN. Funziona su Linux e macOS, perché usa i terminali
+  virtuali del sistema.
 
 ## Multiplayer online
 
@@ -351,7 +401,9 @@ theempire/
   commands.py   i comandi del giocatore, validati: unica via per cambiare la partita
   net.py        multiplayer: server autoritativo, client, protocollo JSON su TCP
   ui.py         interfaccia curses: mappa Braille, pannello, registro, lobby, menu
-  audio.py      sintetizzatore chiptune, effetti e musiche, riproduzione in background
+  audio.py      sintetizzatore chiptune, effetti, voci delle unità e musiche, riproduzione in background
+  web.py        web TUI: gateway HTTP/WebSocket che porta il client nel browser
+  assets/web/   pagina della web TUI e xterm.js (MIT)
   cli.py        riga di comando
   assets/world.json   mappa generata da Natural Earth
 tools/build_world.py  rigenera la mappa (richiede numpy e Pillow)
@@ -369,3 +421,6 @@ pip install numpy Pillow && python3 tools/build_world.py --source /tmp/ne   # ri
 - [Terrascope](https://github.com/a-shygun/Terrascope) (MIT) per la tecnica di
   resa della mappa in Braille.
 - Dati geografici [Natural Earth](https://www.naturalearthdata.com/) (pubblico dominio).
+- [xterm.js](https://github.com/xtermjs/xterm.js) (MIT) per il terminale nel browser.
+- Musiche di pubblico dominio: Toccata e fuga in re minore BWV 565 (J. S. Bach),
+  inno dell'URSS (A. V. Aleksandrov, 1883–1946).

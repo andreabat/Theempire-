@@ -281,6 +281,17 @@ class GameServer:
             self._broadcast()
         conn.send({"type": "result", "id": msg.get("id"), "result": result})
 
+    def web_info(self) -> dict:
+        """What the web page shows before joining: seats, AI factions, state."""
+        with self.lock:
+            g = self.game
+            seats = [{"key": g.factions[s.faction].key, "faction": g.factions[s.faction].name,
+                      "name": s.name, "taken": bool(s.token), "online": s.conn is not None}
+                     for s in self.slots.values()]
+            return {"scenario": g.scenario.name, "started": self.started, "seats": seats,
+                    "ai": [f.name for f in g.factions if not f.human],
+                    "password": bool(self.password)}
+
     def lobby(self) -> list[dict]:
         return [{"faction": s.faction, "name": s.name, "taken": bool(s.token),
                  "online": s.conn is not None} for s in self.slots.values()]

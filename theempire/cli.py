@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import curses
 import locale
+import os
 import sys
 import time
 from pathlib import Path
@@ -46,7 +47,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
                         help="con --serve: gioca anche tu, da questo terminale, con FAZIONE")
     online.add_argument("--join", metavar="HOST[:PORTA]", help="entra in una partita online")
     online.add_argument("--name", default="", help="il tuo nome nella partita online")
-    online.add_argument("--password", default="", help="password della partita online")
+    online.add_argument("--password", default=os.environ.get("THEEMPIRE_PASSWORD", ""),
+                        help="password della partita online (anche da THEEMPIRE_PASSWORD)")
+    online.add_argument("--web", type=int, nargs="?", const=8080, metavar="PORTA",
+                        help="con --serve o --join: apri anche la web TUI, per giocare dal "
+                             "browser (porta predefinita 8080)")
+    online.add_argument("--audio-web", action="store_true", help=argparse.SUPPRESS)
     online.add_argument("--turn-time", type=int, default=0, metavar="SECONDI",
                         help="tempo massimo per turno di ogni giocatore (server)")
     p.add_argument("--version", action="version", version=f"theempire {__version__}")
@@ -113,6 +119,11 @@ def serve(args: argparse.Namespace) -> int:
     except OSError as exc:
         print(f"Impossibile aprire la porta {args.serve}: {exc}", file=sys.stderr)
         return 1
+    if args.web is not None:
+        gateway = _web(args, ("127.0.0.1", server.port), server.web_info, log)
+        if gateway is None:
+            return 1
+        threading.Thread(target=gateway.serve_forever, daemon=True).start()
     if not args.play:
         try:
             server.serve_forever()
@@ -131,8 +142,22 @@ def serve(args: argparse.Namespace) -> int:
 
 
 def _audio(args: argparse.Namespace):
+    if args.audio_web:  # inside the web TUI: the browser plays the sounds
+        from theempire.audio import EscapeAudio
+        return EscapeAudio()
     from theempire.audio import Audio
     return Audio(mode=args.audio, bell=curses.beep)
+
+
+def _web(args: argparse.Namespace, target: tuple[str, int], info=None, log=print):
+    from theempire.web import WebGateway
+    gateway = WebGateway(target, args.bind, args.web, info, log)
+    try:
+        gateway.listen()
+    except OSError as exc:
+        print(f"Impossibile aprire la porta web {args.web}: {exc}", file=sys.stderr)
+        return None
+    return gateway
 
 
 def _play_online(session, args: argparse.Namespace) -> None:
@@ -156,8 +181,23 @@ def join(args: argparse.Namespace) -> int:
                                 args.faction[0] if args.faction else None, args.password)
     except (OSError, ConnectionError) as exc:
         print(f"Impossibile entrare nella partita su {host}:{port}: {exc}", file=sys.stderr)
+        if args.audio_web:
+            time.sleep(8)  # leave the message on the browser's screen for a while
         return 1
     _play_online(session, args)
+    return 0
+
+
+def web_only(args: argparse.Namespace) -> int:
+    """--join HOST --web: a web gateway in front of someone else's server."""
+    host, port = _address(args.join)
+    gateway = _web(args, (host, port))
+    if gateway is None:
+        return 1
+    try:
+        gateway.serve_forever()
+    except KeyboardInterrupt:
+        gateway.stop()
     return 0
 
 
@@ -176,6 +216,8 @@ def main(argv: list[str] | None = None) -> int:
         if args.play and args.faction and args.play not in args.faction:
             args.faction.append(args.play)
         return serve(args)
+    if args.join and args.web is not None:
+        return web_only(args)
     if args.join:
         return join(args)
     locale.setlocale(locale.LC_ALL, "")
