@@ -57,6 +57,15 @@ def test_mediterranean_cities_survive():
         assert w.land[city.cell] and not (city.cell == _cell(w, lon, lat) is None)
 
 
+def test_no_duplicate_city_names():
+    """Regressione: il bollettino "conquista London" era ambiguo perché due città
+    reali diverse (Londra GB e London, Ontario) condividevano lo stesso nome."""
+    w = load_world()
+    names = [c.name for c in w.sites]
+    dup = {n for n in names if names.count(n) > 1}
+    assert not dup, f"nomi città duplicati: {sorted(dup)}"
+
+
 class _FakeScr:
     def getmaxyx(self):
         return 50, 200
