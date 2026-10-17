@@ -43,7 +43,8 @@ def test_scenario():
 
 def test_steps_fit_the_instructor_box():
     for step in STEPS:
-        assert step.text and all(len(line) <= 72 for line in step.text), step.title
+        lines = Tutorial.lines(step)
+        assert lines and all(len(line) <= 72 for line in lines), step.title
 
 
 def test_walkthrough():

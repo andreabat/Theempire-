@@ -10,66 +10,87 @@ import sys
 import time
 from pathlib import Path
 
-from theempire import __version__
+from theempire import __version__, i18n
 from theempire.ai import AI
 from theempire.game import DIFFICULTY, Game
+from theempire.i18n import tr, word
 from theempire.net import DEFAULT_PORT
 from theempire.scenarios import SCENARIOS
 
 
+def _lang_arg(argv: list[str]) -> str | None:
+    """--lang X or --lang=X, read before the parser exists so that its help
+    texts are already in the right language."""
+    for i, arg in enumerate(argv):
+        if arg == "--lang" and i + 1 < len(argv):
+            return argv[i + 1]
+        if arg.startswith("--lang="):
+            return arg.partition("=")[2]
+    return None
+
+
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    argv = sys.argv[1:] if argv is None else argv
+    # set_language also exports THEEMPIRE_LANG: --join/--serve/web TUI children inherit it
+    i18n.set_language(i18n.detect(_lang_arg(argv)))
     p = argparse.ArgumentParser(
         prog="theempire",
-        description="Gioco di strategia globale a turni nel terminale "
-                    "(ispirato a Theatre Europe).")
-    p.add_argument("--scenario", choices=sorted(SCENARIOS), help="scenario (salta il menu)")
+        description=tr("Gioco di strategia globale a turni nel terminale "
+                       "(ispirato a Theatre Europe)."))
+    p.add_argument("--lang", choices=list(i18n.LANGS), help=tr("lingua del gioco"))
+    p.add_argument("--scenario", choices=sorted(SCENARIOS), help=tr("scenario (salta il menu)"))
     p.add_argument("--faction", action="append", default=[],
-                   help="fazione umana; ripeti per l'hot-seat (es. --faction west --faction east)")
+                   help=tr("fazione umana; ripeti per l'hot-seat (es. --faction west --faction east)"))
     p.add_argument("--difficulty", choices=list(DIFFICULTY), default="normale")
-    p.add_argument("--seed", type=int, default=None, help="seme casuale per partite ripetibili")
+    p.add_argument("--seed", type=int, default=None, help=tr("seme casuale per partite ripetibili"))
     p.add_argument("--load", type=Path, nargs="?", const=Path.home() / ".theempire" / "save.json",
-                   help="carica una partita salvata")
+                   help=tr("carica una partita salvata"))
     p.add_argument("--save", type=Path, default=Path.home() / ".theempire" / "save.json",
-                   help="file di salvataggio")
-    p.add_argument("--autoplay", type=int, metavar="TURNI",
-                   help="partita IA contro IA senza interfaccia, per TURNI turni")
-    p.add_argument("--list", action="store_true", help="elenca scenari e fazioni")
+                   help=tr("file di salvataggio"))
+    turns = tr("TURNI")
+    p.add_argument("--autoplay", type=int, metavar=turns,
+                   help=tr("partita IA contro IA senza interfaccia, per {turns} turni", turns=turns))
+    p.add_argument("--list", action="store_true", help=tr("elenca scenari e fazioni"))
     p.add_argument("--senza-obiettivi", dest="objectives", action="store_false", default=None,
-                   help="niente obiettivi segreti")
+                   help=tr("niente obiettivi segreti"))
     p.add_argument("--senza-eventi", dest="world_events", action="store_false", default=None,
-                   help="niente eventi mondiali")
+                   help=tr("niente eventi mondiali"))
     p.add_argument("--audio", choices=["all", "sfx", "off"],
-                   help="musica ed effetti, solo effetti, o niente (predefinito: l'ultima scelta; tasto M per il menu audio)")
-    p.add_argument("--muto", dest="audio", action="store_const", const="off", help="niente audio")
-    online = p.add_argument_group("partita online")
-    online.add_argument("--serve", type=int, nargs="?", const=DEFAULT_PORT, metavar="PORTA",
-                        help=f"ospita una partita online (porta predefinita {DEFAULT_PORT}); "
-                             "le fazioni date con --faction sono i posti per i giocatori, "
-                             "le altre le guida l'IA. Senza --scenario né --load si apre "
-                             "la schermata di configurazione")
-    online.add_argument("--bind", default="0.0.0.0", help="indirizzo su cui ascoltare (server)")
-    online.add_argument("--play", metavar="FAZIONE",
-                        help="con --serve: gioca anche tu, da questo terminale, con FAZIONE")
-    online.add_argument("--join", metavar="HOST[:PORTA]", help="entra in una partita online")
-    online.add_argument("--name", default="", help="il tuo nome nella partita online")
+                   help=tr("musica ed effetti, solo effetti, o niente (predefinito: l'ultima "
+                           "scelta; tasto M per il menu audio)"))
+    p.add_argument("--muto", dest="audio", action="store_const", const="off",
+                   help=tr("niente audio"))
+    online = p.add_argument_group(tr("partita online"))
+    port, faction = tr("PORTA"), tr("FAZIONE")
+    online.add_argument("--serve", type=int, nargs="?", const=DEFAULT_PORT, metavar=port,
+                        help=tr("ospita una partita online (porta predefinita {port}); "
+                                "le fazioni date con --faction sono i posti per i giocatori, "
+                                "le altre le guida l'IA. Senza --scenario né --load si apre "
+                                "la schermata di configurazione", port=DEFAULT_PORT))
+    online.add_argument("--bind", default="0.0.0.0", help=tr("indirizzo su cui ascoltare (server)"))
+    online.add_argument("--play", metavar=faction,
+                        help=tr("con --serve: gioca anche tu, da questo terminale, con {faction}",
+                                faction=faction))
+    online.add_argument("--join", metavar=tr("HOST[:PORTA]"), help=tr("entra in una partita online"))
+    online.add_argument("--name", default="", help=tr("il tuo nome nella partita online"))
     online.add_argument("--password", default=os.environ.get("THEEMPIRE_PASSWORD", ""),
-                        help="password della partita online (anche da THEEMPIRE_PASSWORD)")
-    online.add_argument("--web", type=int, nargs="?", const=8080, metavar="PORTA",
-                        help="con --serve o --join: apri anche la web TUI, per giocare dal "
-                             "browser (porta predefinita 8080)")
+                        help=tr("password della partita online (anche da THEEMPIRE_PASSWORD)"))
+    online.add_argument("--web", type=int, nargs="?", const=8080, metavar=port,
+                        help=tr("con --serve o --join: apri anche la web TUI, per giocare dal "
+                                "browser (porta predefinita {port})", port=8080))
     online.add_argument("--audio-web", action="store_true", help=argparse.SUPPRESS)
-    online.add_argument("--turn-time", type=int, default=0, metavar="SECONDI",
-                        help="tempo massimo per turno di ogni giocatore (anche in locale)")
+    online.add_argument("--turn-time", type=int, default=0, metavar=tr("SECONDI"),
+                        help=tr("tempo massimo per turno di ogni giocatore (anche in locale)"))
     p.add_argument("--version", action="version", version=f"theempire {__version__}")
     return p.parse_args(argv)
 
 
 def list_scenarios() -> None:
     for s in SCENARIOS.values():
-        print(f"{s.key:8s} {s.name}")
-        print(f"         {s.description}")
+        print(f"{s.key:8s} {word(s.name)}")
+        print(f"         {word(s.description)}")
         for f in s.factions:
-            print(f"           --faction {f.key:6s} {f.name}")
+            print(f"           --faction {f.key:6s} {word(f.name)}")
 
 
 def autoplay(args: argparse.Namespace) -> int:
@@ -82,13 +103,15 @@ def autoplay(args: argparse.Namespace) -> int:
         if g.current == 0 and (g.turn % 10 == 0 or g.over):
             parts = [f"{f.key} {len(g.cities_of(f.idx))}c/{len(g.units_of(f.idx))}u/{f.warheads}☢"
                      for f in g.factions]
-            print(f"turno {g.turn:3d}  orologio {g.doomsday:2d}'  " + "  ".join(parts)
-                  + f"  neutrali {len(g.cities_of(None))}c  ({time.time() - t0:.0f}s)", flush=True)
+            print(tr("turno {turn:3d}  orologio {clock:2d}'  {factions}  neutrali {neutral}c  "
+                     "({secs:.0f}s)", turn=g.turn, clock=g.doomsday, factions="  ".join(parts),
+                     neutral=len(g.cities_of(None)), secs=time.time() - t0), flush=True)
     for e in g.events[-12:]:
-        print(f"[{e.turn}] {e.text}")
+        print(f"[{e.turn}] {i18n.render(e.text)}")
     if g.over:
         winner, reason = g.over
-        print("FINE:", reason, g.factions[winner].name if winner is not None else "nessuno")
+        print(tr("FINE: {reason} {winner}", reason=reason,
+                 winner=g.factions[winner].name if winner is not None else tr("nessuno")))
     return 0
 
 
@@ -116,7 +139,8 @@ def configure_server(args: argparse.Namespace) -> bool:
     args.objectives, args.world_events = chosen.objectives, chosen.world_events
     args.web = chosen.web_port if chosen.web else None
     args.password = chosen.password
-    print("Comando equivalente, per la prossima volta:\n  " + chosen.command() + "\n")
+    print(tr("Comando equivalente, per la prossima volta:\n  {command}\n",
+             command=chosen.command()))
     return True
 
 
@@ -124,11 +148,11 @@ def _welcome(args: argparse.Namespace, port: int) -> None:
     """How the others get in, printed when the server starts."""
     from theempire.serversetup import lan_address
     ip = lan_address()
-    print(f"I giocatori entrano con:  python3 -m theempire --join {ip}:{port}"
-          + ("  --password ..." if args.password else ""))
+    command = f"python3 -m theempire --join {ip}:{port}" + ("  --password ..." if args.password else "")
+    print(tr("I giocatori entrano con:  {command}", command=command))
     if args.web is not None:
-        print(f"Oppure dal browser:       http://{ip}:{args.web}/")
-    print("Ctrl+C ferma il server (la partita viene salvata).\n", flush=True)
+        print(tr("Oppure dal browser:       {url}", url=f"http://{ip}:{args.web}/"))
+    print(tr("Ctrl+C ferma il server (la partita viene salvata).") + "\n", flush=True)
 
 
 def serve(args: argparse.Namespace) -> int:
@@ -161,7 +185,8 @@ def serve(args: argparse.Namespace) -> int:
     try:
         server.listen()
     except OSError as exc:
-        print(f"Impossibile aprire la porta {args.serve}: {exc}", file=sys.stderr)
+        print(tr("Impossibile aprire la porta {port}: {error}", port=args.serve, error=str(exc)),
+              file=sys.stderr)
         return 1
     if args.web is not None:
         gateway = _web(args, ("127.0.0.1", server.port), server.web_info, log)
@@ -175,7 +200,7 @@ def serve(args: argparse.Namespace) -> int:
         except KeyboardInterrupt:
             server.save()
             server.stop()
-            print("\nServer fermato, partita salvata in", save)
+            print("\n" + tr("Server fermato, partita salvata in {path}", path=str(save)))
         return 0
     threading.Thread(target=server.serve_forever, daemon=True).start()
     name = args.name or getpass.getuser()
@@ -200,7 +225,8 @@ def _web(args: argparse.Namespace, target: tuple[str, int], info=None, log=print
     try:
         gateway.listen()
     except OSError as exc:
-        print(f"Impossibile aprire la porta web {args.web}: {exc}", file=sys.stderr)
+        print(tr("Impossibile aprire la porta web {port}: {error}", port=args.web, error=str(exc)),
+              file=sys.stderr)
         return None
     return gateway
 
@@ -225,7 +251,8 @@ def join(args: argparse.Namespace) -> int:
         session = RemoteSession(host, port, args.name or getpass.getuser(),
                                 args.faction[0] if args.faction else None, args.password)
     except (OSError, ConnectionError) as exc:
-        print(f"Impossibile entrare nella partita su {host}:{port}: {exc}", file=sys.stderr)
+        print(tr("Impossibile entrare nella partita su {address}: {error}",
+                 address=f"{host}:{port}", error=str(exc)), file=sys.stderr)
         if args.audio_web:
             time.sleep(8)  # leave the message on the browser's screen for a while
         return 1
@@ -256,7 +283,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.serve is not None:
         if args.play and args.play not in [f.key for f in SCENARIOS[args.scenario or "ww3"].factions] \
                 and not args.load:
-            print(f"Fazione sconosciuta: {args.play}", file=sys.stderr)
+            print(tr("Fazione sconosciuta: {faction}", faction=args.play), file=sys.stderr)
             return 2
         if args.play and args.faction and args.play not in args.faction:
             args.faction.append(args.play)
@@ -270,8 +297,9 @@ def main(argv: list[str] | None = None) -> int:
         valid = {f.key for f in SCENARIOS[args.scenario].factions}
         bad = [f for f in args.faction if f not in valid]
         if bad:
-            print(f"Fazione sconosciuta per {args.scenario}: {', '.join(bad)} "
-                  f"(valide: {', '.join(sorted(valid))})", file=sys.stderr)
+            print(tr("Fazione sconosciuta per {scenario}: {bad} (valide: {valid})",
+                     scenario=args.scenario, bad=", ".join(bad), valid=", ".join(sorted(valid))),
+                  file=sys.stderr)
             return 2
 
     audio = _audio(args)

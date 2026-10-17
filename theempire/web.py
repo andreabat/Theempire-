@@ -9,7 +9,9 @@ plays them from ``/sounds``.
 
 Every browser has a random id (kept in its localStorage); its client runs
 with its own home folder, so seat tokens and audio choices belong to that
-browser and a reload puts the player back in their seat.
+browser and a reload puts the player back in their seat. The page also
+chooses the language (``lang=`` in the WebSocket URL): the client gets it as
+THEEMPIRE_LANG.
 """
 
 from __future__ import annotations
@@ -35,8 +37,9 @@ from pathlib import Path
 from typing import Callable
 from urllib.parse import parse_qs, urlparse
 
-from theempire import audio, midi
+from theempire import audio, i18n, midi
 from theempire.commands import printable
+from theempire.i18n import tr
 
 PAGE = Path(__file__).resolve().parent / "assets" / "web" / "index.html"
 WEB_HOMES = Path.home() / ".theempire" / "web"
@@ -171,7 +174,8 @@ class WebGateway:
     def serve_forever(self) -> None:
         if self.httpd is None:
             self.listen()
-        self.log(f"Web TUI su http://{self.host}:{self.port}/ → partita {self.target[0]}:{self.target[1]}")
+        self.log(tr("Web TUI su {url} → partita {address}", url=f"http://{self.host}:{self.port}/",
+                    address=f"{self.target[0]}:{self.target[1]}"))
         self.httpd.serve_forever()
 
     def stop(self) -> None:
@@ -231,7 +235,8 @@ class WebGateway:
             return
         with self.lock:
             if self.sessions >= MAX_SESSIONS:
-                req.send_error(HTTPStatus.SERVICE_UNAVAILABLE, "troppi giocatori collegati")
+                req.send_error(HTTPStatus.SERVICE_UNAVAILABLE,
+                               explain=tr("troppi giocatori collegati"))
                 return
             self.sessions += 1
         try:
@@ -251,9 +256,11 @@ class WebGateway:
         def arg(name: str, default: str = "") -> str:
             return (query.get(name) or [default])[0]
 
-        name = printable(arg("name"))[:24].strip() or "Giocatore"
+        name = printable(arg("name"))[:24].strip() or tr("Giocatore")
         faction = arg("faction")
         faction = faction if re.fullmatch(r"[a-z]{1,16}", faction) else ""
+        lang = arg("lang")
+        lang = lang if lang in i18n.LANGS else i18n.language()
         browser = arg("id")
         if not re.fullmatch(r"[0-9a-f]{32}", browser):
             ws.close()
@@ -279,6 +286,7 @@ class WebGateway:
         env = {**os.environ, "HOME": str(home), "TERM": "xterm-256color",
                "THEEMPIRE_MUSIC": str(midi.music_dir()),
                "LANG": "C.UTF-8", "LC_ALL": "C.UTF-8", "THEEMPIRE_PASSWORD": password,
+               "THEEMPIRE_LANG": lang,
                "PYTHONPATH": str(Path(__file__).resolve().parents[1]) + os.pathsep
                + os.environ.get("PYTHONPATH", "")}
         # A pseudo-terminal for the client. subprocess (not pty.fork) keeps
@@ -294,7 +302,8 @@ class WebGateway:
             ws.close()
             return
         os.close(slave)
-        self.log(f"web: {name} si collega ({faction or 'posto libero'})")
+        self.log(tr("web: {name} si collega ({seat})", name=name,
+                    seat=faction or tr("posto libero")))
         reader = threading.Thread(target=self._pump, args=(fd, ws), daemon=True)
         reader.start()
         try:
@@ -330,7 +339,7 @@ class WebGateway:
             except OSError:
                 pass
             ws.close()
-            self.log(f"web: {name} si è scollegato")
+            self.log(tr("web: {name} si è scollegato", name=name))
 
     @staticmethod
     def _pump(fd: int, ws: WebSocket) -> None:

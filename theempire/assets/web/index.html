@@ -47,15 +47,17 @@
  ██  ████ ██     ██  ██ ██ ██▄█  █  ██▄▀ ██
  ██  █  █ ███    ███ █ ▀ █ █    ███ █ ▀▄ ███</pre>
   <h1>THE EMPIRE</h1>
-  <p class="sub" id="scenario">Strategia globale a turni · Theatre Europe × conquista mondiale</p>
+  <p class="sub" id="scenario" data-t="sub">Strategia globale a turni · Theatre Europe × conquista mondiale</p>
   <form id="form">
-    <label for="name">Il tuo nome</label>
+    <label for="name" data-t="nameLabel">Il tuo nome</label>
     <input id="name" maxlength="24" autocomplete="nickname" required>
-    <label for="faction">Fazione</label>
-    <select id="faction"><option value="">la prima libera</option></select>
-    <label for="password">Password della partita (se c'è)</label>
+    <label for="faction" data-t="faction">Fazione</label>
+    <select id="faction"><option value="" data-t="firstFree">la prima libera</option></select>
+    <label for="password" data-t="password">Password della partita (se c'è)</label>
     <input id="password" type="password" maxlength="64" autocomplete="current-password">
-    <button class="go" type="submit">ENTRA IN GUERRA</button>
+    <label for="lang" data-t="lang">Lingua</label>
+    <select id="lang"></select>
+    <button class="go" type="submit" data-t="go">ENTRA IN GUERRA</button>
   </form>
   <div id="error"></div>
   <div class="seats" id="seats"></div>
@@ -64,10 +66,10 @@
 <section id="game">
   <div id="bar">
     <span class="title" id="title">The Empire</span>
-    <button id="smaller" title="Testo più piccolo">A−</button>
-    <button id="bigger" title="Testo più grande">A+</button>
-    <button id="padToggle" title="Pulsantiera per schermi touch">⌨</button>
-    <button id="soundToggle" title="Audio del browser">🔊</button>
+    <button id="smaller" title="Testo più piccolo" data-t-title="smaller">A−</button>
+    <button id="bigger" title="Testo più grande" data-t-title="bigger">A+</button>
+    <button id="padToggle" title="Pulsantiera per schermi touch" data-t-title="pad">⌨</button>
+    <button id="soundToggle" title="Audio del browser" data-t-title="sound">🔊</button>
   </div>
   <div id="term"></div>
   <div id="pad">
@@ -82,18 +84,18 @@
       <button data-k="m">🗺</button><button data-arrow="B">▼</button><button data-k="?">?</button>
     </div>
     <div class="keys">
-      <button data-k="&#13;">Invio</button><button data-k="n">Pross.</button>
-      <button data-k=" ">Salta</button><button data-k="g">Vai a</button>
-      <button data-k="s">Sentin.</button><button data-k="f">Fortif.</button>
-      <button data-k="p">Prod.</button><button data-k="A">Auto</button>
-      <button data-k="v">Sveglia</button><button data-k="O">Diplom.</button>
-      <button data-k="T">Chat</button><button data-k="M">Audio</button>
-      <button data-k="K">♠ Carte</button><button data-k="B">Bollett.</button>
+      <button data-k="&#13;" data-t="enter">Invio</button><button data-k="n" data-t="next">Pross.</button>
+      <button data-k=" " data-t="skip">Salta</button><button data-k="g" data-t="goto">Vai a</button>
+      <button data-k="s" data-t="sentry">Sentin.</button><button data-k="f" data-t="fortify">Fortif.</button>
+      <button data-k="p" data-t="prod">Prod.</button><button data-k="A">Auto</button>
+      <button data-k="v" data-t="wake">Sveglia</button><button data-k="O" data-t="diplo">Diplom.</button>
+      <button data-k="T">Chat</button><button data-k="M" data-t="audio">Audio</button>
+      <button data-k="K" data-t="cards">♠ Carte</button><button data-k="B" data-t="reports">Bollett.</button>
       <button data-k="+">Zoom +</button><button data-k="-">Zoom −</button>
-      <button data-k="P">Direttiva</button><button data-k="r">Centra</button>
-      <button data-k="o">◎ Obiettivo</button><button data-k="m">Mondo</button>
+      <button data-k="P" data-t="directive">Direttiva</button><button data-k="r" data-t="center">Centra</button>
+      <button data-k="o" data-t="goal">◎ Obiettivo</button><button data-k="m" data-t="world">Mondo</button>
       <button data-k="&#27;">Esc</button><button data-k="N">☢</button>
-      <button data-k="S">Salva</button><button data-k="E">FINE TURNO</button>
+      <button data-k="S" data-t="save">Salva</button><button data-k="E" data-t="endTurn">FINE TURNO</button>
     </div>
   </div>
   <div id="ended"></div>
@@ -119,20 +121,125 @@ if (!/^[0-9a-f]{32}$/.test(browserId)) {
 }
 $("name").value = store.get("theempire.name", "");
 
-fetch("info").then((r) => r.json()).then((info) => {
-  if (info.scenario) $("scenario").textContent = info.scenario + " · " + (info.started ? "partita in corso" : "in attesa dei giocatori");
+// ------------------------------------------------------------- languages
+// The page's own few texts (the game's are translated by the client, which
+// receives the language as lang= in the WebSocket URL).
+const TEXTS = {
+  it: { name: "Italiano", sub: "Strategia globale a turni · Theatre Europe × conquista mondiale",
+        nameLabel: "Il tuo nome", faction: "Fazione", firstFree: "la prima libera",
+        password: "Password della partita (se c'è)", lang: "Lingua", go: "ENTRA IN GUERRA",
+        smaller: "Testo più piccolo", bigger: "Testo più grande", pad: "Pulsantiera per schermi touch",
+        sound: "Audio del browser", enter: "Invio", next: "Pross.", skip: "Salta", goto: "Vai a",
+        sentry: "Sentin.", fortify: "Fortif.", prod: "Prod.", wake: "Sveglia", diplo: "Diplom.",
+        audio: "Audio", cards: "♠ Carte", reports: "Bollett.", directive: "Direttiva", center: "Centra",
+        goal: "◎ Obiettivo", world: "Mondo", save: "Salva", endTurn: "FINE TURNO",
+        running: "partita in corso", waiting: "in attesa dei giocatori", free: "libera",
+        offline: "(offline)", ai: "Guidate dall'IA:", noPassword: "non serve",
+        ended: "Sessione terminata. Ricarica la pagina per rientrare al tuo posto." },
+  en: { name: "English", sub: "Turn-based global strategy · Theatre Europe × world conquest",
+        nameLabel: "Your name", faction: "Faction", firstFree: "the first free one",
+        password: "Game password (if any)", lang: "Language", go: "GO TO WAR",
+        smaller: "Smaller text", bigger: "Larger text", pad: "Button pad for touch screens",
+        sound: "Browser audio", enter: "Enter", next: "Next", skip: "Skip", goto: "Go to",
+        sentry: "Sentry", fortify: "Fortify", prod: "Prod.", wake: "Wake", diplo: "Diplom.",
+        audio: "Audio", cards: "♠ Cards", reports: "Reports", directive: "Directive", center: "Center",
+        goal: "◎ Goal", world: "World", save: "Save", endTurn: "END TURN",
+        running: "game in progress", waiting: "waiting for players", free: "free",
+        offline: "(offline)", ai: "Led by the AI:", noPassword: "not needed",
+        ended: "Session ended. Reload the page to get back to your seat." },
+  fr: { name: "Français", sub: "Stratégie mondiale au tour par tour · Theatre Europe × conquête du monde",
+        nameLabel: "Votre nom", faction: "Faction", firstFree: "la première libre",
+        password: "Mot de passe de la partie (s'il y en a un)", lang: "Langue", go: "PARTIR EN GUERRE",
+        smaller: "Texte plus petit", bigger: "Texte plus grand", pad: "Boutons pour écrans tactiles",
+        sound: "Son du navigateur", enter: "Entrée", next: "Suiv.", skip: "Passer", goto: "Aller à",
+        sentry: "Sentin.", fortify: "Fortif.", prod: "Prod.", wake: "Réveil", diplo: "Diplom.",
+        audio: "Audio", cards: "♠ Cartes", reports: "Bulletins", directive: "Directive", center: "Centrer",
+        goal: "◎ Objectif", world: "Monde", save: "Sauver", endTurn: "FIN DU TOUR",
+        running: "partie en cours", waiting: "en attente des joueurs", free: "libre",
+        offline: "(hors ligne)", ai: "Dirigées par l'IA :", noPassword: "pas nécessaire",
+        ended: "Session terminée. Rechargez la page pour retrouver votre place." },
+  es: { name: "Español", sub: "Estrategia global por turnos · Theatre Europe × conquista mundial",
+        nameLabel: "Tu nombre", faction: "Facción", firstFree: "la primera libre",
+        password: "Contraseña de la partida (si la hay)", lang: "Idioma", go: "A LA GUERRA",
+        smaller: "Texto más pequeño", bigger: "Texto más grande", pad: "Botonera para pantallas táctiles",
+        sound: "Audio del navegador", enter: "Intro", next: "Sig.", skip: "Saltar", goto: "Ir a",
+        sentry: "Centin.", fortify: "Fortif.", prod: "Prod.", wake: "Despert.", diplo: "Diplom.",
+        audio: "Audio", cards: "♠ Cartas", reports: "Partes", directive: "Directiva", center: "Centrar",
+        goal: "◎ Objetivo", world: "Mundo", save: "Guardar", endTurn: "FIN TURNO",
+        running: "partida en curso", waiting: "esperando jugadores", free: "libre",
+        offline: "(desconectado)", ai: "Dirigidas por la IA:", noPassword: "no hace falta",
+        ended: "Sesión terminada. Recarga la página para volver a tu puesto." },
+  de: { name: "Deutsch", sub: "Rundenbasierte Weltstrategie · Theatre Europe × Welteroberung",
+        nameLabel: "Dein Name", faction: "Fraktion", firstFree: "die erste freie",
+        password: "Passwort der Partie (falls vorhanden)", lang: "Sprache", go: "IN DEN KRIEG",
+        smaller: "Kleinere Schrift", bigger: "Größere Schrift", pad: "Tastenfeld für Touchscreens",
+        sound: "Browser-Audio", enter: "Enter", next: "Nächste", skip: "Übersp.", goto: "Gehe zu",
+        sentry: "Wache", fortify: "Befest.", prod: "Prod.", wake: "Wecken", diplo: "Diplom.",
+        audio: "Audio", cards: "♠ Karten", reports: "Berichte", directive: "Direktive", center: "Zentr.",
+        goal: "◎ Ziel", world: "Welt", save: "Speich.", endTurn: "ZUG ENDE",
+        running: "Partie läuft", waiting: "wartet auf Spieler", free: "frei",
+        offline: "(offline)", ai: "Von der KI gesteuert:", noPassword: "nicht nötig",
+        ended: "Sitzung beendet. Lade die Seite neu, um an deinen Platz zurückzukehren." },
+  pt: { name: "Português", sub: "Estratégia global por turnos · Theatre Europe × conquista mundial",
+        nameLabel: "O seu nome", faction: "Facção", firstFree: "a primeira livre",
+        password: "Senha da partida (se houver)", lang: "Idioma", go: "PARA A GUERRA",
+        smaller: "Texto menor", bigger: "Texto maior", pad: "Botões para telas de toque",
+        sound: "Áudio do navegador", enter: "Enter", next: "Próx.", skip: "Pular", goto: "Ir para",
+        sentry: "Sentin.", fortify: "Fortif.", prod: "Prod.", wake: "Acordar", diplo: "Diplom.",
+        audio: "Áudio", cards: "♠ Cartas", reports: "Boletins", directive: "Diretiva", center: "Centrar",
+        goal: "◎ Objetivo", world: "Mundo", save: "Salvar", endTurn: "FIM TURNO",
+        running: "partida em andamento", waiting: "aguardando jogadores", free: "livre",
+        offline: "(offline)", ai: "Comandadas pela IA:", noPassword: "não é necessária",
+        ended: "Sessão encerrada. Recarregue a página para voltar ao seu lugar." },
+};
+const browserLang = (navigator.language || "").slice(0, 2).toLowerCase();
+let lang = store.get("theempire.lang", "") || browserLang;
+if (!TEXTS[lang]) lang = "it";
+const say = (key) => TEXTS[lang][key] || TEXTS.it[key];
+let info = null;              // what /info says about the game
+
+function showInfo() {
+  if (!info) return;
+  if (info.scenario) $("scenario").textContent = info.scenario + " · " + say(info.started ? "running" : "waiting");
   const sel = $("faction");
+  const chosen = sel.value || store.get("theempire.faction", "");
+  sel.replaceChildren(sel.options[0]);
   for (const s of info.seats || []) {
     const o = document.createElement("option");
     o.value = s.key;
-    o.textContent = s.faction + (s.taken ? " — " + s.name + (s.online ? "" : " (offline)") : " — libera");
+    o.textContent = s.faction + (s.taken ? " — " + s.name + (s.online ? "" : " " + say("offline")) : " — " + say("free"));
     sel.appendChild(o);
   }
-  const last = store.get("theempire.faction", "");
-  if (last) sel.value = last;
-  if (info.ai && info.ai.length) $("seats").innerHTML = "Guidate dall'IA: <b>" + info.ai.join(", ") + "</b>";
-  if (!info.password) $("password").parentElement && ($("password").placeholder = "non serve");
-}).catch(() => {});
+  if (chosen) sel.value = chosen;
+  if (info.ai && info.ai.length) {
+    const b = document.createElement("b");
+    b.textContent = info.ai.join(", ");
+    $("seats").replaceChildren(say("ai") + " ", b);
+  }
+  if (!info.password) $("password").placeholder = say("noPassword");
+}
+
+function translate() {
+  document.documentElement.lang = lang;
+  for (const el of document.querySelectorAll("[data-t]")) {
+    el.textContent = say(el.dataset.t);
+  }
+  for (const el of document.querySelectorAll("[data-t-title]")) el.title = say(el.dataset.tTitle);
+  showInfo();
+}
+
+for (const [code, texts] of Object.entries(TEXTS)) {
+  const o = document.createElement("option");
+  o.value = code; o.textContent = texts.name;
+  $("lang").appendChild(o);
+}
+$("lang").value = lang;
+$("lang").addEventListener("change", () => {
+  lang = $("lang").value; store.set("theempire.lang", lang); translate();
+});
+translate();
+
+fetch("info").then((r) => r.json()).then((data) => { info = data; showInfo(); }).catch(() => {});
 
 // ------------------------------------------------------------- audio
 const audio = {
@@ -258,7 +365,7 @@ function start(name, faction, password) {
     return true;
   });
   const proto = location.protocol === "https:" ? "wss:" : "ws:";
-  const q = new URLSearchParams({ name, faction, id: browserId, cols: term.cols, rows: term.rows });
+  const q = new URLSearchParams({ name, faction, lang, id: browserId, cols: term.cols, rows: term.rows });
   ws = new WebSocket(proto + "//" + location.host + location.pathname.replace(/[^/]*$/, "") + "ws?" + q);
   ws.binaryType = "arraybuffer";
   ws.onopen = () => { send({ t: "p", d: password }); term.focus(); };
@@ -266,7 +373,7 @@ function start(name, faction, password) {
   ws.onclose = () => {
     audio.setMusic("", false);
     $("ended").style.display = "block";
-    $("ended").textContent = "Sessione terminata. Ricarica la pagina per rientrare al tuo posto.";
+    $("ended").textContent = say("ended");
   };
   term.onData((d) => send({ t: "i", d }));
   touchMouse($("term"));
