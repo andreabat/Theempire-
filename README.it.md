@@ -489,6 +489,8 @@ strada di uno dritto).
   un carattere) e arriva a ×4; la panoramica (`m`) mostra sempre il mondo
   intero. La costa è disegnata dalla mappa fine della terra che sta sotto
   ogni casella, quindi non si spezza.
+- Gli esagoni sono disegnati sulla mappa, come la plancia di un wargame:
+  linee sottili sul mare, fessure nella terra.
 - Quadrati che si toccavano solo per uno spigolo erano vicini, gli esagoni
   no: perché stretti (Sicilia, Dardanelli...) e istmi sottili non si
   chiudano, il gioco apre il passaggio trasformando in mare (o in terra)

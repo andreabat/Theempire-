@@ -483,6 +483,8 @@ a straight one).
   cell 2×2 characters, the odd rows one character to the right) and goes
   to ×4; the overview (`m`) still shows the whole world. The coastline is
   drawn from the fine land map under each cell, so it does not break.
+- The hexagons are drawn on the map, like the board of a wargame: thin
+  lines on the sea, gaps in the land.
 - Squares touching only at a corner were neighbours, hexagons are not: so
   that straits (Sicily, the Dardanelles...) and thin isthmuses do not
   close, the game opens the passage by turning one cell of the corner into

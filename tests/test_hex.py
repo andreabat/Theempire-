@@ -84,3 +84,12 @@ def test_odd_rows_are_drawn_half_a_cell_east(monkeypatch):
     assert ui._cell_at(1, 3) == ui.w.idx(100, 11)
     assert ui._cell_at(2, 3) == ui.w.idx(100, 11)
     assert ui._cell_at(3, 3) == ui.w.idx(101, 11)
+
+
+def test_the_honeycomb_is_drawn():
+    from theempire.ui import hex_border
+    for k in (2, 4):
+        border = hex_border(k)
+        assert len(border) == k and all(len(row) == k for row in border)
+        assert all(row[0] for row in border)             # the west wall, top to bottom
+        assert any(border[0][1:])                         # the pointed roof

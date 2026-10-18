@@ -9,6 +9,7 @@ import random
 import textwrap
 import time
 from collections import Counter, deque
+from functools import lru_cache
 from pathlib import Path
 
 from theempire import cards, events, i18n, missions, regions
@@ -172,6 +173,27 @@ def zoom_tile(world, cell: int, k: int, shift: int = 0) -> tuple[str, ...]:
             row += chr(0x2800 + bits) if bits else " "
         rows.append(row)
     return tuple(rows)
+
+
+@lru_cache(maxsize=None)
+def hex_border(k: int) -> tuple[tuple[int, ...], ...]:
+    """The Braille dots of a hexagon's outline in a cell k × k characters
+    large: its west wall and its pointed roof. The cell below, half a cell
+    to the side, closes the floor with its own roof, and the walls of the
+    row above stand on the tips of its roofs: a honeycomb."""
+    w, h = 2 * k, 4 * k
+    roof = k                         # how high the pointed roof rises, in dots
+    dots = set()
+    for px in range(w):
+        half = w // 2
+        y = roof - round(px * roof / half) if px <= half else round((px - half) * roof / half)
+        dots.add((px, y))
+    dots.update((0, py) for py in range(roof, h))
+    out = []
+    for j in range(k):
+        out.append(tuple(sum(BRAILLE_DOTS[tc][tw] for tc in range(2) for tw in range(4)
+                             if (i * 2 + tc, j * 4 + tw) in dots) for i in range(k)))
+    return tuple(out)
 
 
 class UI:
@@ -610,6 +632,7 @@ class UI:
             path = set(route[:-1])
         zx, zy = self.zoom_factor()
         cols, rows = self.view_size()
+        grid = self.color("coast", "sea" if self.rich else None)
         for sy in range(rows):
             y = self.view_y + sy
             if y >= self.w.height:
@@ -646,6 +669,7 @@ class UI:
                     tile = self._tiles[(cell, zx, shift)] = zoom_tile(self.w, cell, zx, shift)
                 plain = ch == self.ground_glyph(cell, cell in vis)[0]
                 mid = (zx - 1) // 2
+                border = hex_border(zx) if self.w.hexgrid and g.in_theatre(cell) else None
                 for j, row in enumerate(tile):
                     for i, dot in enumerate(row):
                         x = sx * zx + shift + i
@@ -653,8 +677,21 @@ class UI:
                             continue
                         if not plain and i == mid and j == mid:
                             self.put(1 + sy * zy + j, x, ch, attr)
-                        else:
-                            self.put(1 + sy * zy + j, x, dot, gattr if dot == "⣿" else sattr)
+                            continue
+                        dattr = gattr if dot == "⣿" else sattr
+                        if border is not None and border[j][i]:
+                            # the honeycomb: gaps in the land, faint lines on the sea
+                            bits = ord(dot) - 0x2800 if dot != " " else 0
+                            if self.w.land[cell]:
+                                bits &= ~border[j][i]
+                                dattr = sattr
+                            elif bits:
+                                bits &= ~border[j][i]
+                            else:
+                                bits = border[j][i]
+                                dattr = (sattr if mark else grid) | curses.A_DIM
+                            dot = chr(0x2800 + bits) if bits else " "
+                        self.put(1 + sy * zy + j, x, dot, dattr)
 
     def draw_overview(self) -> None:
         """The whole world in the map area; each Braille dot is one cell."""
