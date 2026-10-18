@@ -335,6 +335,14 @@ difende anche senza truppe.
 | U | Drone | aria | 6 | 1 | 1 | 1 | 4 | vede a 3 caselle, 8 di carburante; costa poco |
 | H | Missile ipersonico | aria | 12 | 1 | 9 | 0 | 14 | gittata 12, si consuma nell'attacco |
 
+Sulla mappa le unità sono disegnate con **simboli**: ♟ fanteria, ♜ corazzati,
+✈ caccia, ▼ bombardiere, ▸ cacciatorpediniere, ◒ sottomarino, ▭ trasporto,
+⧫ incrociatore, ▬ portaerei, ✧ drone, ➶ missile ipersonico. Il tasto `V`
+torna alle lettere della tabella (la scelta resta salvata). I simboli
+occupano una colonna e ci sono nei font monospazio più diffusi (DejaVu Sans
+Mono, Menlo, Consolas); se il tuo terminale ne mostra qualcuno come un
+quadratino, usa le lettere.
+
 Le città producono anche **testate nucleari** (45 punti, città di dimensione
 2 o più) e **armi chimiche** (20).
 
@@ -618,6 +626,7 @@ numero a fianco di ogni voce la sceglie subito, ed Esc annulla.
 | `K` | le tue carte: leggile e giocane una |
 | `o` | obiettivo segreto, regioni con i loro bonus, eventi mondiali |
 | `Z` | spazio: satelliti spia e armi antisatellite |
+| `V` | unità con simboli o con lettere |
 | `+` / `-` | zoom della mappa |
 | `B` | archivio dei bollettini di guerra: leggi, sfoglia i turni, `R` per rivedere l'animazione |
 | `T` | chat (partite online) |

@@ -44,6 +44,11 @@ UNIT_TYPES: dict[str, UnitType] = {u.key: u for u in (
              modern=True),
 )}
 
+# Map symbols, for those who prefer them to letters (V switches): one
+# terminal column each and present in the common monospaced fonts.
+SYMBOLS = {"I": "♟", "A": "♜", "F": "✈", "B": "▼", "D": "▸", "S": "◒", "T": "▭",
+           "R": "⧫", "C": "▬", "U": "✧", "H": "➶"}
+
 # Things a city can build that are not units.
 WARHEAD = "N"
 WARHEAD_COST = 45

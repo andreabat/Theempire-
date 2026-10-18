@@ -335,6 +335,13 @@ defends them even without troops.
 | U | Drone | air | 6 | 1 | 1 | 1 | 4 | sees 3 squares, 8 fuel; cheap |
 | H | Hypersonic missile | air | 12 | 1 | 9 | 0 | 14 | range 12, spent in its attack |
 
+On the map units are drawn as **symbols**: ♟ infantry, ♜ armour, ✈ fighter,
+▼ bomber, ▸ destroyer, ◒ submarine, ▭ transport, ⧫ cruiser, ▬ carrier,
+✧ drone, ➶ hypersonic missile. The `V` key goes back to the letters of the
+table (the choice is saved). The symbols take one column and are in the
+common monospaced fonts (DejaVu Sans Mono, Menlo, Consolas); if your
+terminal shows some of them as a small box, use the letters.
+
 Cities also produce **nuclear warheads** (45 points, cities of size
 2 or more) and **chemical weapons** (20).
 
@@ -618,6 +625,7 @@ number next to each entry chooses it at once, and Esc cancels.
 | `K` | your cards: read them and play one |
 | `o` | secret objective, regions with their bonuses, world events |
 | `Z` | space: spy satellites and anti-satellite weapons |
+| `V` | units as symbols or letters |
 | `+` / `-` | map zoom |
 | `B` | war bulletin archive: read, browse the turns, `R` to replay the animation |
 | `T` | chat (online games) |

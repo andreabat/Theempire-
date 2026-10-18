@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import curses
 import datetime as dt
+import json
 import random
 import textwrap
 import time
@@ -17,8 +18,8 @@ from theempire.game import CHEM_RANGE, DIRECTIVES, Unit
 from theempire.i18n import N, tr, word
 from theempire.scenarios import SCENARIOS
 from theempire.tutorial import Tutorial
-from theempire.units import (ASAT, CHEMICAL, PRODUCTION_NAMES, SATELLITE, UNIT_TYPES,
-                             WARHEAD, production_cost)
+from theempire.units import (ASAT, CHEMICAL, PRODUCTION_NAMES, SATELLITE, SYMBOLS,
+                             UNIT_TYPES, WARHEAD, production_cost)
 from theempire.world import load_hd
 
 SIDEBAR = 36
@@ -85,6 +86,7 @@ m                 mappa del mondo (panoramica)
 r                 centra la vista sul cursore
 o                 obiettivo segreto, regioni (bonus) ed eventi mondiali
 Z                 spazio: satelliti spia e armi antisatellite
+V                 unità con simboli (♟ ♜ ✈ ▼ ▸ ◒ ▭ ⧫ ▬ ✧ ➶) o con lettere
 M                 audio: scegli musica ed effetti
 L                 lingua dell'interfaccia (language)
 N                 ☢ attacco nucleare sulla casella del cursore
@@ -107,6 +109,29 @@ BRAILLE_DOTS = ((0x01, 0x02, 0x04, 0x40), (0x08, 0x10, 0x20, 0x80))  # [column][
 
 def _longitude(lon: float) -> str:
     return f"{abs(lon):.0f}°{'E' if lon >= 0 else 'W'}"
+
+
+def load_setting(key: str, default):
+    """A display preference kept in ~/.theempire/settings.json."""
+    try:
+        data = json.loads(i18n.SETTINGS.read_text(encoding="utf-8"))
+        return data.get(key, default) if isinstance(data, dict) else default
+    except (OSError, ValueError):
+        return default
+
+
+def save_setting(key: str, value) -> None:
+    try:
+        data = json.loads(i18n.SETTINGS.read_text(encoding="utf-8"))
+        data = data if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        data = {}
+    data[key] = value
+    try:
+        i18n.SETTINGS.parent.mkdir(parents=True, exist_ok=True)
+        i18n.SETTINGS.write_text(json.dumps(data), encoding="utf-8")
+    except OSError:
+        pass
 
 
 def lower_noun(name: str) -> str:
@@ -475,10 +500,10 @@ class UI:
             return ch, self.color(color, bg) | curses.A_BOLD | extra
         if cell in self.phantom:
             kind, owner = self.phantom[cell]
-            return kind, self.color(self.owner_color(owner), bg) | curses.A_BOLD
+            return self.glyph(kind), self.color(self.owner_color(owner), bg) | curses.A_BOLD
         if self.active is not None and self.active.cell == cell and self.active.id in g.units:
             lit = curses.A_REVERSE if self.blink_on() else 0      # the active unit blinks
-            return self.active.kind, self.color(self.owner_color(self.active.owner), bg) | curses.A_BOLD | lit
+            return self.glyph(self.active.kind), self.color(self.owner_color(self.active.owner), bg) | curses.A_BOLD | lit
         if city is not None:
             glyph = "★" if city.capital else "◉" if city.size == 3 else "●" if city.size == 2 else "•"
             attr = self.color(self.owner_color(city.owner) if city.owner is not None else "white", bg) | curses.A_BOLD
@@ -488,7 +513,7 @@ class UI:
         if units:
             # an aircraft flying over a unit is drawn on top
             u = next((o for o in units if o.type.domain == "air"), units[0])
-            return u.kind, self.color(self.owner_color(u.owner), bg) | curses.A_BOLD
+            return self.glyph(u.kind), self.color(self.owner_color(u.owner), bg) | curses.A_BOLD
         if cell in path:
             return "·", self.color("white", bg) | curses.A_BOLD
         if cell in g.fallout:
@@ -509,6 +534,22 @@ class UI:
         if dots:
             return chr(0x2800 + dots), self.color("coast", bg) | dim
         return " ", self.color("white", bg)
+
+    @property
+    def symbols(self) -> bool:
+        """Units drawn as symbols (♟ ♜ ✈...) rather than letters (I A F...)."""
+        if "_symbols" not in self.__dict__:
+            self._symbols = load_setting("unit_symbols", True)
+        return self._symbols
+
+    def glyph(self, kind: str) -> str:
+        return SYMBOLS.get(kind, kind) if self.symbols else kind
+
+    def toggle_symbols(self) -> None:
+        self._symbols = not self.symbols
+        save_setting("unit_symbols", self._symbols)
+        self.status = tr("Unità disegnate con simboli.") if self._symbols else \
+            tr("Unità disegnate con lettere.")
 
     @staticmethod
     def blink_on() -> bool:
@@ -759,7 +800,7 @@ class UI:
         g = self.g
         t = u.type
         mine = u.owner == self.viewer
-        label = ("▶ " if active else "  ") + word(t.name)
+        label = ("▶ " if active else "  ") + self.glyph(u.kind) + " " + word(t.name)
         if not mine:
             label += f" ({word(g.factions[u.owner].name)})"
         attr = self.color(self.owner_color(u.owner)) | (curses.A_BOLD if active else 0)
@@ -781,7 +822,7 @@ class UI:
             if u.cargo:
                 kinds = Counter(g.units[c].kind for c in u.cargo if c in g.units)
                 extra += " " + tr("carico {n}/{capacity}: {kinds}", n=len(u.cargo), capacity=t.capacity,
-                                  kinds=" ".join(f"{n}{k}" for k, n in kinds.items()))
+                                  kinds=" ".join(f"{n}{self.glyph(k)}" for k, n in kinds.items()))
             if extra:
                 self.put(row, x, "    " + extra.strip(), self.color("dim"))
                 row += 1
@@ -829,7 +870,8 @@ class UI:
         units = [u for u in g.units_at(cell) if g.sees(self.viewer, u)]
         if city is not None and units and len(units) > 4:
             kinds = Counter((u.owner, u.kind) for u in units)
-            text = "  " + tr("Guarnigione: {units}", units=" ".join(f"{n}{k}" for (_, k), n in kinds.items()))
+            text = "  " + tr("Guarnigione: {units}",
+                             units=" ".join(f"{n}{self.glyph(k)}" for (_, k), n in kinds.items()))
             self.put(row, x, text[:SIDEBAR - 1])
             row += 1
             return row
@@ -1055,7 +1097,8 @@ class UI:
             else:
                 stats = tr("scorta strategica")
             lines.append(tr("{production:20s} costo {cost:3d}  {eta:>3s} turni  {stats}",
-                            production=PRODUCTION_NAMES[k], cost=cost, eta=eta, stats=stats))
+                            production=(self.glyph(k) + " " if k in UNIT_TYPES else "  ")
+                            + word(PRODUCTION_NAMES[k]), cost=cost, eta=eta, stats=stats))
         items = [(k, line, k) for k, line in zip(keys, lines)]
         directive = g.factions[self.viewer].directive
         notes = []
@@ -1833,7 +1876,7 @@ class UI:
 
     # ----------------------------------------------------------- input
     VIEW_KEYS = {ord("m"), ord("M"), ord("r"), ord("?"), ord("Q"), ord("T"), ord("n"), ord("B"),
-                 ord("K"), ord("h"), 9, ord("+"), ord("="), ord("-"), ord("o"), ord("L"), ord("Z")}
+                 ord("K"), ord("h"), 9, ord("+"), ord("="), ord("-"), ord("o"), ord("L"), ord("Z"), ord("V")}
 
     def handle(self, key: int) -> None:
         g = self.g
@@ -1933,6 +1976,8 @@ class UI:
             self.cards_menu()
         elif key == ord("Z"):
             self.space_menu()
+        elif key == ord("V"):
+            self.toggle_symbols()
         elif key == ord("o"):
             self.objectives()
         elif key == ord("h") and self.tutorial is not None:
