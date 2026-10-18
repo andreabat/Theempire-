@@ -1547,7 +1547,7 @@ class UI:
                 self.draw()
                 time.sleep(self.REEL_PACE.get(op, 0.2))
         finally:
-            self.scr.nodelay(False)
+            self.scr.timeout(BLINK_MS)   # back to the main loop's pace, not to blocking reads
             self.reveal.clear()
             self.phantom.clear()
             self.fx.clear()
@@ -2232,6 +2232,9 @@ class UI:
             self.tutorial.start()
         while not self.quit:
             self.draw()
+            # whatever a dialog or the bulletin did to the input, keep waking
+            # up: the active unit blinks and the turn timer ticks
+            self.scr.timeout(BLINK_MS)
             key = self.scr.getch()
             self.tick_clock()
             if self.session.poll():
