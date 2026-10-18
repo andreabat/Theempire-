@@ -25,7 +25,7 @@ if TYPE_CHECKING:
 CITY_MARGIN = 0.08    # "cities": this share of the world fewer than a domination win
 CAPITAL_SHARE = 0.45  # "capitals": this share of the rivals' starting capitals,
 CAPITAL_MAX = 12      # at most
-REGION_GAIN = (45, 90)  # "regions": cities still to take in the two regions
+REGION_GAIN = (0.14, 0.28)  # "regions": cities still to take in the two regions (share of the world)
 
 
 def assign(game: "Game") -> None:
@@ -64,7 +64,9 @@ def _cities(game: "Game", f: int) -> dict:
     # the same target for everybody, as in the board game: the big empires
     # must not reach it just by taking the neutrals next door
     count = int((game.scenario.victory_share - CITY_MARGIN) * total)
-    return {"kind": "cities", "count": max(start + int(0.1 * total), count)}
+    # but always some real conquest, and still short of a domination win
+    count = max(count, start + int(0.15 * total))
+    return {"kind": "cities", "count": min(count, int(game.scenario.victory_share * total))}
 
 
 def _region_pair(game: "Game", f: int, rng: random.Random) -> list[str] | None:
@@ -73,8 +75,9 @@ def _region_pair(game: "Game", f: int, rng: random.Random) -> list[str] | None:
     sizes = {k: len(regions.cities_in(game, k)) for k in regions.REGIONS}
     mine = {k: sum(1 for c in regions.cities_in(game, k) if c.owner == f) for k in sizes}
     free = [k for k in sizes if mine[k] < sizes[k]]
+    low, high = (share * len(game.cities) for share in REGION_GAIN)
     pairs = [(a, b) for i, a in enumerate(free) for b in free[i + 1:]
-             if REGION_GAIN[0] <= sizes[a] + sizes[b] - mine[a] - mine[b] <= REGION_GAIN[1]]
+             if low <= sizes[a] + sizes[b] - mine[a] - mine[b] <= high]
     if not pairs:
         return None
     weights = [1 + 3 * (mine[a] > 0) + 3 * (mine[b] > 0) for a, b in pairs]

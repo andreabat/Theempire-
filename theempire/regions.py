@@ -77,13 +77,19 @@ def _fallback(lon: float, lat: float) -> str:
     return "eas" if lat > 22 else "sea"
 
 
-_cache: dict[int, list[str]] = {}
+_cache: dict[tuple, list[str]] = {}
+
+
+def _key(game: "Game") -> tuple:
+    """Games on the same world share the caches, if they have the same cities
+    (a theatre of war has fewer)."""
+    return id(game.world), len(game.cities)
 
 
 def city_regions(game: "Game") -> list[str]:
     """The region key of every city, by city id."""
-    key = id(game.world)
-    if key not in _cache or len(_cache[key]) != len(game.cities):
+    key = _key(game)
+    if key not in _cache:
         out = []
         for c in game.cities:
             region = next((r.key for r in REGIONS.values() if c.iso in r.countries), None)
@@ -99,19 +105,19 @@ def cities_in(game: "Game", key: str) -> list:
     return [c for c in game.cities if regions[c.id] == key]
 
 
-_bonus: dict[int, dict[str, float]] = {}
+_bonus: dict[tuple, dict[str, float]] = {}
 
 
 def bonus_of(game: "Game", key: str) -> float:
     """The production bonus of a region: bigger regions are worth more."""
-    cached = _bonus.get(id(game.world))
+    cached = _bonus.get(_key(game))
     if cached is None:
-        sizes = {k: len(cities_in(game, k)) for k in REGIONS}
+        sizes = {k: n for k in REGIONS if (n := len(cities_in(game, k)))} or {key: 1}
         lo, hi = min(sizes.values()), max(sizes.values())
-        cached = _bonus[id(game.world)] = {
+        cached = _bonus[_key(game)] = {
             k: round(BONUS_MIN + (n - lo) / max(1, hi - lo) * (BONUS_MAX - BONUS_MIN), 2)
             for k, n in sizes.items()}
-    return cached[key]
+    return cached.get(key, 0.0)          # a region outside the theatre of war
 
 
 def holder(game: "Game", key: str) -> int | None:

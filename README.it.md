@@ -295,6 +295,7 @@ python3 -m theempire --join mioserver.example.org:7777 --faction east
 | **Tutorial: la campagna dei Balcani** (`tutorial`) | Comando Italiano contro Repubblica Ribelle | Un istruttore ti insegna il gioco passo per passo, fino alla conquista di Tirana |
 | **Terza Guerra Mondiale** (`ww3`) | Alleanza Atlantica, Unione Eurasiatica, Blocco Orientale | Tre blocchi armati; il resto del mondo è neutrale e conquistabile |
 | **Guerra Fredda 1985** (`coldwar`) | NATO, Patto di Varsavia | Il Theatre Europe originale portato su scala mondiale; la Cina resta neutrale |
+| **Teatro Europa 1985** (`europe`) | NATO, Patto di Varsavia | Solo l'Europa, da Lisbona a Mosca e da Atene al Capo Nord (52 città): partite brevi, Germania divisa (Berlino al Patto), Svezia, Austria, Svizzera e Jugoslavia neutrali. Fuori dal teatro la mappa è grigia e nessuno ci entra; la partita si apre già zoomata sull'Europa. Niente armi moderne |
 | **Sei imperi** (`empire`) | sei imperi | Una sola capitale a testa, tutto il mondo da prendere, le atomiche vanno costruite |
 
 ## Regole

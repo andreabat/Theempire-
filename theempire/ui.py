@@ -350,6 +350,22 @@ class UI:
         self.view_x = (cx - mx // zx) % self.w.width
         self.view_y = max(0, min(cy - (my - 1) // zy, max(0, self.w.height - rows)))
 
+    def fit_theatre(self) -> None:
+        """A theatre of war (Europe...) fills the map: the biggest zoom at
+        which all of it is on screen, centred."""
+        g, w = self.g, self.w
+        cols = [i % w.width for i in range(w.size) if g.theatre[i]]
+        rows = [i // w.width for i in range(w.size) if g.theatre[i]]
+        width, height = max(cols) - min(cols) + 1, max(rows) - min(rows) + 1
+        mw, mh = self.map_size()
+        for k in range(len(self.ZOOMS) - 1, -1, -1):
+            if width * self.ZOOMS[k] <= mw and height * self.ZOOMS[k] <= mh:
+                self.zoom = k
+                break
+        vw, vh = self.view_size()
+        self.view_x = (min(cols) - (vw - width) // 2) % w.width
+        self.view_y = max(0, min(min(rows) - (vh - height) // 2, max(0, w.height - vh)))
+
     def follow_cursor(self) -> None:
         mw, mh = self.view_size()
         cx, cy = self.w.xy(self.cursor)
@@ -497,6 +513,8 @@ class UI:
         units = [u for u in g.units_at(cell)
                  if (seen or cell in self.reveal) and (g.sees(self.viewer, u) or cell in self.reveal)] \
             if cell in g.at else []
+        if not g.in_theatre(cell):      # outside the theatre of war: a dim, still world
+            return self.ground_glyph(cell, False)[0], self.color("dim") | curses.A_DIM
         if cell in self.fx:
             ch, color, extra = self.fx[cell]
             return ch, self.color(color, bg) | curses.A_BOLD | extra
@@ -590,7 +608,7 @@ class UI:
                 ch, attr = self.cell_glyph(cell, vis, path)
                 gattr = sattr = attr
                 if zx > 1:
-                    gattr, sattr = self.zoom_attrs(cell, cell in vis)
+                    gattr, sattr = self.zoom_attrs(cell, cell in vis) if g.in_theatre(cell) else (attr, attr)
                 mark = 0
                 if cell == self.cursor:
                     mark = curses.A_REVERSE if self.mode == "normal" else -1
@@ -2297,6 +2315,8 @@ class UI:
         self.scr.timeout(BLINK_MS)
         self.sync()
         self.center()
+        if self.g.theatre is not None:
+            self.fit_theatre()
         if self.g.scenario.key == "tutorial" and not self.session.online and not self.g.over:
             self.tutorial = Tutorial(self)
             self.tutorial.start()

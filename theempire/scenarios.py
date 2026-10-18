@@ -33,6 +33,13 @@ class Scenario:
     victory_share: float = 0.5      # share of all cities for a domination win
     start_forces: bool = True       # garrison every starting city
     modern: bool = True             # drones, hypersonic missiles and space weapons
+    # a theatre of war: (west, east, south, north) in degrees; nothing outside
+    # it takes part (no cities, no movement). None = the whole world.
+    bounds: tuple[float, float, float, float] | None = None
+    # cities given to a faction whatever their country: (city, faction key)
+    city_owners: tuple[tuple[str, str], ...] = ()
+    # countries whose cities stay out of a theatre that touches them
+    outside: tuple[str, ...] = ()
     max_turns: int = 300
     missions: bool = True           # secret objectives (missions.py)
     world_events: bool = True       # world events every few rounds (events.py)
@@ -104,6 +111,29 @@ SCENARIOS: dict[str, Scenario] = {s.key: s for s in (
         doomsday=7,
         victory_share=0.55,
         modern=False,                   # 1985: no drones, no hypersonics, no space war
+    ),
+    Scenario(
+        "europe", N("Teatro Europa 1985"),
+        N("La Guerra Fredda diventa calda, ma solo in Europa, dal Portogallo a Mosca: "
+          "fronte compatto e partite brevi, come in Theatre Europe. La Germania è "
+          "divisa; Svezia, Austria, Svizzera e Jugoslavia restano neutrali."),
+        (
+            FactionDef("nato", N("NATO"), "blue", NATO_EUROPE,
+                       doctrine="restrained", warheads=12, chemicals=2, abm=0.2,
+                       extras={"A": 6, "F": 4, "B": 2}),
+            FactionDef("pact", N("Patto di Varsavia"), "red",
+                       ("RUS", "UKR", "BLR", "MDA", "EST", "LVA", "LTU", "POL", "CZE", "SVK",
+                        "HUN", "ROU", "BGR"),
+                       doctrine="aggressive", warheads=12, chemicals=6, abm=0.2,
+                       industry=1.2, extras={"A": 14, "B": 3}),
+        ),
+        doomsday=7,
+        victory_share=0.55,
+        max_turns=150,
+        modern=False,
+        bounds=(-11.0, 42.0, 37.0, 71.0),      # from Lisbon to Moscow, from Athens to the North Cape
+        city_owners=(("Berlin", "pact"),),     # the capital of the GDR
+        outside=("TUN", "DZA", "MAR", "SYR", "CYP", "MLT"),  # Africa and the Levant stay out
     ),
     Scenario(
         "empire", N("Sei imperi"),

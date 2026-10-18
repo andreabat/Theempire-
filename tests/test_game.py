@@ -276,3 +276,21 @@ def test_goto_routes_are_as_short_as_a_breadth_first_search(world):
     reach = world.bfs([start], passable, limit=40)
     for dest in rng.sample(sorted(reach), 25):
         assert len(g.path(tank, dest)) == reach[dest]
+
+
+def test_european_theatre(world):
+    g = Game("europe", seed=1, world=world)
+    assert 40 <= len(g.cities) <= 60
+    assert all(g.in_theatre(c.cell) for c in g.cities)
+    names = {c.name: c for c in g.cities}
+    assert "Washington, D.C." not in names and "Tunis" not in names
+    pact = next(f.idx for f in g.factions if f.key == "pact")
+    assert names["Berlin"].owner == pact and names["Frankfurt"].owner != pact
+    # nothing moves out of the theatre: no step beyond its edge
+    outside = next(i for i in range(world.size) if world.land[i] and not g.in_theatre(i)
+                   and any(g.in_theatre(n) and world.land[n] for n in world.neighbors[i]))
+    edge = next(n for n in world.neighbors[outside] if g.in_theatre(n) and world.land[n])
+    tank = g.create_unit("A", 0, edge) if edge not in g.at else g.units_at(edge)[0]
+    assert g.classify(tank, outside) is None
+    assert g.path(tank, outside) is None
+    assert not g.scenario.modern

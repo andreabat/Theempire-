@@ -183,6 +183,7 @@ class Game:
         self.region_holders: dict[str, int | None] = {}  # see regions.py
         self.world_effects: dict[str, int] = {}          # world event -> last turn (events.py)
         self.next_event = 0                              # round of the next world event
+        self.theatre = self._theatre_mask()              # None: the whole world is in play
         if _empty:
             return
         self.factions: list[Faction] = []
@@ -194,7 +195,12 @@ class Game:
                 fd.warheads, fd.chemicals, fd.abm, fd.nuclear, fd.industry))
         owner_of_iso = {iso: k for k, fd in enumerate(self.scenario.factions) for iso in fd.countries}
         for site in self.world.sites:
+            if not self.in_theatre(site.cell) or site.iso in self.scenario.outside:
+                continue
             owner = owner_of_iso.get(site.iso)
+            for name, key in self.scenario.city_owners:
+                if name == site.name:
+                    owner = next(k for k, fd in enumerate(self.scenario.factions) if fd.key == key)
             for k, fd in enumerate(self.scenario.factions):
                 if fd.capital_city and fd.capital_city == site.name:
                     owner = k
@@ -404,8 +410,23 @@ class Game:
         return len(carrier.cargo) < carrier.type.capacity
 
     # ---------------------------------------------------------------- movement
+    def _theatre_mask(self) -> bytearray | None:
+        bounds = self.scenario.bounds
+        if bounds is None:
+            return None
+        west, east, south, north = bounds
+        w = self.world
+        return bytearray(1 if west <= w.lonlat(i)[0] <= east and south <= w.lonlat(i)[1] <= north else 0
+                         for i in range(w.size))
+
+    def in_theatre(self, cell: int) -> bool:
+        """Is this cell part of the war (always, unless the scenario has a theatre)?"""
+        return self.theatre is None or bool(self.theatre[cell])
+
     def terrain_ok(self, kind: str, cell: int, owner: int) -> bool:
         """Can a unit of this kind stand on this cell (ignoring other units)?"""
+        if self.theatre is not None and not self.theatre[cell]:
+            return False
         domain = UNIT_TYPES[kind].domain
         if domain == "air":
             return True
@@ -573,6 +594,8 @@ class Game:
         """A* over terrain; returns the cells after u.cell up to dest."""
         if dest == u.cell:
             return []
+        if not self.in_theatre(dest):
+            return None
         w = self.world
         start = u.cell
         kind, owner = u.kind, u.owner
