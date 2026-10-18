@@ -84,6 +84,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--realtime", type=int, nargs="?", const=10, default=0, metavar=tr("SECONDI"),
                    help=tr("tempo reale, senza turni: un impulso ogni SECONDI (predefinito 10); "
                            "anche online"))
+    p.add_argument("--esagoni", dest="hexgrid", action="store_true",
+                   help=tr("griglia a esagoni (6 direzioni) invece che a quadrati (8)"))
     p.add_argument("--version", action="version", version=f"theempire {__version__}")
     return p.parse_args(argv)
 
@@ -99,7 +101,7 @@ def list_scenarios() -> None:
 def autoplay(args: argparse.Namespace) -> int:
     g = Game(args.scenario or "ww3", difficulty=args.difficulty, seed=args.seed,
              objectives=args.objectives, world_events=args.world_events,
-             realtime=args.realtime)
+             realtime=args.realtime, hexgrid=args.hexgrid)
     t0 = time.time()
     while not g.over and g.turn <= args.autoplay:
         AI(g, g.current).play()
@@ -140,7 +142,7 @@ def configure_server(args: argparse.Namespace) -> bool:
     args.scenario, args.faction = chosen.scenario, chosen.seats()
     args.play, args.name = chosen.play or None, chosen.name
     args.difficulty, args.turn_time = chosen.difficulty, chosen.turn_time
-    args.realtime = chosen.realtime
+    args.realtime, args.hexgrid = chosen.realtime, chosen.hexgrid
     args.objectives, args.world_events = chosen.objectives, chosen.world_events
     args.web = chosen.web_port if chosen.web else None
     args.password = chosen.password
@@ -177,7 +179,7 @@ def serve(args: argparse.Namespace) -> int:
         humans = tuple(args.faction) or tuple(f.key for f in SCENARIOS[scenario].factions)
         game = Game(scenario, humans=humans, difficulty=args.difficulty, seed=args.seed,
                     objectives=args.objectives, world_events=args.world_events,
-                    realtime=args.realtime)
+                    realtime=args.realtime, hexgrid=args.hexgrid)
     log_lines: list[str] = []
 
     def log(line: str) -> None:
@@ -327,7 +329,7 @@ def main(argv: list[str] | None = None) -> int:
             humans = tuple(args.faction) or (SCENARIOS[args.scenario].factions[0].key,)
             game = Game(args.scenario, humans=humans, difficulty=args.difficulty, seed=args.seed,
                         objectives=args.objectives, world_events=args.world_events,
-                        realtime=args.realtime)
+                        realtime=args.realtime, hexgrid=args.hexgrid)
         else:
             choice = setup_menu(scr)
             if choice is None:
@@ -342,7 +344,8 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 game = Game(choice["scenario"], humans=choice["humans"],
                             difficulty=choice["difficulty"], seed=args.seed,
-                            realtime=choice.get("realtime", 0) or args.realtime)
+                            realtime=choice.get("realtime", 0) or args.realtime,
+                            hexgrid=choice.get("hex", False) or args.hexgrid)
                 turn_time = choice.get("turn_time", 0) or turn_time
         UI(scr, LocalSession(game, args.save, turn_time), audio).run()
 

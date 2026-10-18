@@ -36,6 +36,7 @@ class Config:
     difficulty: str = "normale"
     turn_time: int = 0
     realtime: int = 0
+    hexgrid: bool = False
     objectives: bool = True
     world_events: bool = True
     port: int = DEFAULT_PORT
@@ -83,6 +84,8 @@ class Config:
                 out.append("--senza-eventi")
             if self.realtime:
                 out += ["--realtime", str(self.realtime)]
+            if self.hexgrid:
+                out.append("--esagoni")
         if self.turn_time and not self.realtime:
             out += ["--turn-time", str(self.turn_time)]
         if self.web:
@@ -198,6 +201,12 @@ def _rows(c: Config) -> list[Row]:
                         if c.realtime else tr("a turni"),
                         tr("Tempo reale: tutti giocano insieme, senza turni; a ogni impulso le mosse "
                            "si ricaricano, le città producono e l'IA agisce."), set_mode))
+
+        def set_grid(step):
+            c.hexgrid = not c.hexgrid
+        rows.append(Row(tr("Griglia"), tr("esagoni") if c.hexgrid else tr("quadrati"),
+                        tr("Esagoni: 6 direzioni invece di 8, distanze uguali in ogni direzione."),
+                        set_grid))
 
     def set_time(step):
         c.turn_time = cycle(list(TURN_TIMES), c.turn_time, step)

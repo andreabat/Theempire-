@@ -463,6 +463,31 @@ world events, cards and the Clock count pulses as if they were turns.
 - Locally it is one player per terminal; for more players use the server,
   where everyone commands from their own terminal or browser at the same time.
 
+### Hex grid (optional)
+Instead of squares the map can be made of **hexagons**, as in board
+wargames: every cell has 6 neighbours instead of 8, and distances are the
+same in every direction (on squares a diagonal step covers more ground than
+a straight one).
+
+- Choose it in the first menu (after the difficulty: "Grid" → "Hexagons"),
+  with `--esagoni`, and online in the server setup screen ("Grid" row) or
+  with `--serve --esagoni`. Saved games remember it.
+- The world is the same: same land, countries and cities. The rows stay
+  where they are and the odd rows are pushed half a cell east, so the cells
+  fit together like a honeycomb (the "odd-r" layout of hex maps).
+- Movement: `q` `e` north-west and north-east, `a` `d` west and east, `z`
+  `c` south-west and south-east (keypad 7 9 4 6 1 3). There is no straight
+  north or south: `w` and `x` do nothing. Clicking a cell next to the unit
+  works as always.
+- Half a character cannot be drawn, so the hex map starts at zoom ×2 (each
+  cell 2×2 characters, the odd rows one character to the right) and goes
+  to ×4; the overview (`m`) still shows the whole world. The coastline is
+  drawn from the fine land map under each cell, so it does not break.
+- Squares touching only at a corner were neighbours, hexagons are not: so
+  that straits (Sicily, the Dardanelles...) and thin isthmuses do not
+  close, the game opens the passage by turning one cell of the corner into
+  sea (or land), never a city.
+
 ### Combat
 To attack, move a unit against an enemy. The clash is a duel in rounds:
 in each round one of the two loses a hit point, with probability
@@ -613,7 +638,8 @@ tutorial.
 
 ### Victory
 - **Secret objective** completed (see above).
-- **Domination**: control 55% of the world's cities (50% in Six empires, 90% in the
+- **Domination**: control 55% of the world's cities (50% in Six empires, 75% in the
+  European Theatre, where almost every city has an owner from the start, 90% in the
   tutorial, where you win by taking Tirana).
 - **Conquest**: all rivals without cities.
 - **On points** when the turns run out (300; 400 in Six empires).
@@ -627,7 +653,7 @@ number next to each entry chooses it at once, and Esc cancels.
 
 | Key | Action |
 |---|---|
-| `q w e` `a d` `z x c` (or keypad) | moves the active unit in the 8 directions |
+| `q w e` `a d` `z x c` (or keypad) | moves the active unit in the 8 directions (on hexagons: `q e` `a d` `z c`, 6 directions) |
 | arrows, PgUp/PgDn | move the cursor |
 | mouse | click: select, move or attack; distant click + second click: march; drag or wheel: scroll the map |
 | `Enter` | selects the unit under the cursor (in a city it cycles through the units); on an empty city it opens production |
@@ -731,7 +757,8 @@ with the alternative, so the course can be changed.
    (e.g. 60 seconds).
 2. **Grid versus provinces.** A regular grid (360×72) keeps the
    real geography and the "one unit per square" rule. Alternative:
-   Risk-style provinces/regions, more readable but less tactical.
+   Risk-style provinces/regions, more readable but less tactical. The
+   grid can be made of hexagons (`--esagoni`), as in board wargames.
 3. **Passive neutrals, minimal diplomacy.** Neutral countries defend their
    cities with militia but have no armies. Between factions there are only
    timed truces. Alternatives: armed neutrals that ally with whoever is

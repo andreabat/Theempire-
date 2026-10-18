@@ -466,6 +466,34 @@ fossero turni.
 - In locale si gioca uno per terminale; per più giocatori si usa il server,
   dove ognuno comanda dal suo terminale o browser nello stesso momento.
 
+### Griglia a esagoni (opzionale)
+Invece che a quadrati la mappa può essere fatta di **esagoni**, come nei
+wargame da tavolo: ogni casella ha 6 vicini invece di 8, e le distanze sono
+uguali in ogni direzione (sui quadrati un passo in diagonale copre più
+strada di uno dritto).
+
+- Si sceglie nel primo menu (dopo la difficoltà: "Griglia" → "Esagoni"),
+  con `--esagoni`, e online nella schermata di configurazione del server
+  (riga "Griglia") o con `--serve --esagoni`. Le partite salvate se lo
+  ricordano.
+- Il mondo è lo stesso: stesse terre, nazioni e città. Le righe restano al
+  loro posto e quelle dispari sono spinte mezza casella a est, così le
+  caselle si incastrano come un alveare (la disposizione "odd-r" delle
+  mappe a esagoni).
+- Movimento: `q` `e` nord-ovest e nord-est, `a` `d` ovest ed est, `z` `c`
+  sud-ovest e sud-est (tastierino 7 9 4 6 1 3). Non c'è un nord o un sud
+  dritto: `w` e `x` non fanno nulla. Il clic su una casella accanto
+  all'unità funziona come sempre.
+- Mezzo carattere non si può disegnare, quindi la mappa a esagoni parte
+  dallo zoom ×2 (ogni casella 2×2 caratteri, le righe dispari spostate di
+  un carattere) e arriva a ×4; la panoramica (`m`) mostra sempre il mondo
+  intero. La costa è disegnata dalla mappa fine della terra che sta sotto
+  ogni casella, quindi non si spezza.
+- Quadrati che si toccavano solo per uno spigolo erano vicini, gli esagoni
+  no: perché stretti (Sicilia, Dardanelli...) e istmi sottili non si
+  chiudano, il gioco apre il passaggio trasformando in mare (o in terra)
+  una casella dello spigolo, mai una città.
+
 ### Combattimento
 Per attaccare muovi un'unità contro un nemico. Lo scontro è un duello a round:
 a ogni round uno dei due perde un punto vita, con probabilità
@@ -616,7 +644,8 @@ non ci sono.
 
 ### Vittoria
 - **Obiettivo segreto** completato (vedi sopra).
-- **Dominio**: controlla il 55% delle città del mondo (50% in Sei imperi, 90% nel
+- **Dominio**: controlla il 55% delle città del mondo (50% in Sei imperi, 75% nel
+  Teatro Europa, dove quasi ogni città ha un padrone fin dall'inizio, 90% nel
   tutorial, dove si vince prendendo Tirana).
 - **Conquista**: tutti i rivali senza città.
 - **Ai punti** allo scadere dei turni (300; 400 in Sei imperi).
@@ -630,7 +659,7 @@ numero a fianco di ogni voce la sceglie subito, ed Esc annulla.
 
 | Tasto | Azione |
 |---|---|
-| `q w e` `a d` `z x c` (o tastierino) | muove l'unità attiva nelle 8 direzioni |
+| `q w e` `a d` `z x c` (o tastierino) | muove l'unità attiva nelle 8 direzioni (sugli esagoni: `q e` `a d` `z c`, 6 direzioni) |
 | frecce, PagSu/PagGiù | muovono il cursore |
 | mouse | clic: seleziona, muove o attacca; clic lontano + secondo clic: marcia; trascina o rotella: scorre la mappa |
 | `Invio` | seleziona l'unità sotto il cursore (in città scorre le unità); su una città vuota apre la produzione |
@@ -735,6 +764,7 @@ all'alternativa, così si può cambiare strada.
 2. **Griglia contro province.** Una griglia regolare (360×72) mantiene la
    geografia vera e la regola "un'unità per casella". Alternativa:
    province/regioni stile Risiko, più leggibili ma meno tattiche.
+   La griglia può essere a esagoni (`--esagoni`), come nei wargame da tavolo.
 3. **Neutrali passivi, diplomazia minima.** I paesi neutrali difendono le
    città con la milizia ma non hanno eserciti. Tra le fazioni ci sono solo
    tregue a tempo. Alternative: neutrali armati che si alleano con chi viene

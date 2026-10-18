@@ -62,6 +62,7 @@ COLORS_8 = {"blue": curses.COLOR_BLUE, "red": curses.COLOR_RED, "yellow": curses
 HELP = N("""\
 MENU              ↑↓ per scegliere, Invio per confermare (o la lettera/il numero), Esc
 MOVIMENTO UNITÀ   q w e / a · d / z x c  (o tastierino 7 8 9 4 6 1 2 3)
+                  esagoni: q e / a · d / z c  (niente w e x)
 CURSORE           frecce, PagSu/PagGiù, mouse (trascina o rotella per scorrere)
 MOUSE             clic su una tua unità: la selezioni; clic accanto: si muove o
                   attacca; clic lontano: mostra il percorso, secondo clic: parte
@@ -140,12 +141,14 @@ def lower_noun(name: str) -> str:
     return name if i18n.language() == "de" else name.lower()
 
 
-def zoom_tile(world, cell: int, k: int) -> tuple[str, ...]:
+def zoom_tile(world, cell: int, k: int, shift: int = 0) -> tuple[str, ...]:
     """The land of a cell drawn k × k characters large, as rows of Braille.
 
     Like Terrascope, the zoom samples the coastline again at the finer scale
     (the land mask of world.load_hd) instead of blowing up the dots of the
-    normal map; without that file the dots are only magnified."""
+    normal map; without that file the dots are only magnified. ``shift``
+    characters further east: the odd rows of a hex map, pushed half a cell,
+    draw the coast that lies under them, so it stays unbroken."""
     hd = load_hd()
     cx, cy = world.xy(cell)
     rows = []
@@ -157,7 +160,7 @@ def zoom_tile(world, cell: int, k: int) -> tuple[str, ...]:
                 for tw in range(4):
                     if hd is not None and hd.zoom % k == 0:
                         s = hd.zoom // k                     # samples per dot, each way
-                        x0 = cx * 2 * hd.zoom + (i * 2 + tc) * s
+                        x0 = cx * 2 * hd.zoom + ((i + shift) * 2 + tc) * s
                         y0 = cy * 4 * hd.zoom + (j * 4 + tw) * s
                         land = sum(hd.land(x0 + a, y0 + b) for a in range(s) for b in range(s))
                         on = land * 2 >= s * s
@@ -312,7 +315,15 @@ class UI:
 
     # Zoom levels: one cell of the map takes k × k characters, so the map
     # keeps its proportions; the coast is redrawn with finer detail.
-    ZOOMS = (1, 2, 4)
+    # Hexagons need at least two characters a cell, to push the odd rows
+    # half a cell east (the whole world is still on m).
+    @property
+    def ZOOMS(self) -> tuple[int, ...]:
+        return (2, 4) if self.w.hexgrid else (1, 2, 4)
+
+    def row_shift(self, y: int) -> int:
+        """Characters an odd row of hexagons is pushed east."""
+        return self.zoom_factor()[0] // 2 if self.w.hexgrid and y & 1 else 0
 
     @property
     def _tiles(self) -> dict:
@@ -603,7 +614,9 @@ class UI:
             y = self.view_y + sy
             if y >= self.w.height:
                 break
-            for sx in range(cols):
+            shift = self.row_shift(y)
+            # a pushed row of hexagons starts with the end of the cell before
+            for sx in range(-1 if shift else 0, cols):
                 cell = y * self.w.width + (self.view_x + sx) % self.w.width
                 ch, attr = self.cell_glyph(cell, vis, path)
                 gattr = sattr = attr
@@ -628,17 +641,20 @@ class UI:
                     continue
                 # zoomed in: the cell is a block of finer coastline, and what
                 # stands on it (unit, city...) sits in its middle
-                tile = self._tiles.get((cell, zx))
+                tile = self._tiles.get((cell, zx, shift))
                 if tile is None:
-                    tile = self._tiles[(cell, zx)] = zoom_tile(self.w, cell, zx)
+                    tile = self._tiles[(cell, zx, shift)] = zoom_tile(self.w, cell, zx, shift)
                 plain = ch == self.ground_glyph(cell, cell in vis)[0]
                 mid = (zx - 1) // 2
                 for j, row in enumerate(tile):
                     for i, dot in enumerate(row):
+                        x = sx * zx + shift + i
+                        if x < 0:
+                            continue
                         if not plain and i == mid and j == mid:
-                            self.put(1 + sy * zy + j, sx * zx + i, ch, attr)
+                            self.put(1 + sy * zy + j, x, ch, attr)
                         else:
-                            self.put(1 + sy * zy + j, sx * zx + i, dot, gattr if dot == "⣿" else sattr)
+                            self.put(1 + sy * zy + j, x, dot, gattr if dot == "⣿" else sattr)
 
     def draw_overview(self) -> None:
         """The whole world in the map area; each Braille dot is one cell."""
@@ -1381,7 +1397,14 @@ class UI:
             return
         target = self.w.step_dir(a.cell, dx, dy)
         if target is None:
+            if self.w.hexgrid and dy and not dx:
+                self.status = tr("Esagoni: niente nord e sud diretti, usa q/e e z/c.")
             return
+        self.step_to(target)
+
+    def step_to(self, target: int) -> None:
+        """Move the active unit to the next cell."""
+        a = self.active
         kind = a.kind
         result = self.do({"op": "move", "unit": a.id, "cell": target})
         self.status = describe(result)
@@ -2247,7 +2270,7 @@ class UI:
         y = self.view_y + (my - 1) // zy
         if y >= self.w.height:
             return None
-        return self.w.idx(self.view_x + mx // zx, y)
+        return self.w.idx(self.view_x + (mx - self.row_shift(y)) // zx, y)
 
     def click(self, cell: int | None) -> None:
         if cell is None:
@@ -2277,10 +2300,7 @@ class UI:
             self.select_at_cursor()          # click again: next unit in the stack
             return
         if cell in self.w.neighbors[a.cell]:
-            ax, ay = self.w.xy(a.cell)
-            cx, cy = self.w.xy(cell)
-            dx = (cx - ax + self.w.width // 2) % self.w.width - self.w.width // 2
-            self.move_active(dx, cy - ay)
+            self.step_to(cell)
             return
         if g.path(a, cell) is None:
             self.status = tr("Destinazione irraggiungibile per questa unità.")
@@ -2566,6 +2586,12 @@ def setup_menu(scr) -> dict | None:
                                          (tr("difficile"), tr("IA con industria al 130%"))])
         if d is None:
             continue
+        grid = menu(scr, tr("Griglia"), [
+            (tr("Quadrati"), tr("8 direzioni, anche in diagonale: il classico")),
+            (tr("Esagoni"), tr("6 direzioni, distanze uguali in ogni direzione, come nei "
+                               "wargame da tavolo"))])
+        if grid is None:
+            continue
         mode = menu(scr, tr("Modalità"), [
             (tr("A turni"), tr("ogni fazione muove a turno, come in un gioco da tavolo")),
             (tr("Tempo reale"), tr("tutti insieme, senza turni: ogni pochi secondi un impulso "
@@ -2582,7 +2608,7 @@ def setup_menu(scr) -> dict | None:
                 continue
             return {"scenario": sc.key, "humans": (sc.factions[f].key,),
                     "difficulty": ("facile", "normale", "difficile")[d], "turn_time": 0,
-                    "realtime": pulses[p]}
+                    "realtime": pulses[p], "hex": grid == 1}
         times = (0, 60, 120, 180, 300)
         t = menu(scr, tr("Tempo per turno"), [
             (tr("Nessun limite"), tr("pensa quanto vuoi")),
@@ -2593,7 +2619,8 @@ def setup_menu(scr) -> dict | None:
         if t is None:
             continue
         return {"scenario": sc.key, "humans": (sc.factions[f].key,),
-                "difficulty": ("facile", "normale", "difficile")[d], "turn_time": times[t]}
+                "difficulty": ("facile", "normale", "difficile")[d], "turn_time": times[t],
+                "hex": grid == 1}
 
 
 def _faction_blurb(fd) -> str:

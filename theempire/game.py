@@ -146,8 +146,12 @@ class Game:
                  difficulty: str = "normale", seed: int | None = None,
                  world: World | None = None, _empty: bool = False,
                  objectives: bool | None = None, world_events: bool | None = None,
-                 realtime: int = 0):
-        self.world = world or load_world()
+                 realtime: int = 0, hexgrid: bool | None = None):
+        if hexgrid is None:
+            hexgrid = world.hexgrid if world is not None else False
+        if world is None or world.hexgrid != hexgrid:
+            world = load_world(hexgrid)
+        self.world = world
         self.scenario: Scenario = SCENARIOS[scenario]
         self.difficulty = difficulty
         # rules that can be switched off (default: as the scenario says)
@@ -156,6 +160,8 @@ class Game:
             "world_events": self.scenario.world_events if world_events is None else world_events,
             # real time: seconds between two pulses (0 = turns, one faction at a time)
             "realtime": max(0, int(realtime)),
+            # hexagons instead of squares: 6 neighbours instead of 8
+            "hex": bool(hexgrid),
         }
         self.rng = random.Random(seed)
         self.turn = 1
@@ -621,7 +627,7 @@ class Game:
             return None
         if domain == "land" and not w.land[dest]:
             return None
-        # Among the many equally short routes of an 8-way grid, prefer the
+        # Among the many equally short routes of the grid, prefer the
         # one closest to the straight line from start to dest (no zig-zags).
         dx0, dy0 = w.offset(dest, start)
 
@@ -1325,7 +1331,8 @@ class Game:
 
     @classmethod
     def from_dict(cls, d: dict, world: World | None = None) -> "Game":
-        g = cls(d["scenario"], difficulty=d["difficulty"], world=world, _empty=True)
+        g = cls(d["scenario"], difficulty=d["difficulty"], world=world, _empty=True,
+                hexgrid=bool(d.get("options", {}).get("hex")))
         g.options.update(d.get("options", {}))
         g.turn, g.current = d["turn"], d["current"]
         g.doomsday, g.quiet_turns = d["doomsday"], d["quiet_turns"]
