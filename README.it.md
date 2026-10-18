@@ -477,12 +477,14 @@ Guerra Fredda) e sta in alto a destra, insieme al livello DEFCON.
 ### Carte (alla Futurisiko)
 Oltre a muovere le unità puoi giocare **carte segrete** che cambiano la
 guerra. Si guadagnano in due modi:
-- **conquistando**: come in Risiko, a fine turno peschi una carta se nel
-  turno hai preso almeno una città, con le armi, una rivolta o un colpo di
-  stato;
-- **dai servizi segreti**: tutti ricevono una carta ogni 6 turni.
+- **conquistando**: a fine turno *forse* peschi una carta. Ogni città presa
+  nel turno (con le armi, una rivolta o un colpo di stato) aggiunge il 20%
+  di probabilità se è piccola, il 40% se è media, il 60% se è grande o una
+  capitale, fino a un massimo dell'80%. Se va male il registro te lo dice;
+- **dai servizi segreti**: tutti ricevono una carta ogni 10 turni.
 
-Si tengono al massimo 5 carte. Il tasto `K` mostra la tua mano e gioca una
+Si tengono al massimo 4 carte (nel tutorial la carta per la conquista
+arriva sempre). Il tasto `K` mostra la tua mano e gioca una
 carta; nel pannello vedi quante ne hai (♠) e quante ne ha ogni rivale.
 
 | Carta | Effetto | Riesce |

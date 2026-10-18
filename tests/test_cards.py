@@ -227,3 +227,33 @@ def test_revolt_works_in_minor_capitals_but_not_the_seat(world):
 def test_tutorial_tirana_is_the_seat(world):
     g = Game("tutorial", humans=("ita",), seed=1, world=world)
     assert cards.seat(g, 1).name == "Tirana"
+
+
+def test_conquests_earn_cards_only_by_chance():
+    from theempire import cards
+    from theempire.game import Game
+    from theempire.world import load_world
+
+    class Fixed(random.Random):
+        def __init__(self, value):
+            super().__init__(0)
+            self.value = value
+
+        def random(self):
+            return self.value
+
+    g = Game("ww3", seed=1, world=load_world())
+    small = next(c for c in g.cities if c.size == 1 and not c.capital)
+    capital = next(c for c in g.cities if c.capital)
+    assert cards.conquest_weight(small) == 1 and cards.conquest_weight(capital) == 3
+    fac = g.factions[0]
+    fac.cards.clear()
+    fac.conquests, g.rng = 1, Fixed(0.3)          # a small city: 20%, the roll is 30%: no card
+    cards.end_of_turn(g, 0)
+    assert fac.cards == [] and "probabilità 20%" in g.events[-1].text
+    fac.conquests, g.rng = 3, Fixed(0.5)          # a capital: 60%
+    cards.end_of_turn(g, 0)
+    assert len(fac.cards) == 1
+    fac.conquests, g.rng = 10, Fixed(0.85)        # never more than 80%
+    cards.end_of_turn(g, 0)
+    assert len(fac.cards) == 1

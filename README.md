@@ -477,12 +477,14 @@ Cold War) and sits at the top right, together with the DEFCON level.
 ### Cards (Futurisiko-style)
 Besides moving units you can play **secret cards** that change the
 war. You earn them in two ways:
-- **by conquering**: as in Risk, at the end of the turn you draw a card if in the
-  turn you took at least one city, by arms, a revolt or a
-  coup;
-- **from the secret services**: everyone receives a card every 6 turns.
+- **by conquering**: at the end of the turn you *may* draw a card. Every city
+  taken in the turn (by arms, a revolt or a coup) adds a 20% chance if it is
+  small, 40% if medium, 60% if big or a capital, up to 80%. If you are out
+  of luck the log tells you;
+- **from the secret services**: everyone receives a card every 10 turns.
 
-You can hold at most 5 cards. The `K` key shows your hand and plays a
+You can hold at most 4 cards (in the tutorial the conquest card always
+comes). The `K` key shows your hand and plays a
 card; in the panel you see how many you have (♠) and how many each rival has.
 
 | Card | Effect | Succeeds |

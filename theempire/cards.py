@@ -18,8 +18,18 @@ from theempire.i18n import N, Msg
 if TYPE_CHECKING:
     from theempire.game import Game
 
-HAND_LIMIT = 5
-BRIEFING_EVERY = 6      # turns between free intelligence cards
+HAND_LIMIT = 4
+BRIEFING_EVERY = 10     # turns between free intelligence cards
+# A conquest earns a card only by chance: every city taken in the turn adds
+# its weight (small 1, medium 2, big or capital 3) and each point is worth
+# this much probability, up to a ceiling.
+CONQUEST_CHANCE = 0.2
+CONQUEST_MAX = 0.8
+
+
+def conquest_weight(city) -> int:
+    """What taking ``city`` counts towards a card."""
+    return 3 if city.capital or city.size >= 3 else city.size
 
 
 @dataclass(frozen=True)
@@ -89,10 +99,17 @@ def draw(game: "Game", f: int, why: str) -> str | None:
 
 
 def end_of_turn(game: "Game", f: int) -> None:
-    """Risiko's rule: whoever conquered this turn draws a card."""
+    """Risiko's rule, made harder: whoever conquered this turn may draw a
+    card, the likelier the bigger the conquests (always in the tutorial)."""
     fac = game.factions[f]
-    if fac.conquests > 0 and fac.alive:
-        draw(game, f, N("Conquista"))
+    if fac.conquests > 0 and fac.alive and len(fac.cards) < HAND_LIMIT:
+        chance = 1.0 if game.scenario.key == "tutorial" else \
+            min(CONQUEST_MAX, CONQUEST_CHANCE * fac.conquests)
+        if game.rng.random() < chance:
+            draw(game, f, N("Conquista"))
+        else:
+            game.log(Msg("♠ Niente carta per le conquiste di questo turno (probabilità {pct}%).",
+                         pct=round(chance * 100)), [f], "info", "", f)
     fac.conquests = 0
 
 

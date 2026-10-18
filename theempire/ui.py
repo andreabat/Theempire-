@@ -1110,7 +1110,9 @@ class UI:
         hand = g.factions[self.viewer].cards
         if not hand:
             self.dialog(tr("Carte"), [tr("Non hai carte."), "",
-                                      tr("Ne peschi una a fine turno se nel turno hai conquistato una città,"),
+                                      tr("Ne peschi una a fine turno con una probabilità che cresce con le"),
+                                      tr("città conquistate nel turno: 20% per una piccola, 60% per una grande"),
+                                      tr("o una capitale, al massimo 80%;"),
                                       tr("e una ogni {every} turni dai servizi segreti (massimo {limit} in mano).",
                                          every=cards.BRIEFING_EVERY, limit=cards.HAND_LIMIT)])
             return

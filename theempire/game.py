@@ -802,7 +802,8 @@ class Game:
     def capture(self, city: City, u: Unit) -> None:
         old = city.owner
         if u.owner == self.current:
-            self.factions[u.owner].conquests += 1   # earns a card at the end of the turn
+            # may earn a card at the end of the turn
+            self.factions[u.owner].conquests += cards.conquest_weight(city)
         city.owner = u.owner
         city.progress = 0.0
         city.unrest = UNREST_TURNS
