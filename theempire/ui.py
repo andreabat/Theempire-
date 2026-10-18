@@ -541,7 +541,7 @@ class UI:
     def symbols(self) -> bool:
         """Units drawn as symbols (♟ ♜ ✈...) rather than letters (I A F...)."""
         if "_symbols" not in self.__dict__:
-            self._symbols = load_setting("unit_symbols", True)
+            self._symbols = load_setting("unit_symbols", False)   # letters unless chosen
         return self._symbols
 
     def glyph(self, kind: str) -> str:
@@ -2517,7 +2517,10 @@ def setup_menu(scr) -> dict | None:
                  + [(tr("Carica la partita salvata"), str(SAVE_PATH)),
                     (tr("Ospita una partita online..."),
                      tr("configura un server: posti, IA, timer, web TUI, password")),
-                    (tr("Lingua / Language"), i18n.LANGS[i18n.language()])])
+                    (tr("Lingua / Language"), i18n.LANGS[i18n.language()]),
+                    (tr("Unità sulla mappa: {style}", style=tr("simboli ♟ ♜ ✈") if load_setting(
+                        "unit_symbols", False) else tr("lettere I A F")),
+                     tr("lettere (I A F...) o simboli (♟ ♜ ✈...); in partita si cambia con V"))])
         if k is None:
             return None
         if k == len(keys):
@@ -2527,6 +2530,9 @@ def setup_menu(scr) -> dict | None:
         if k == len(keys) + 2:
             language_menu(scr)
             continue                 # the menu is drawn again in the new language
+        if k == len(keys) + 3:
+            save_setting("unit_symbols", not load_setting("unit_symbols", False))
+            continue
         sc = SCENARIOS[keys[k]]
         if sc.key == "tutorial":
             return {"scenario": sc.key, "humans": (sc.factions[0].key,),

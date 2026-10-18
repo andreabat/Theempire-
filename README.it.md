@@ -335,10 +335,12 @@ difende anche senza truppe.
 | U | Drone | aria | 6 | 1 | 1 | 1 | 4 | vede a 3 caselle, 8 di carburante; costa poco |
 | H | Missile ipersonico | aria | 12 | 1 | 9 | 0 | 14 | gittata 12, si consuma nell'attacco |
 
-Sulla mappa le unità sono disegnate con **simboli**: ♟ fanteria, ♜ corazzati,
-✈ caccia, ▼ bombardiere, ▸ cacciatorpediniere, ◒ sottomarino, ▭ trasporto,
-⧫ incrociatore, ▬ portaerei, ✧ drone, ➶ missile ipersonico. Il tasto `V`
-torna alle lettere della tabella (la scelta resta salvata). I simboli
+Sulla mappa le unità sono disegnate con le lettere della tabella. A scelta
+possono essere **simboli**: ♟ fanteria, ♜ corazzati, ✈ caccia, ▼ bombardiere,
+▸ cacciatorpediniere, ◒ sottomarino, ▭ trasporto, ⧫ incrociatore, ▬ portaerei,
+✧ drone, ➶ missile ipersonico. Si attivano dal menu iniziale («Unità sulla
+mappa») o in partita con il tasto `V`, che passa dalle une agli altri; la
+scelta resta salvata. I simboli
 occupano una colonna e ci sono nei font monospazio più diffusi (DejaVu Sans
 Mono, Menlo, Consolas); se il tuo terminale ne mostra qualcuno come un
 quadratino, usa le lettere.
