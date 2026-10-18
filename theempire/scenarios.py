@@ -128,7 +128,7 @@ SCENARIOS: dict[str, Scenario] = {s.key: s for s in (
                        industry=1.2, extras={"A": 14, "B": 3}),
         ),
         doomsday=7,
-        victory_share=0.55,
+        victory_share=0.75,                 # most cities are already taken at the start
         max_turns=150,
         modern=False,
         bounds=(-11.0, 42.0, 37.0, 71.0),      # from Lisbon to Moscow, from Athens to the North Cape
