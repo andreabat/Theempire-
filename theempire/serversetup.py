@@ -22,6 +22,7 @@ from theempire.net import DEFAULT_PORT
 from theempire.scenarios import SCENARIOS
 
 TURN_TIMES = (0, 60, 90, 120, 180, 300)
+PULSES = (0, 5, 10, 20)        # real time: seconds between pulses (0 = turns)
 SAVES = Path.home() / ".theempire"
 
 
@@ -34,6 +35,7 @@ class Config:
     name: str = ""
     difficulty: str = "normale"
     turn_time: int = 0
+    realtime: int = 0
     objectives: bool = True
     world_events: bool = True
     port: int = DEFAULT_PORT
@@ -79,7 +81,9 @@ class Config:
                 out.append("--senza-obiettivi")
             if not self.world_events:
                 out.append("--senza-eventi")
-        if self.turn_time:
+            if self.realtime:
+                out += ["--realtime", str(self.realtime)]
+        if self.turn_time and not self.realtime:
             out += ["--turn-time", str(self.turn_time)]
         if self.web:
             out += ["--web", str(self.web_port)]
@@ -186,12 +190,22 @@ def _rows(c: Config) -> list[Row]:
                         tr("Ogni 5-8 turni un evento per tutti: crisi petrolifera, carestia, ONU..."),
                         set_events))
 
+    if c.load is None:
+        def set_mode(step):
+            c.realtime = cycle(list(PULSES), c.realtime, step)
+        rows.append(Row(tr("Modalità"),
+                        tr("tempo reale, un impulso ogni {seconds} s", seconds=c.realtime)
+                        if c.realtime else tr("a turni"),
+                        tr("Tempo reale: tutti giocano insieme, senza turni; a ogni impulso le mosse "
+                           "si ricaricano, le città producono e l'IA agisce."), set_mode))
+
     def set_time(step):
         c.turn_time = cycle(list(TURN_TIMES), c.turn_time, step)
-    rows.append(Row(tr("Tempo per turno"),
-                    tr("{seconds} secondi", seconds=c.turn_time) if c.turn_time else tr("nessun limite"),
-                    tr("Allo scadere il turno del giocatore finisce da solo: dà ritmo alla partita."),
-                    set_time))
+    if not c.realtime or c.load is not None:
+        rows.append(Row(tr("Tempo per turno"),
+                        tr("{seconds} secondi", seconds=c.turn_time) if c.turn_time else tr("nessun limite"),
+                        tr("Allo scadere il turno del giocatore finisce da solo: dà ritmo alla partita."),
+                        set_time))
     seats = [""] + (c.seats() if c.load is None else [])
 
     def set_play(step):

@@ -145,7 +145,8 @@ class Game:
     def __init__(self, scenario: str = "ww3", humans: tuple[str, ...] = (),
                  difficulty: str = "normale", seed: int | None = None,
                  world: World | None = None, _empty: bool = False,
-                 objectives: bool | None = None, world_events: bool | None = None):
+                 objectives: bool | None = None, world_events: bool | None = None,
+                 realtime: int = 0):
         self.world = world or load_world()
         self.scenario: Scenario = SCENARIOS[scenario]
         self.difficulty = difficulty
@@ -153,6 +154,8 @@ class Game:
         self.options = {
             "missions": self.scenario.missions if objectives is None else objectives,
             "world_events": self.scenario.world_events if world_events is None else world_events,
+            # real time: seconds between two pulses (0 = turns, one faction at a time)
+            "realtime": max(0, int(realtime)),
         }
         self.rng = random.Random(seed)
         self.turn = 1
@@ -801,7 +804,7 @@ class Game:
 
     def capture(self, city: City, u: Unit) -> None:
         old = city.owner
-        if u.owner == self.current:
+        if u.owner == self.current or self.realtime:
             # may earn a card at the end of the turn
             self.factions[u.owner].conquests += cards.conquest_weight(city)
         city.owner = u.owner
@@ -1050,6 +1053,11 @@ class Game:
                          "Nessuno ha vinto."), None, "wmd")
 
     # ------------------------------------------------------------------ turns
+    @property
+    def realtime(self) -> int:
+        """Seconds between two pulses of a real-time game (0: turn-based)."""
+        return self.options.get("realtime", 0)
+
     @property
     def faction(self) -> Faction:
         return self.factions[self.current]

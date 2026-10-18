@@ -29,6 +29,23 @@ def advance(game: Game, progress: Callable[[str], None] | None = None) -> None:
         prepare_human_turn(game)
 
 
+def tick(game: Game, progress: Callable[[str], None] | None = None) -> None:
+    """One pulse of a real-time game: every faction has its turn at once.
+    The AI plays, the players' units march on their goto orders, and every
+    faction's cities produce and units get their moves back."""
+    for _ in range(len(game.factions)):
+        if game.over:
+            return
+        if game.faction.alive:
+            if game.faction.human:
+                prepare_human_turn(game)
+            else:
+                if progress:
+                    progress(game.faction.name)
+                AI(game, game.current).play()
+        game.end_turn()
+
+
 def prepare_human_turn(game: Game) -> None:
     """Once per human turn: march units with goto orders and let the AI run
     delegated units and production."""
@@ -60,7 +77,16 @@ def apply(game: Game, f: int, cmd: dict, name: str = "",
         return "ok"
     if game.over:
         return "over"
-    if game.current != f:
+    if game.realtime:
+        # no turns: every player acts whenever they like
+        if not (0 <= f < len(game.factions)) or not game.factions[f].human or not game.factions[f].alive:
+            return "illegal"
+        if op == "end_turn":
+            if sum(1 for x in game.factions if x.human and x.alive) > 1:
+                return "realtime"
+            tick(game, progress)        # alone against the AI: the next pulse at once
+            return "ok"
+    elif game.current != f:
         return "notyourturn"
     if op == "end_turn":
         game.end_turn()
@@ -295,6 +321,7 @@ RESULTS = {
     "noasat": N("Nessuna arma antisatellite: costruiscine una in una città grande."),
     "nosat": N("Quella fazione non ha satelliti in orbita."),
     "missed": N("L'arma antisatellite ha mancato il bersaglio."),
+    "realtime": N("In tempo reale non ci sono turni: il prossimo impulso arriva da solo."),
 }
 
 

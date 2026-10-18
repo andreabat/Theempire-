@@ -442,6 +442,25 @@ the turn ends by itself: units with a march order carry on, the
 others stay where they are. The animated summary of the opponents' moves does not
 use up your time.
 
+### Real time
+Besides turns there is a **real-time** mode: nobody waits for anybody,
+everyone gives orders whenever they like, and every few seconds a
+**pulse** comes. At every pulse units get their moves back, cities produce,
+units on a march order (`g`) advance and the AI factions act; objectives,
+world events, cards and the Clock count pulses as if they were turns.
+
+- Choose it in the first menu (after the difficulty: "Mode" → "Real time",
+  then the speed: a pulse every 5, 10 or 20 seconds), with `--realtime`
+  (10 seconds) or `--realtime 5`, and online in the server setup screen
+  ("Mode" row) or with `--serve --realtime 10`.
+- At the top you see "⚡ real time · pulse N" and the countdown to the next
+  pulse. The bulletin no longer plays at every pulse: it goes to the archive
+  (`B`); world events still get their box.
+- Alone against the AI, `E` brings the next pulse at once. While a menu or a
+  dialog is open the war waits.
+- Locally it is one player per terminal; for more players use the server,
+  where everyone commands from their own terminal or browser at the same time.
+
 ### Combat
 To attack, move a unit against an enemy. The clash is a duel in rounds:
 in each round one of the two loses a hit point, with probability

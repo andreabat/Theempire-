@@ -241,6 +241,8 @@ class UI:
 
     def my_turn(self) -> bool:
         g = self.g
+        if g.realtime:          # no turns: always time to give orders
+            return not g.over and g.factions[self.viewer].alive and getattr(self.session, "started", True)
         return not g.over and g.current == self.viewer and getattr(self.session, "started", True)
 
     # ----------------------------------------------------------- colours
@@ -675,7 +677,10 @@ class UI:
                          minute=60 - minutes, minutes=minutes, defcon=defcon(minutes)) + " "
         level = "alert" if minutes <= 3 else "fallout" if minutes <= 6 else "good"
         self.put(0, max(len(title) + 1, w - len(clock) - 1), clock, self.color(level) | curses.A_REVERSE | curses.A_BOLD)
-        if g.current != self.viewer and not g.over:
+        if g.realtime and not g.over:
+            self.put(0, len(title), " " + tr("⚡ tempo reale · impulso {turn}", turn=g.turn) + " ",
+                     curses.A_REVERSE | curses.A_BOLD)
+        elif g.current != self.viewer and not g.over:
             self.put(0, len(title), " " + tr("⌛ tocca a {faction}", faction=g.faction.name) + " ",
                      curses.A_REVERSE)
         left = self.session.seconds_left()
@@ -1299,8 +1304,12 @@ class UI:
         key = (g.turn, g.current)
         if key == self.turn_key:
             return
+        first = self.turn_key is None
         self.turn_key = key
-        if not self.session.online and g.faction.human:
+        if g.realtime and not first:
+            self.pulse()
+            return
+        if not self.session.online and g.faction.human and not g.realtime:
             self.viewer = g.current
         if self.my_turn():
             self.start_human_turn()
@@ -1501,6 +1510,22 @@ class UI:
         for e in [e for e in g.events if e.level == "world"][-5:]:
             lines += textwrap.wrap(f"[{e.turn}] {e.shown()}", 76, initial_indent="  ", subsequent_indent="    ")
         self.pager(tr("Obiettivo, regioni ed eventi mondiali"), lines, tr("↑↓ scorri · un tasto chiude"))
+
+    def pulse(self) -> None:
+        """Real time: a pulse came. No animation (there is one every few
+        seconds): the bulletin goes to the archive (B), world events are
+        announced, and the orders go on."""
+        g = self.g
+        reel = self.session.take_reel(self.viewer) if hasattr(self.session, "take_reel") else []
+        if reel:
+            self.last_reel = reel
+            title = tr("BOLLETTINO DI GUERRA · {date} · turno {turn}", date=self.date_text(), turn=g.turn)
+            self.bulletins.append((title, self.bulletin_text(reel), reel))
+            del self.bulletins[:-30]
+        self.announce_world_events()
+        if self.active is None or self.active.id not in g.units:
+            self.select_next()
+        self.warned = False
 
     def end_human_turn(self) -> None:
         self.active = None
@@ -2302,8 +2327,8 @@ class UI:
         """Turn timer: a warning near the end, then the turn ends by itself.
         Online the server keeps the time; here only the warning plays."""
         left = self.session.seconds_left()
-        if left is None or not self.my_turn():
-            return
+        if left is None or not self.my_turn() or self.g.realtime:
+            return                      # in real time the pulses come by themselves
         if left <= 10 and not getattr(self, "warned", False):
             self.warned = True
             self.audio.sfx("alert")
@@ -2517,6 +2542,23 @@ def setup_menu(scr) -> dict | None:
                                          (tr("difficile"), tr("IA con industria al 130%"))])
         if d is None:
             continue
+        mode = menu(scr, tr("Modalità"), [
+            (tr("A turni"), tr("ogni fazione muove a turno, come in un gioco da tavolo")),
+            (tr("Tempo reale"), tr("tutti insieme, senza turni: ogni pochi secondi un impulso "
+                                   "ricarica le mosse, le città producono e l'IA agisce"))])
+        if mode is None:
+            continue
+        if mode == 1:
+            pulses = (5, 10, 20)
+            p = menu(scr, tr("Velocità del tempo reale"), [
+                (tr("Veloce"), tr("un impulso ogni 5 secondi")),
+                (tr("Normale"), tr("un impulso ogni 10 secondi")),
+                (tr("Calma"), tr("un impulso ogni 20 secondi"))])
+            if p is None:
+                continue
+            return {"scenario": sc.key, "humans": (sc.factions[f].key,),
+                    "difficulty": ("facile", "normale", "difficile")[d], "turn_time": 0,
+                    "realtime": pulses[p]}
         times = (0, 60, 120, 180, 300)
         t = menu(scr, tr("Tempo per turno"), [
             (tr("Nessun limite"), tr("pensa quanto vuoi")),

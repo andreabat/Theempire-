@@ -131,6 +131,7 @@ class GameServer:
         self.turn_started = time.time()
         self.stopping = threading.Event()
         self.sock: socket.socket | None = None
+        self.last_pulse = time.time()   # real time: when the last pulse came
         if resume:              # a saved game: its players get their seats back
             self._load_slots()
         else:                   # a new game: every seat is free again
@@ -261,7 +262,10 @@ class GameServer:
             if not self.started and all(s.token for s in self.slots.values()):
                 self.started = True
                 self.log(tr("Tutti i giocatori sono arrivati: si comincia."))
-                commands.advance(self.game)
+                if self.game.realtime:
+                    self.last_pulse = time.time()
+                else:
+                    commands.advance(self.game)
             self._broadcast()
         return True
 
@@ -308,7 +312,11 @@ class GameServer:
                  "online": s.conn is not None} for s in self.slots.values()]
 
     def _deadline(self) -> float | None:
-        if not self.turn_time or not self.started or self.game.over:
+        if not self.started or self.game.over:
+            return None
+        if self.game.realtime:        # the countdown to the next pulse
+            return max(0.0, self.game.realtime - (time.time() - self.last_pulse))
+        if not self.turn_time:
             return None
         return max(0.0, self.turn_time - (time.time() - self.turn_started))
 
@@ -318,7 +326,10 @@ class GameServer:
             self.turn_key = key
             self.turn_started = time.time()
             f = self.game.current
-            if self.started and f in self.slots and not self.game.over:
+            if self.started and self.game.realtime and not self.game.over:
+                for s in self.slots:        # real time: everybody hears the news of the pulse
+                    self.reels[s] = self.reels.get(s, []) + commands.newsreel(self.game, s)
+            elif self.started and f in self.slots and not self.game.over:
                 # the war bulletin: what happened since this player's last turn
                 self.reels[f] = self.reels.get(f, []) + commands.newsreel(self.game, f)
         lobby = self.lobby()
@@ -327,13 +338,26 @@ class GameServer:
                 msg = {"type": "state", "state": commands.view_for(self.game, slot.faction),
                        "lobby": lobby, "started": self.started, "deadline": self._deadline()}
                 reel = self.reels.get(slot.faction)
-                if reel and self.game.current == slot.faction:
+                if reel and (self.game.current == slot.faction or self.game.realtime):
                     msg["reel"] = reel
                 if slot.conn.send(msg) and reel and "reel" in msg:
                     self.reels.pop(slot.faction, None)
 
+    def _pulse(self) -> None:
+        """Real time: the next pulse for everybody when its time has come."""
+        with self.lock:
+            if not self.started or self.game.over or time.time() - self.last_pulse < self.game.realtime:
+                return
+            commands.tick(self.game)
+            self.last_pulse = time.time()
+            self.save()
+            self._broadcast()
+
     def _timer(self) -> None:
         while not self.stopping.wait(1.0):
+            if self.game.realtime:
+                self._pulse()
+                continue
             if not self.turn_time:
                 continue
             with self.lock:
@@ -510,19 +534,33 @@ class LocalSession:
         self.faction = None
         self.turn_time = turn_time      # seconds per human turn, 0 = no limit
         self.clock_started: float | None = None
+        self.last_pulse = time.time()   # real time: when the last pulse came
 
     def do(self, f: int, cmd: dict, progress=None) -> str:
         if cmd.get("op") == "save":
             self.save_path.parent.mkdir(parents=True, exist_ok=True)
             self.game.save_file(self.save_path)
             return "saved"
-        return commands.apply(self.game, f, cmd, progress=progress)
+        result = commands.apply(self.game, f, cmd, progress=progress)
+        if self.game.realtime and cmd.get("op") == "end_turn" and result == "ok":
+            self.last_pulse = time.time()
+        return result
 
     def start(self, progress=None) -> None:
-        commands.advance(self.game, progress)
+        if self.game.realtime:
+            self.last_pulse = time.time()
+        else:
+            commands.advance(self.game, progress)
 
     def poll(self) -> bool:
-        return False
+        """Real time: the next pulse when its time has come (while a menu
+        is open nothing is polled, so the war waits)."""
+        g = self.game
+        if not g.realtime or g.over or time.time() - self.last_pulse < g.realtime:
+            return False
+        commands.tick(g)
+        self.last_pulse = time.time()
+        return True
 
     def take_reel(self, f: int) -> list[dict]:
         return commands.newsreel(self.game, f)
@@ -532,7 +570,11 @@ class LocalSession:
         self.clock_started = time.time() if self.turn_time else None
 
     def seconds_left(self) -> int | None:
-        if not self.turn_time or self.clock_started is None or self.game.over:
+        if self.game.over:
+            return None
+        if self.game.realtime:
+            return max(0, int(self.game.realtime - (time.time() - self.last_pulse)))
+        if not self.turn_time or self.clock_started is None:
             return None
         return max(0, int(self.turn_time - (time.time() - self.clock_started)))
 

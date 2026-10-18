@@ -443,6 +443,26 @@ il turno finisce da solo: le unità con un ordine di marcia proseguono, le
 altre restano dove sono. Il riepilogo animato delle mosse avversarie non
 consuma il tuo tempo.
 
+### Tempo reale
+Oltre ai turni c'è la modalità **tempo reale**: nessuno aspetta nessuno,
+tutti danno ordini quando vogliono e ogni pochi secondi arriva un
+**impulso**. A ogni impulso le unità riprendono le mosse, le città
+producono, le unità in marcia (`g`) avanzano e le fazioni dell'IA agiscono;
+obiettivi, eventi mondiali, carte e Orologio contano gli impulsi come
+fossero turni.
+
+- Si sceglie nel menu iniziale (dopo la difficoltà: «Modalità» → «Tempo
+  reale», poi la velocità: un impulso ogni 5, 10 o 20 secondi), con
+  `--realtime` (10 secondi) o `--realtime 5`, e online nella schermata di
+  configurazione del server (riga «Modalità») o con `--serve --realtime 10`.
+- In alto compare «⚡ tempo reale · impulso N» e il conto alla rovescia
+  al prossimo impulso. Il bollettino non parte più a ogni impulso: finisce
+  nell'archivio (`B`); gli eventi mondiali hanno sempre il loro riquadro.
+- Da soli contro l'IA, `E` fa arrivare subito il prossimo impulso. Mentre
+  un menu o un dialogo è aperto la guerra aspetta.
+- In locale si gioca uno per terminale; per più giocatori si usa il server,
+  dove ognuno comanda dal suo terminale o browser nello stesso momento.
+
 ### Combattimento
 Per attaccare muovi un'unità contro un nemico. Lo scontro è un duello a round:
 a ogni round uno dei due perde un punto vita, con probabilità

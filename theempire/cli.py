@@ -81,6 +81,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     online.add_argument("--audio-web", action="store_true", help=argparse.SUPPRESS)
     online.add_argument("--turn-time", type=int, default=0, metavar=tr("SECONDI"),
                         help=tr("tempo massimo per turno di ogni giocatore (anche in locale)"))
+    p.add_argument("--realtime", type=int, nargs="?", const=10, default=0, metavar=tr("SECONDI"),
+                   help=tr("tempo reale, senza turni: un impulso ogni SECONDI (predefinito 10); "
+                           "anche online"))
     p.add_argument("--version", action="version", version=f"theempire {__version__}")
     return p.parse_args(argv)
 
@@ -95,7 +98,8 @@ def list_scenarios() -> None:
 
 def autoplay(args: argparse.Namespace) -> int:
     g = Game(args.scenario or "ww3", difficulty=args.difficulty, seed=args.seed,
-             objectives=args.objectives, world_events=args.world_events)
+             objectives=args.objectives, world_events=args.world_events,
+             realtime=args.realtime)
     t0 = time.time()
     while not g.over and g.turn <= args.autoplay:
         AI(g, g.current).play()
@@ -136,6 +140,7 @@ def configure_server(args: argparse.Namespace) -> bool:
     args.scenario, args.faction = chosen.scenario, chosen.seats()
     args.play, args.name = chosen.play or None, chosen.name
     args.difficulty, args.turn_time = chosen.difficulty, chosen.turn_time
+    args.realtime = chosen.realtime
     args.objectives, args.world_events = chosen.objectives, chosen.world_events
     args.web = chosen.web_port if chosen.web else None
     args.password = chosen.password
@@ -171,7 +176,8 @@ def serve(args: argparse.Namespace) -> int:
         scenario = args.scenario or "ww3"
         humans = tuple(args.faction) or tuple(f.key for f in SCENARIOS[scenario].factions)
         game = Game(scenario, humans=humans, difficulty=args.difficulty, seed=args.seed,
-                    objectives=args.objectives, world_events=args.world_events)
+                    objectives=args.objectives, world_events=args.world_events,
+                    realtime=args.realtime)
     log_lines: list[str] = []
 
     def log(line: str) -> None:
@@ -294,6 +300,10 @@ def main(argv: list[str] | None = None) -> int:
     if args.join:
         return join(args)
     locale.setlocale(locale.LC_ALL, "")
+    if args.realtime and len(args.faction) > 1 and args.serve is None:
+        print(tr("In tempo reale si gioca uno per terminale: per più giocatori usa --serve."),
+              file=sys.stderr)
+        return 2
     if args.scenario and args.faction:
         valid = {f.key for f in SCENARIOS[args.scenario].factions}
         bad = [f for f in args.faction if f not in valid]
@@ -316,7 +326,8 @@ def main(argv: list[str] | None = None) -> int:
         elif args.scenario:
             humans = tuple(args.faction) or (SCENARIOS[args.scenario].factions[0].key,)
             game = Game(args.scenario, humans=humans, difficulty=args.difficulty, seed=args.seed,
-                        objectives=args.objectives, world_events=args.world_events)
+                        objectives=args.objectives, world_events=args.world_events,
+                        realtime=args.realtime)
         else:
             choice = setup_menu(scr)
             if choice is None:
@@ -330,7 +341,8 @@ def main(argv: list[str] | None = None) -> int:
                 game = Game.load_file(choice["load"])
             else:
                 game = Game(choice["scenario"], humans=choice["humans"],
-                            difficulty=choice["difficulty"], seed=args.seed)
+                            difficulty=choice["difficulty"], seed=args.seed,
+                            realtime=choice.get("realtime", 0) or args.realtime)
                 turn_time = choice.get("turn_time", 0) or turn_time
         UI(scr, LocalSession(game, args.save, turn_time), audio).run()
 
