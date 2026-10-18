@@ -156,3 +156,28 @@ def test_wheel_scrolls(world, tmp_path, monkeypatch):
     monkeypatch.setattr(curses, "getmouse", lambda: ("", 10, 10, 0, curses.BUTTON5_PRESSED))
     ui.mouse()
     assert ui.view_y == 23
+
+
+def test_load_and_unload_a_transport_in_port():
+    from theempire import commands
+    from theempire.game import Game
+    from theempire.world import load_world
+    world = load_world()
+    g = Game("ww3", humans=("west",), seed=1, world=world)
+    port = next(c for c in g.cities_of(0) if g.is_port(c.cell))
+    for u in list(g.units_at(port.cell)):
+        g.kill(u)
+    ship = g.create_unit("T", 0, port.cell)
+    inf = g.create_unit("I", 0, port.cell)
+    assert commands.apply(g, 0, {"op": "unload", "unit": ship.id}) == "emptyship"
+    assert commands.apply(g, 0, {"op": "load", "unit": ship.id}) == "1"
+    assert inf.carrier == ship.id
+    # the unit aboard was selected, not the ship: it stands for its ship
+    assert commands.apply(g, 0, {"op": "unload", "unit": inf.id}) == "1"
+    assert inf.carrier is None and inf.cell == port.cell
+    assert commands.apply(g, 0, {"op": "load", "unit": inf.id}) == "noship"
+    assert commands.describe("notport")
+    sea = next(n for n in world.neighbors[port.cell] if not world.land[n] and n not in g.at)
+    g._detach(ship)
+    g._place(ship, sea)
+    assert commands.apply(g, 0, {"op": "unload", "unit": ship.id}) == "notport"

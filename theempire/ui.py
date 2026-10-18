@@ -1978,12 +1978,10 @@ class UI:
             self.skipped.clear()
         elif key == ord("l") and self.active:
             n = self.do({"op": "load", "unit": self.active.id})
-            self.status = tr("Caricate {n} unità.", n=n) if n not in ("0", "illegal") else \
-                tr("Niente da caricare (serve una nave in città).")
+            self.status = tr("Caricate {n} unità.", n=n) if n.isdigit() else describe(n)
         elif key == ord("u") and self.active:
             n = self.do({"op": "unload", "unit": self.active.id})
-            self.status = tr("Scaricate {n} unità.", n=n) if n not in ("0", "illegal") else \
-                tr("Si scarica solo in città.")
+            self.status = tr("Scaricate {n} unità.", n=n) if n.isdigit() else describe(n)
         elif key == ord("p"):
             city = g.city(self.cursor)
             if city is not None and city.owner == self.viewer:

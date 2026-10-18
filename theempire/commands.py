@@ -129,7 +129,20 @@ def apply(game: Game, f: int, cmd: dict, name: str = "",
         u = _own_unit(game, f, cmd.get("unit"))
         if u is None:
             return "illegal"
-        return str(game.load(u) if op == "load" else game.unload(u))
+        # a unit aboard stands for its ship
+        ship = game.units.get(u.carrier, u) if u.carrier is not None else u
+        if not ship.type.carries:
+            return "noship"
+        city = game.city(ship.cell)
+        if city is None or city.owner != f:
+            return "notport"
+        if op == "unload":
+            return str(game.unload(ship)) if ship.cargo else "emptyship"
+        if not game.has_room(ship):
+            return "shipfull"
+        return str(game.load(ship)) if any(
+            o is not ship and o.owner == f and o.type.domain == ship.type.carries
+            and o.order != "fortify" for o in game.units_at(ship.cell)) else "nothingtoload"
     if op == "disband":
         u = _own_unit(game, f, cmd.get("unit"))
         if u is None:
@@ -322,6 +335,11 @@ RESULTS = {
     "nosat": N("Quella fazione non ha satelliti in orbita."),
     "missed": N("L'arma antisatellite ha mancato il bersaglio."),
     "realtime": N("In tempo reale non ci sono turni: il prossimo impulso arriva da solo."),
+    "noship": N("Seleziona un trasporto o una portaerei (o un'unità a bordo)."),
+    "notport": N("Si carica e si scarica solo con la nave ferma in una tua città."),
+    "emptyship": N("La nave è vuota: non c'è niente da scaricare."),
+    "shipfull": N("La nave è già piena."),
+    "nothingtoload": N("Niente da caricare: in città non ci sono unità adatte libere (quelle fortificate restano a terra)."),
 }
 
 
