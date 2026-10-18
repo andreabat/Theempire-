@@ -595,23 +595,33 @@ class Game:
             return None
         if domain == "land" and not w.land[dest]:
             return None
-        frontier = [(w.dist(start, dest), 0, start)]
+        # Among the many equally short routes of an 8-way grid, prefer the
+        # one closest to the straight line from start to dest (no zig-zags).
+        dx0, dy0 = w.offset(dest, start)
+
+        def off_line(c: int) -> int:
+            dx, dy = w.offset(dest, c)
+            return abs(dx * dy0 - dy * dx0)
+
+        frontier = [(w.dist(start, dest), 0, 0, start)]
         came = {start: None}
         cost = {start: 0}
-        expanded = 0
+        done: set[int] = set()
         while frontier:
-            _, g, c = heapq.heappop(frontier)
+            _, _, g, c = heapq.heappop(frontier)
             if c == dest:
                 break
-            expanded += 1
-            if expanded > limit:
+            if c in done:
+                continue                # an older, longer entry of a cell already settled
+            done.add(c)
+            if len(done) > limit:
                 return None
             for n in w.neighbors[c]:
-                if n in cost or not passable(n):
+                if n in done or (n in cost and cost[n] <= g + 1) or not passable(n):
                     continue
-                cost[n] = g + 1
+                cost[n] = g + 1         # a shorter way to n: keep this one
                 came[n] = c
-                heapq.heappush(frontier, (g + 1 + w.dist(n, dest), g + 1, n))
+                heapq.heappush(frontier, (g + 1 + w.dist(n, dest), off_line(n), g + 1, n))
         if dest not in came:
             return None
         out = []

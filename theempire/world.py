@@ -82,6 +82,15 @@ class World:
         dx = abs(ax - bx)
         return max(min(dx, self.width - dx), abs(ay - by))
 
+    def offset(self, a: int, b: int) -> tuple[int, int]:
+        """(dx, dy) from ``a`` to ``b``, the short way round east-west."""
+        dx = b % self.width - a % self.width
+        if dx > self.width // 2:
+            dx -= self.width
+        elif dx < -(self.width // 2):
+            dx += self.width
+        return dx, b // self.width - a // self.width
+
     def ring(self, center: int, radius: int) -> list[int]:
         """All cells within ``radius`` (Chebyshev) of ``center``."""
         return [self.idx(center % self.width + dx, center // self.width + dy)

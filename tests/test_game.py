@@ -247,3 +247,32 @@ def test_ai_plays_every_scenario(world, scenario):
             air = [u for u in top if u.type.domain == "air"]
             assert len(air) <= 1 and len(top) - len(air) <= 1, \
                 "outside cities: at most one aircraft over one other unit"
+
+
+def test_goto_takes_the_shortest_straightest_route(world):
+    g = empty_game(world)
+    # a wide stretch of open sea in the Pacific
+    a, b = world.idx(-150 + 180, (84 - 0) // 2), world.idx(-140 + 180, (84 - 6) // 2)
+    assert not world.land[a] and not world.land[b]
+    ship = g.create_unit("D", 0, a)
+    route = g.path(ship, b)
+    assert len(route) == world.dist(a, b)     # as short as it can be
+    # and close to the straight line: no cell strays more than one row off it
+    dx0, dy0 = world.offset(a, b)
+    for c in route:
+        dx, dy = world.offset(a, c)
+        assert abs(dy - dx * dy0 / dx0) <= 1
+
+
+def test_goto_routes_are_as_short_as_a_breadth_first_search(world):
+    g = empty_game(world)
+    rng = random.Random(3)
+    start = world.idx(20 + 180, (84 - 50) // 2)        # central Europe
+    tank = g.create_unit("A", 0, start)
+
+    def passable(c):
+        city = g.city(c)
+        return g.terrain_ok("A", c, 0) and (city is None or city.owner == 0)
+    reach = world.bfs([start], passable, limit=40)
+    for dest in rng.sample(sorted(reach), 25):
+        assert len(g.path(tank, dest)) == reach[dest]
