@@ -189,18 +189,20 @@ of seconds in `~/.theempire/sounds`.
   events. The online server plays no sound: the audio is on each
   player's computer.
 
-## Playing from the browser (web TUI)
+## Playing from the browser
 
-The game can also be played from a browser: same Braille map, same
-colours, keys and mouse as the terminal, and the audio plays in the browser.
+The game can also be played from a browser. The page opens on the
+**graphical map** (see below); the **web TUI**, at `/tui`, is the terminal
+itself in the browser: same Braille map, same colours, keys and mouse, and
+the audio plays in the browser.
 
 ```bash
 # game server on 7777 + web page on 8080
 python3 -m theempire --serve --web --scenario ww3 --faction west --faction east --password segreta
-# then the players open http://<server-address>:8080/
+# then the players open http://<server-address>:8080/  (the map; /tui for the terminal)
 ```
 
-- The page asks for name, faction and password. For each browser the server starts
+- The web TUI asks for name, faction and password. For each browser the server starts
   a real client in a virtual terminal and shows it with
   [xterm.js](https://xtermjs.org/) (MIT, included in the project: no
   internet needed).
@@ -220,9 +222,11 @@ python3 -m theempire --serve --web --scenario ww3 --faction west --faction east 
   virtual terminals.
 
 ### The graphical map
-Next to the terminal there is a real map, drawn in the browser: the 🗺 button
-at the top of the web TUI opens it in a new tab (or open
-`http://<server-address>:8080/map` with the same browser).
+The web page opens on a real map, drawn in the browser:
+`http://<server-address>:8080/` asks for name, faction and password, then
+you play on the map. The terminal is still there at
+`http://<server-address>:8080/tui` ("⌨ TUI" at the top of the map; 🗺 in the
+web TUI goes back): the two share the browser's seat.
 
 - **What it shows**: the coastline from the fine land map, each city's
   territory in the colour of its owner, the fog of war, the theatre of war,

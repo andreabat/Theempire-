@@ -743,5 +743,6 @@
  "✉ {who}: {text}": "✉ {who}: {text}",
  "✔ Ben fatto!": "✔ Gut gemacht!",
  "✖ {faction} ha perso l'ultima città: è fuori dalla guerra": "✖ {faction} hat die letzte Stadt verloren: aus dem Krieg ausgeschieden",
- "✦ EVENTI MONDIALI (uno ogni 5-8 turni)": "✦ WELTEREIGNISSE (eins alle 5-8 Züge)"
+ "✦ EVENTI MONDIALI (uno ogni 5-8 turni)": "✦ WELTEREIGNISSE (eins alle 5-8 Züge)",
+ "Terminale nel browser:    {url}": "Terminal im Browser:      {url}"
 }

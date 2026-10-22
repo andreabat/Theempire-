@@ -221,6 +221,7 @@ class UI:
         self.turn_key: tuple[int, int] | None = None
         self.over_shown = False
         self.skipped: set[int] = set()
+        self.passed: set[int] = set()     # units n went past this turn (it visits them all in turn)
         self._pan: tuple[int, int] | None = None     # mouse drag origin (screen)
         self._pan_view: tuple[int, int] | None = None  # view at drag start
         self.mode = "normal"          # normal | goto | nuke | chem | overview
@@ -1432,11 +1433,21 @@ class UI:
         out.sort(key=lambda u: (self.w.dist(u.cell, self.cursor), u.id))
         return out
 
-    def select_next(self) -> None:
+    def select_next(self, cycle: bool = False) -> None:
+        """The next unit waiting for orders, the nearest first. With ``cycle``
+        (the n key) the units already passed over come last, so that n goes
+        through all of them instead of bouncing between the two nearest."""
         if not self.my_turn():
             return
         pending = self.needing_orders()
-        if self.active is not None:
+        if cycle and self.active is not None:
+            self.passed.add(self.active_id)
+            fresh = [u for u in pending if u.id not in self.passed]
+            if not fresh:                 # all visited: start a new round
+                self.passed = {self.active_id}
+                fresh = [u for u in pending if u.id != self.active_id]
+            pending = fresh or pending
+        elif self.active is not None:
             pending = [u for u in pending if u.id != self.active_id] or pending
         if pending:
             self.select(pending[0])
@@ -1504,6 +1515,7 @@ class UI:
     def start_human_turn(self) -> None:
         g = self.g
         self.skipped.clear()
+        self.passed.clear()
         self.active = None
         if not self.session.online and sum(1 for f in g.factions if f.human and f.alive) > 1:
             self.scr.erase()
@@ -2006,7 +2018,7 @@ class UI:
         if key in DIRECTIONS:
             self.move_active(*DIRECTIONS[key])
         elif key in (ord("n"), 9):
-            self.select_next()
+            self.select_next(cycle=True)
         elif key == ord(" "):
             if self.active is not None:
                 self.skipped.add(self.active.id)

@@ -159,6 +159,7 @@ def _welcome(args: argparse.Namespace, port: int) -> None:
     print(tr("I giocatori entrano con:  {command}", command=command))
     if args.web is not None:
         print(tr("Oppure dal browser:       {url}", url=f"http://{ip}:{args.web}/"))
+        print(tr("Terminale nel browser:    {url}", url=f"http://{ip}:{args.web}/tui"))
     print(tr("Ctrl+C ferma il server (la partita viene salvata).") + "\n", flush=True)
 
 

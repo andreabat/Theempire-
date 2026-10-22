@@ -209,3 +209,19 @@ def test_ctrl_wheel_zooms_around_the_pointer(monkeypatch):
     ui.state = curses.BUTTON5_PRESSED | curses.BUTTON_CTRL
     ui.mouse()
     assert ui.zoom == 0 and ui._cell_at(30, 12) == under
+
+
+def test_n_visits_every_waiting_unit(monkeypatch):
+    ui = _ui_with_curses(monkeypatch)
+    g = ui.session.game
+    for u in g.units_of(0):
+        u.order = None
+    ui.skipped, ui.passed, ui.status = set(), set(), ""
+    monkeypatch.setattr(UI, "my_turn", lambda self: True)
+    monkeypatch.setattr(UI, "follow_cursor", lambda self: None)
+    ui.select_next()
+    seen = [ui.active_id]
+    for _ in range(8):
+        ui.select_next(cycle=True)
+        seen.append(ui.active_id)
+    assert len(set(seen)) == len(seen)          # no bouncing between the two nearest

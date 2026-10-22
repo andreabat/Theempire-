@@ -189,18 +189,20 @@ di secondi in `~/.theempire/sounds`.
   importanti. Il server online non suona: l'audio è sul computer di ogni
   giocatore.
 
-## Giocare dal browser (web TUI)
+## Giocare dal browser
 
-Il gioco si può giocare anche da un browser: stessa mappa Braille, stessi
-colori, tasti e mouse del terminale, e l'audio suona nel browser.
+Il gioco si può giocare anche da un browser. La pagina si apre sulla
+**mappa grafica** (vedi sotto); la **web TUI**, su `/tui`, è il terminale
+stesso nel browser: stessa mappa Braille, stessi colori, tasti e mouse, e
+l'audio suona nel browser.
 
 ```bash
 # server di gioco su 7777 + pagina web su 8080
 python3 -m theempire --serve --web --scenario ww3 --faction west --faction east --password segreta
-# poi i giocatori aprono http://<indirizzo-del-server>:8080/
+# poi i giocatori aprono http://<indirizzo-del-server>:8080/  (la mappa; /tui per il terminale)
 ```
 
-- La pagina chiede nome, fazione e password. Il server avvia per ogni browser
+- La web TUI chiede nome, fazione e password. Il server avvia per ogni browser
   un client vero in un terminale virtuale e lo mostra con
   [xterm.js](https://xtermjs.org/) (MIT, incluso nel progetto: non serve
   internet).
@@ -220,9 +222,11 @@ python3 -m theempire --serve --web --scenario ww3 --faction west --faction east 
   virtuali del sistema.
 
 ### La mappa grafica
-Accanto al terminale c'è una vera mappa, disegnata nel browser: il pulsante 🗺
-in alto nella web TUI la apre in una nuova scheda (oppure aprite
-`http://<indirizzo-del-server>:8080/map` con lo stesso browser).
+La pagina web si apre su una vera mappa, disegnata nel browser:
+`http://<indirizzo-del-server>:8080/` chiede nome, fazione e password, poi
+si gioca sulla mappa. Il terminale c'è ancora, su
+`http://<indirizzo-del-server>:8080/tui` («⌨ TUI» in alto sulla mappa; 🗺
+nella web TUI torna indietro): i due condividono il posto del browser.
 
 - **Cosa mostra**: la costa dalla mappa fine della terra, il territorio di
   ogni città nel colore di chi la possiede, la nebbia di guerra, il teatro di

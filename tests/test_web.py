@@ -100,8 +100,9 @@ def get(gw, path):
 
 def test_page_assets_and_info(gateway):
     gw, _ = gateway
-    page = get(gw, "/").read()
+    page = get(gw, "/tui").read()
     assert b"vendor/xterm.js" in page and b"registerOscHandler(7777" in page
+    assert b"<canvas" in get(gw, "/").read()             # the graphical map is the home page
     assert len(get(gw, "/vendor/xterm.js").read()) > 100_000
     info = json.loads(get(gw, "/info").read())
     assert [s["key"] for s in info["seats"]] == ["nato", "pact"] and info["password"]

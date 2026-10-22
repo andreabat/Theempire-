@@ -18,6 +18,23 @@
   #top .title { font-weight: 600; letter-spacing: .04em; }
   #top .dim { color: var(--dim); overflow: hidden; text-overflow: ellipsis; }
   #top .clock { margin-left: auto; color: var(--accent); font-variant-numeric: tabular-nums; }
+  #top a { color: var(--dim); text-decoration: none; font-size: 13px; border: 1px solid var(--line);
+            border-radius: 6px; padding: 2px 8px; }
+  #login { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; padding: 16px;
+           background: rgba(7, 9, 13, .82); }
+  #login.on { display: flex; }
+  #login form { width: min(420px, 100%); background: #11151c; border: 1px solid var(--line); border-radius: 10px;
+                padding: 16px 18px; }
+  #login h2 { margin: 0 0 4px; font-size: 18px; letter-spacing: .08em; }
+  #login .sub { color: var(--dim); margin: 0 0 10px; font-size: 13px; }
+  #login label { display: block; margin: 10px 0 4px; color: var(--dim); font-size: 13px; }
+  #login input, #login select { font: inherit; width: 100%; padding: 8px 10px; border-radius: 6px;
+                                border: 1px solid var(--line); background: #0b0e13; color: var(--text); }
+  #login button { font: inherit; width: 100%; margin-top: 16px; padding: 10px; border-radius: 6px; cursor: pointer;
+                  background: var(--accent); border: 1px solid var(--accent); color: #fff; font-weight: 700; letter-spacing: .05em; }
+  #login .err { color: var(--accent); min-height: 1.3em; margin-top: 8px; font-size: 13px; }
+  #login .alt { margin-top: 10px; font-size: 13px; color: var(--dim); text-align: center; }
+  #login .alt a { color: var(--dim); }
   #top button, #tools button { font: inherit; color: var(--text); background: #1a2130; border: 1px solid var(--line);
                 border-radius: 6px; padding: 3px 10px; cursor: pointer; }
   #side { position: fixed; top: 38px; right: 8px; width: 300px; max-height: calc(100% - 50px); overflow: auto;
@@ -129,6 +146,7 @@
   <span class="dim" id="info"></span>
   <span id="turnTag"></span>
   <span class="clock" id="clock"></span>
+  <a id="tuiLink" href="tui">⌨ TUI</a>
   <button id="panelBtn">☰</button>
 </div>
 <div id="side">
@@ -162,6 +180,21 @@
   <button id="endTurn" class="go" data-t="endTurn">FINE TURNO</button>
 </div>
 <div id="notice"></div>
+<div id="login"><form id="loginForm" autocomplete="on">
+  <h2>THE EMPIRE</h2>
+  <p class="sub" id="loginSub"></p>
+  <label for="lgName" data-t="nameL">Nome</label>
+  <input id="lgName" maxlength="24" autocomplete="nickname" required>
+  <label for="lgFaction" data-t="factionL">Fazione</label>
+  <select id="lgFaction"></select>
+  <div id="lgPassBox"><label for="lgPass" data-t="passwordL">Password</label>
+  <input id="lgPass" type="password" maxlength="64" autocomplete="current-password"></div>
+  <label for="lgLang" data-t="langL">Lingua</label>
+  <select id="lgLang"></select>
+  <button type="submit" data-t="go">ENTRA IN GUERRA</button>
+  <div class="err" id="lgErr"></div>
+  <div class="alt"><a href="tui" data-t="tuiAlt">oppure gioca nel terminale (TUI)</a></div>
+</form></div>
 <div id="toast"></div>
 <div id="prod"></div>
 <div id="reel"><div class="head"><span id="reelTitle"></span><button id="reelSkip"></button></div>
@@ -177,7 +210,9 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} },
 };
 const TEXTS = {
-  it: { cardsBtn: "♠ Carte", play: "Gioca", onFaction: "♠ {card}: su quale fazione?", cardOwnCity: "♠ {card}: tocca una tua città (Esc annulla).", cardEnemyUnit: "♠ {card}: tocca un'unità nemica fuori dalle città (Esc annulla).", cardEnemyCity: "♠ {card}: tocca una città nemica (Esc annulla).", cardNeutralCity: "♠ {card}: tocca una città neutrale (Esc annulla).", close: "Chiudi",
+  it: { name: "Italiano", nameL: "Il tuo nome", factionL: "Fazione", firstFree: "la prima libera", passwordL: "Password della partita", langL: "Lingua", go: "ENTRA IN GUERRA", tuiAlt: "oppure gioca nel terminale (TUI)", taken: "occupata", running: "partita in corso", waitingP: "in attesa dei giocatori", tuiTitle: "Gioca nel terminale (TUI)",
+       waitingL: "In attesa di ordini",
+       cardsBtn: "♠ Carte", play: "Gioca", onFaction: "♠ {card}: su quale fazione?", cardOwnCity: "♠ {card}: tocca una tua città (Esc annulla).", cardEnemyUnit: "♠ {card}: tocca un'unità nemica fuori dalle città (Esc annulla).", cardEnemyCity: "♠ {card}: tocca una città nemica (Esc annulla).", cardNeutralCity: "♠ {card}: tocca una città neutrale (Esc annulla).", close: "Chiudi",
        nukeBtn: "Attacco nucleare (N)", chemBtn: "Armi chimiche (C)", spaceBtn: "Spazio: satelliti e armi antisatellite (Z)", aimNuke: "☢ Scegli il bersaglio: tocca una casella (Esc annulla).", aimChem: "☣ Scegli il bersaglio, entro {n} caselle dalle tue forze (Esc annulla).", noWarheads: "Nessuna testata disponibile.", noChem: "Nessuna arma chimica: costruiscile in una città.", nukeTitle: "☢ AUTORIZZAZIONE AL LANCIO", target: "Bersaglio", here: "la casella selezionata", warheadsLeft: "Testate disponibili", clockAfter: "Orologio dell'Apocalisse: {m} minuti (-2/-3 dopo il lancio)", retaliation: "Il nemico potrebbe rispondere con tutto il suo arsenale.", codeLabel: "Digita il codice di autorizzazione:", launch: "LANCIA", cancel: "Annulla", wrongCode: "Codice errato: lancio annullato.", chemTitle: "☣ Armi chimiche", chemAsk: "Colpire {place} con gas nervino?", chemClock: "Orologio dell'Apocalisse: -1 minuto.", gas: "Lancia il gas", outOfRange: "Bersaglio fuori portata (max {n} caselle dalle tue forze).", ownCity: "Non puoi colpire una tua città.", spaceTitle: "Spazio", noSpace: "In questo scenario non ci sono armi spaziali.", hitNuke: "☢ Bersaglio colpito.", hitChem: "☣ Gas lanciato.",
        dirBtn: "Direttiva", dirNone: "nessuna", dirTitle: "Direttiva di produzione", dirHeader: "Una direttiva cambia subito la produzione di tutte le città", dirKeep: "Le città che hai impostato a mano restano come sono.", dirAll: "Includi anche le città scelte a mano ({n})", dirDone: "Direttiva: {d}. Città riconvertite: {n}.", dirManual: "Produzione manuale: ogni città continua con quello che sta costruendo.",
        prodBtn: "Produzione… (p)", prodTitle: "Produzione di {city} ({rate} punti/turno)", turns: "turni", readyIn: "pronta in", manual: "a mano", backDirective: "Torna alla direttiva: {d}", leaveNote: "Scegliendo a mano, questa città non seguirà più la direttiva.", nowBuilds: "{city} ora produce {item}.", released: "{city} torna a seguire la direttiva.",
@@ -190,7 +225,9 @@ const TEXTS = {
         offline: "Server non raggiungibile: riprovo…", waiting: "in attesa dei giocatori", realtime: "tempo reale",
         over: "Partita finita", units: "unità", aboard: "a bordo",
         aspect: "Proporzioni: plancia da wargame o geografia vera", labels: "Nomi delle città", home: "Torna alla tua zona" },
-  en: { cardsBtn: "♠ Cards", play: "Play", onFaction: "♠ {card}: on which faction?", cardOwnCity: "♠ {card}: tap one of your cities (Esc cancels).", cardEnemyUnit: "♠ {card}: tap an enemy unit outside the cities (Esc cancels).", cardEnemyCity: "♠ {card}: tap an enemy city (Esc cancels).", cardNeutralCity: "♠ {card}: tap a neutral city (Esc cancels).", close: "Close",
+  en: { name: "English", nameL: "Your name", factionL: "Faction", firstFree: "the first free one", passwordL: "Game password", langL: "Language", go: "GO TO WAR", tuiAlt: "or play in the terminal (TUI)", taken: "taken", running: "game in progress", waitingP: "waiting for players", tuiTitle: "Play in the terminal (TUI)",
+       waitingL: "Waiting for orders",
+       cardsBtn: "♠ Cards", play: "Play", onFaction: "♠ {card}: on which faction?", cardOwnCity: "♠ {card}: tap one of your cities (Esc cancels).", cardEnemyUnit: "♠ {card}: tap an enemy unit outside the cities (Esc cancels).", cardEnemyCity: "♠ {card}: tap an enemy city (Esc cancels).", cardNeutralCity: "♠ {card}: tap a neutral city (Esc cancels).", close: "Close",
        nukeBtn: "Nuclear strike (N)", chemBtn: "Chemical weapons (C)", spaceBtn: "Space: satellites and anti-satellite weapons (Z)", aimNuke: "☢ Choose the target: tap a cell (Esc cancels).", aimChem: "☣ Choose the target, within {n} cells of your forces (Esc cancels).", noWarheads: "No warheads available.", noChem: "No chemical weapons: build them in a city.", nukeTitle: "☢ LAUNCH AUTHORIZATION", target: "Target", here: "the selected cell", warheadsLeft: "Warheads available", clockAfter: "Doomsday Clock: {m} minutes (-2/-3 after the launch)", retaliation: "The enemy may answer with its whole arsenal.", codeLabel: "Type the authorization code:", launch: "LAUNCH", cancel: "Cancel", wrongCode: "Wrong code: launch cancelled.", chemTitle: "☣ Chemical weapons", chemAsk: "Strike {place} with nerve gas?", chemClock: "Doomsday Clock: -1 minute.", gas: "Release the gas", outOfRange: "Target out of range (at most {n} cells from your forces).", ownCity: "You cannot strike one of your own cities.", spaceTitle: "Space", noSpace: "There are no space weapons in this scenario.", hitNuke: "☢ Target hit.", hitChem: "☣ Gas released.",
        dirBtn: "Directive", dirNone: "none", dirTitle: "Production directive", dirHeader: "A directive changes the production of every city at once", dirKeep: "The cities you set by hand stay as they are.", dirAll: "Include the cities set by hand too ({n})", dirDone: "Directive: {d}. Cities retooled: {n}.", dirManual: "Manual production: each city carries on with what it is building.",
        prodBtn: "Production… (p)", prodTitle: "Production of {city} ({rate} points/turn)", turns: "turns", readyIn: "ready in", manual: "by hand", backDirective: "Back to the directive: {d}", leaveNote: "Choosing by hand, this city will no longer follow the directive.", nowBuilds: "{city} now builds {item}.", released: "{city} follows the directive again.",
@@ -203,7 +240,9 @@ const TEXTS = {
         offline: "Server unreachable: retrying…", waiting: "waiting for players", realtime: "real time",
         over: "Game over", units: "units", aboard: "aboard",
         aspect: "Proportions: wargame board or true geography", labels: "City names", home: "Back to your area" },
-  fr: { cardsBtn: "♠ Cartes", play: "Jouer", onFaction: "♠ {card} : sur quelle faction ?", cardOwnCity: "♠ {card} : touchez une de vos villes (Échap annule).", cardEnemyUnit: "♠ {card} : touchez une unité ennemie hors des villes (Échap annule).", cardEnemyCity: "♠ {card} : touchez une ville ennemie (Échap annule).", cardNeutralCity: "♠ {card} : touchez une ville neutre (Échap annule).", close: "Fermer",
+  fr: { name: "Français", nameL: "Votre nom", factionL: "Faction", firstFree: "la première libre", passwordL: "Mot de passe de la partie", langL: "Langue", go: "PARTIR EN GUERRE", tuiAlt: "ou jouer dans le terminal (TUI)", taken: "prise", running: "partie en cours", waitingP: "en attente des joueurs", tuiTitle: "Jouer dans le terminal (TUI)",
+       waitingL: "En attente d'ordres",
+       cardsBtn: "♠ Cartes", play: "Jouer", onFaction: "♠ {card} : sur quelle faction ?", cardOwnCity: "♠ {card} : touchez une de vos villes (Échap annule).", cardEnemyUnit: "♠ {card} : touchez une unité ennemie hors des villes (Échap annule).", cardEnemyCity: "♠ {card} : touchez une ville ennemie (Échap annule).", cardNeutralCity: "♠ {card} : touchez une ville neutre (Échap annule).", close: "Fermer",
        nukeBtn: "Frappe nucléaire (N)", chemBtn: "Armes chimiques (C)", spaceBtn: "Espace : satellites et armes antisatellites (Z)", aimNuke: "☢ Choisissez la cible : touchez une case (Échap annule).", aimChem: "☣ Choisissez la cible, à {n} cases au plus de vos forces (Échap annule).", noWarheads: "Aucune ogive disponible.", noChem: "Aucune arme chimique : construisez-en dans une ville.", nukeTitle: "☢ AUTORISATION DE TIR", target: "Cible", here: "la case choisie", warheadsLeft: "Ogives disponibles", clockAfter: "Horloge de l'Apocalypse : {m} minutes (-2/-3 après le tir)", retaliation: "L'ennemi pourrait répondre avec tout son arsenal.", codeLabel: "Tapez le code d'autorisation :", launch: "TIRER", cancel: "Annuler", wrongCode: "Code erroné : tir annulé.", chemTitle: "☣ Armes chimiques", chemAsk: "Frapper {place} au gaz neurotoxique ?", chemClock: "Horloge de l'Apocalypse : -1 minute.", gas: "Lâcher le gaz", outOfRange: "Cible hors de portée ({n} cases au plus de vos forces).", ownCity: "Vous ne pouvez pas frapper une de vos villes.", spaceTitle: "Espace", noSpace: "Pas d'armes spatiales dans ce scénario.", hitNuke: "☢ Cible touchée.", hitChem: "☣ Gaz lâché.",
        dirBtn: "Directive", dirNone: "aucune", dirTitle: "Directive de production", dirHeader: "Une directive change tout de suite la production de toutes les villes", dirKeep: "Les villes réglées à la main restent comme elles sont.", dirAll: "Inclure aussi les villes réglées à la main ({n})", dirDone: "Directive : {d}. Villes reconverties : {n}.", dirManual: "Production manuelle : chaque ville continue ce qu'elle construit.",
        prodBtn: "Production… (p)", prodTitle: "Production de {city} ({rate} points/tour)", turns: "tours", readyIn: "prête dans", manual: "à la main", backDirective: "Revenir à la directive : {d}", leaveNote: "En choisissant à la main, cette ville ne suivra plus la directive.", nowBuilds: "{city} produit maintenant {item}.", released: "{city} suit de nouveau la directive.",
@@ -216,7 +255,9 @@ const TEXTS = {
         offline: "Serveur injoignable : nouvel essai…", waiting: "en attente des joueurs", realtime: "temps réel",
         over: "Partie terminée", units: "unités", aboard: "à bord",
         aspect: "Proportions : plateau de wargame ou vraie géographie", labels: "Noms des villes", home: "Revenir à votre zone" },
-  es: { cardsBtn: "♠ Cartas", play: "Jugar", onFaction: "♠ {card}: ¿sobre qué facción?", cardOwnCity: "♠ {card}: toca una de tus ciudades (Esc cancela).", cardEnemyUnit: "♠ {card}: toca una unidad enemiga fuera de las ciudades (Esc cancela).", cardEnemyCity: "♠ {card}: toca una ciudad enemiga (Esc cancela).", cardNeutralCity: "♠ {card}: toca una ciudad neutral (Esc cancela).", close: "Cerrar",
+  es: { name: "Español", nameL: "Tu nombre", factionL: "Facción", firstFree: "la primera libre", passwordL: "Contraseña de la partida", langL: "Idioma", go: "A LA GUERRA", tuiAlt: "o juega en el terminal (TUI)", taken: "ocupada", running: "partida en curso", waitingP: "esperando jugadores", tuiTitle: "Jugar en el terminal (TUI)",
+       waitingL: "Esperando órdenes",
+       cardsBtn: "♠ Cartas", play: "Jugar", onFaction: "♠ {card}: ¿sobre qué facción?", cardOwnCity: "♠ {card}: toca una de tus ciudades (Esc cancela).", cardEnemyUnit: "♠ {card}: toca una unidad enemiga fuera de las ciudades (Esc cancela).", cardEnemyCity: "♠ {card}: toca una ciudad enemiga (Esc cancela).", cardNeutralCity: "♠ {card}: toca una ciudad neutral (Esc cancela).", close: "Cerrar",
        nukeBtn: "Ataque nuclear (N)", chemBtn: "Armas químicas (C)", spaceBtn: "Espacio: satélites y armas antisatélite (Z)", aimNuke: "☢ Elige el objetivo: toca una casilla (Esc cancela).", aimChem: "☣ Elige el objetivo, a {n} casillas como mucho de tus fuerzas (Esc cancela).", noWarheads: "No hay cabezas nucleares disponibles.", noChem: "No hay armas químicas: constrúyelas en una ciudad.", nukeTitle: "☢ AUTORIZACIÓN DE LANZAMIENTO", target: "Objetivo", here: "la casilla elegida", warheadsLeft: "Cabezas disponibles", clockAfter: "Reloj del Apocalipsis: {m} minutos (-2/-3 tras el lanzamiento)", retaliation: "El enemigo podría responder con todo su arsenal.", codeLabel: "Escribe el código de autorización:", launch: "LANZAR", cancel: "Cancelar", wrongCode: "Código erróneo: lanzamiento cancelado.", chemTitle: "☣ Armas químicas", chemAsk: "¿Atacar {place} con gas nervioso?", chemClock: "Reloj del Apocalipsis: -1 minuto.", gas: "Lanzar el gas", outOfRange: "Objetivo fuera de alcance (máx. {n} casillas de tus fuerzas).", ownCity: "No puedes atacar una ciudad tuya.", spaceTitle: "Espacio", noSpace: "En este escenario no hay armas espaciales.", hitNuke: "☢ Objetivo alcanzado.", hitChem: "☣ Gas lanzado.",
        dirBtn: "Directiva", dirNone: "ninguna", dirTitle: "Directiva de producción", dirHeader: "Una directiva cambia enseguida la producción de todas las ciudades", dirKeep: "Las ciudades que fijaste a mano se quedan como están.", dirAll: "Incluir también las ciudades fijadas a mano ({n})", dirDone: "Directiva: {d}. Ciudades reconvertidas: {n}.", dirManual: "Producción manual: cada ciudad sigue con lo que está construyendo.",
        prodBtn: "Producción… (p)", prodTitle: "Producción de {city} ({rate} puntos/turno)", turns: "turnos", readyIn: "lista en", manual: "a mano", backDirective: "Volver a la directiva: {d}", leaveNote: "Al elegir a mano, esta ciudad dejará de seguir la directiva.", nowBuilds: "{city} ahora produce {item}.", released: "{city} vuelve a seguir la directiva.",
@@ -229,7 +270,9 @@ const TEXTS = {
         offline: "Servidor inalcanzable: reintentando…", waiting: "esperando jugadores", realtime: "tiempo real",
         over: "Partida terminada", units: "unidades", aboard: "a bordo",
         aspect: "Proporciones: tablero de wargame o geografía real", labels: "Nombres de las ciudades", home: "Volver a tu zona" },
-  de: { cardsBtn: "♠ Karten", play: "Spielen", onFaction: "♠ {card}: gegen welche Fraktion?", cardOwnCity: "♠ {card}: tippe auf eine deiner Städte (Esc bricht ab).", cardEnemyUnit: "♠ {card}: tippe auf eine feindliche Einheit außerhalb der Städte (Esc bricht ab).", cardEnemyCity: "♠ {card}: tippe auf eine feindliche Stadt (Esc bricht ab).", cardNeutralCity: "♠ {card}: tippe auf eine neutrale Stadt (Esc bricht ab).", close: "Schließen",
+  de: { name: "Deutsch", nameL: "Dein Name", factionL: "Fraktion", firstFree: "die erste freie", passwordL: "Passwort der Partie", langL: "Sprache", go: "IN DEN KRIEG", tuiAlt: "oder im Terminal spielen (TUI)", taken: "besetzt", running: "Partie läuft", waitingP: "wartet auf Spieler", tuiTitle: "Im Terminal spielen (TUI)",
+       waitingL: "Warten auf Befehle",
+       cardsBtn: "♠ Karten", play: "Spielen", onFaction: "♠ {card}: gegen welche Fraktion?", cardOwnCity: "♠ {card}: tippe auf eine deiner Städte (Esc bricht ab).", cardEnemyUnit: "♠ {card}: tippe auf eine feindliche Einheit außerhalb der Städte (Esc bricht ab).", cardEnemyCity: "♠ {card}: tippe auf eine feindliche Stadt (Esc bricht ab).", cardNeutralCity: "♠ {card}: tippe auf eine neutrale Stadt (Esc bricht ab).", close: "Schließen",
        nukeBtn: "Atomschlag (N)", chemBtn: "Chemiewaffen (C)", spaceBtn: "Weltraum: Satelliten und Antisatellitenwaffen (Z)", aimNuke: "☢ Wähle das Ziel: tippe auf ein Feld (Esc bricht ab).", aimChem: "☣ Wähle das Ziel, höchstens {n} Felder von deinen Truppen (Esc bricht ab).", noWarheads: "Keine Sprengköpfe verfügbar.", noChem: "Keine Chemiewaffen: baue sie in einer Stadt.", nukeTitle: "☢ STARTFREIGABE", target: "Ziel", here: "das gewählte Feld", warheadsLeft: "Verfügbare Sprengköpfe", clockAfter: "Weltuntergangsuhr: {m} Minuten (-2/-3 nach dem Start)", retaliation: "Der Feind könnte mit seinem ganzen Arsenal antworten.", codeLabel: "Gib den Freigabecode ein:", launch: "STARTEN", cancel: "Abbrechen", wrongCode: "Falscher Code: Start abgebrochen.", chemTitle: "☣ Chemiewaffen", chemAsk: "{place} mit Nervengas angreifen?", chemClock: "Weltuntergangsuhr: -1 Minute.", gas: "Gas freisetzen", outOfRange: "Ziel außer Reichweite (höchstens {n} Felder von deinen Truppen).", ownCity: "Du kannst keine eigene Stadt angreifen.", spaceTitle: "Weltraum", noSpace: "In diesem Szenario gibt es keine Weltraumwaffen.", hitNuke: "☢ Ziel getroffen.", hitChem: "☣ Gas freigesetzt.",
        dirBtn: "Direktive", dirNone: "keine", dirTitle: "Produktionsdirektive", dirHeader: "Eine Direktive ändert sofort die Produktion aller Städte", dirKeep: "Die von Hand eingestellten Städte bleiben, wie sie sind.", dirAll: "Auch die von Hand eingestellten Städte einbeziehen ({n})", dirDone: "Direktive: {d}. Umgerüstete Städte: {n}.", dirManual: "Manuelle Produktion: jede Stadt baut weiter, was sie gerade baut.",
        prodBtn: "Produktion… (p)", prodTitle: "Produktion von {city} ({rate} Punkte/Zug)", turns: "Züge", readyIn: "fertig in", manual: "von Hand", backDirective: "Zurück zur Direktive: {d}", leaveNote: "Wählst du von Hand, folgt diese Stadt nicht mehr der Direktive.", nowBuilds: "{city} produziert jetzt {item}.", released: "{city} folgt wieder der Direktive.",
@@ -242,7 +285,9 @@ const TEXTS = {
         offline: "Server nicht erreichbar: neuer Versuch…", waiting: "wartet auf Spieler", realtime: "Echtzeit",
         over: "Partie beendet", units: "Einheiten", aboard: "an Bord",
         aspect: "Proportionen: Wargame-Brett oder echte Geografie", labels: "Städtenamen", home: "Zurück zu deinem Gebiet" },
-  pt: { cardsBtn: "♠ Cartas", play: "Jogar", onFaction: "♠ {card}: sobre qual facção?", cardOwnCity: "♠ {card}: toque numa das suas cidades (Esc cancela).", cardEnemyUnit: "♠ {card}: toque numa unidade inimiga fora das cidades (Esc cancela).", cardEnemyCity: "♠ {card}: toque numa cidade inimiga (Esc cancela).", cardNeutralCity: "♠ {card}: toque numa cidade neutra (Esc cancela).", close: "Fechar",
+  pt: { name: "Português", nameL: "O seu nome", factionL: "Facção", firstFree: "a primeira livre", passwordL: "Senha da partida", langL: "Idioma", go: "PARA A GUERRA", tuiAlt: "ou jogue no terminal (TUI)", taken: "ocupada", running: "partida em andamento", waitingP: "aguardando jogadores", tuiTitle: "Jogar no terminal (TUI)",
+       waitingL: "À espera de ordens",
+       cardsBtn: "♠ Cartas", play: "Jogar", onFaction: "♠ {card}: sobre qual facção?", cardOwnCity: "♠ {card}: toque numa das suas cidades (Esc cancela).", cardEnemyUnit: "♠ {card}: toque numa unidade inimiga fora das cidades (Esc cancela).", cardEnemyCity: "♠ {card}: toque numa cidade inimiga (Esc cancela).", cardNeutralCity: "♠ {card}: toque numa cidade neutra (Esc cancela).", close: "Fechar",
        nukeBtn: "Ataque nuclear (N)", chemBtn: "Armas químicas (C)", spaceBtn: "Espaço: satélites e armas antissatélite (Z)", aimNuke: "☢ Escolha o alvo: toque numa casa (Esc cancela).", aimChem: "☣ Escolha o alvo, a no máximo {n} casas das suas forças (Esc cancela).", noWarheads: "Nenhuma ogiva disponível.", noChem: "Nenhuma arma química: construa-as numa cidade.", nukeTitle: "☢ AUTORIZAÇÃO DE LANÇAMENTO", target: "Alvo", here: "a casa escolhida", warheadsLeft: "Ogivas disponíveis", clockAfter: "Relógio do Apocalipse: {m} minutos (-2/-3 após o lançamento)", retaliation: "O inimigo pode responder com todo o seu arsenal.", codeLabel: "Digite o código de autorização:", launch: "LANÇAR", cancel: "Cancelar", wrongCode: "Código errado: lançamento cancelado.", chemTitle: "☣ Armas químicas", chemAsk: "Atacar {place} com gás nervoso?", chemClock: "Relógio do Apocalipse: -1 minuto.", gas: "Lançar o gás", outOfRange: "Alvo fora de alcance (no máximo {n} casas das suas forças).", ownCity: "Não pode atacar uma cidade sua.", spaceTitle: "Espaço", noSpace: "Neste cenário não há armas espaciais.", hitNuke: "☢ Alvo atingido.", hitChem: "☣ Gás lançado.",
        dirBtn: "Diretiva", dirNone: "nenhuma", dirTitle: "Diretiva de produção", dirHeader: "Uma diretiva muda já a produção de todas as cidades", dirKeep: "As cidades que definiu à mão ficam como estão.", dirAll: "Incluir também as cidades definidas à mão ({n})", dirDone: "Diretiva: {d}. Cidades reconvertidas: {n}.", dirManual: "Produção manual: cada cidade continua com o que está a construir.",
        prodBtn: "Produção… (p)", prodTitle: "Produção de {city} ({rate} pontos/turno)", turns: "turnos", readyIn: "pronta em", manual: "à mão", backDirective: "Voltar à diretiva: {d}", leaveNote: "Escolhendo à mão, esta cidade deixará de seguir a diretiva.", nowBuilds: "{city} agora produz {item}.", released: "{city} volta a seguir a diretiva.",
@@ -262,9 +307,18 @@ const T = TEXTS[lang];
 document.documentElement.lang = lang;
 document.querySelectorAll("[data-t]").forEach((el) => { el.textContent = T[el.dataset.t]; });
 for (const k of ["aspect", "labels", "home", "sound"]) document.getElementById(k).title = T[k];
+// the keys of the orders, as in the terminal
+const ORDER_KEYS = { next: "n", skip: "␣", sentry: "s", fortify: "f", wake: "v" };
+document.querySelectorAll("#orders button").forEach((b) => { b.textContent += ` (${ORDER_KEYS[b.dataset.o]})`; });
 for (const k of ["nukeBtn", "chemBtn", "spaceBtn"]) document.getElementById(k).title = T[k];
 $("reelTitle").textContent = T.reelTitle; $("reelSkip").textContent = T.reelSkip;
-const browserId = store.get("theempire.browser", "");
+// a stable id for this browser: the server keeps its seat token under it
+let browserId = store.get("theempire.browser", "");
+if (!/^[0-9a-f]{32}$/.test(browserId)) {
+  const b = new Uint8Array(16); crypto.getRandomValues(b);
+  browserId = Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
+  store.set("theempire.browser", browserId);
+}
 const ROOT = location.pathname.replace(/\/map\/?$/, "/");   // where the game's pages live
 
 // ---------------------------------------------------------------- colours
@@ -387,7 +441,8 @@ function resize() {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   clampView(); draw();
 }
-function minScale() { return world ? Math.max(innerWidth / (world.width * CW * view.ax) * 0.5, innerHeight / (world.height * CH)) : 1; }
+// never smaller than the screen is wide: the world must not show twice side by side
+function minScale() { return world ? Math.max(innerWidth / (world.width * CW * view.ax), innerHeight / (world.height * CH)) : 1; }
 function clampView() {
   if (!world) return;
   view.s = Math.max(minScale(), Math.min(14, view.s));
@@ -485,7 +540,7 @@ function draw() {
   // units: wargame counters, one per cell (the stack shows its size)
   const stacks = new Map();
   for (const u of state.units) {
-    if (hidden.has(u[0])) continue;     // still to arrive in the bulletin
+    if (hidden.has(u[0]) || u[9] != null) continue;   // still to arrive in the bulletin, or aboard
     const l = stacks.get(u[3]); if (l) l.push(u); else stacks.set(u[3], [u]);
   }
   const size = counterSize();
@@ -538,7 +593,7 @@ function draw() {
   if (au && blinkOn) {
     const size = Math.max(9, Math.min(CW * SX() * 0.78, CH * view.s * 0.6, 34)) + 6;
     const city = state.cityAt.has(au[3]);
-    for (const [x, y] of screenPos(au[3])) {
+    for (const [x, y] of [spot(au[3])]) {
       const cx = x + (city ? (size - 6) * 0.45 : 0), cy = y - (city ? (size - 6) * 0.45 : 0);
       ctx.strokeStyle = "#ffe066"; ctx.lineWidth = 2.5;
       roundRect(cx - size / 2, cy - size / 2, size, size, size * 0.2); ctx.stroke();
@@ -836,7 +891,12 @@ function send(cmd, then) {
 const mine = (u) => u[2] === state.viewer;
 function activeUnit() { return state && active != null ? state.units.find((u) => u[0] === active && mine(u)) || null : null; }
 function unitsAt(cell) { return state.units.filter((u) => u[3] === cell); }
-function waiting(u) { return mine(u) && u[6] > 0 && !u[7] && !skipped.has(u[0]); }
+function waiting(u) {                 // as the terminal's n: moves left, no orders, not skipped
+  if (!mine(u) || u[6] <= 0 || u[7] || skipped.has(u[0])) return false;
+  // aboard, a land unit waits only where it could go ashore
+  if (u[9] != null && state.unit_types[u[1]].domain === "land") return neighbours(u[3]).some((n) => world.landBits[n]);
+  return true;
+}
 function neighbours(i) {
   const w = world.width, x = i % w, y = Math.floor(i / w), out = [];
   const steps = !world.hex ? [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]]
@@ -860,8 +920,16 @@ function nearest(points, ref) {        // of the copies of a cell, the one by th
   return points.reduce((a, b) => (Math.abs(a[0] - ref[0]) <= Math.abs(b[0] - ref[0]) ? a : b));
 }
 function select(u) { active = u ? u[0] : null; route = null; activePanel(); draw(); }
-function selectNext() {
-  const a = activeUnit(), list = state.units.filter(waiting);
+const passed = new Set();             // units n went past this turn: it visits them all in turn
+function selectNext(cycle = false) {
+  const a = activeUnit();
+  let list = state.units.filter(waiting);
+  if (cycle && a) {
+    passed.add(a[0]);
+    let fresh = list.filter((u) => !passed.has(u[0]));
+    if (!fresh.length) { passed.clear(); passed.add(a[0]); fresh = list.filter((u) => u[0] !== a[0]); }
+    if (fresh.length) list = fresh;
+  }
   if (!list.length) { select(null); toast(T.allDone); return; }
   const from = a ? a[3] : list[0][3], [fx, fy] = cellCentre(from), W = world.width * CW;
   const d = (u) => { const [x, y] = cellCentre(u[3]); let dx = Math.abs(x - fx); dx = Math.min(dx, W - dx); return dx * dx + (y - fy) * (y - fy); };
@@ -925,7 +993,7 @@ function clickCell(cell) {
 }
 function order(o) {
   const a = activeUnit();
-  if (o === "next") { selectNext(); return; }
+  if (o === "next") { selectNext(true); return; }
   if (!a) { toast(T.noActive); return; }
   if (o === "skip") { skipped.add(a[0]); selectNext(); return; }
   if (o === "wake") { send({ op: "wake", cell: a[3] }, (r) => toast(T.woke + " " + r.result)); return; }
@@ -969,15 +1037,18 @@ setInterval(() => { blinkOn = !blinkOn; if (activeUnit()) draw(); }, 450);
 function activePanel() {
   const a = activeUnit();
   const box = $("active");
-  if (!a) { box.innerHTML = `<span class="muted">${T.noActive}</span>`; }
+  const left = state.units.filter(waiting).length;
+  const count = state.my_turn ? `<div class="muted">${T.waitingL}: ${left} (n)</div>` : "";
+  if (!a) { box.innerHTML = `<span class="muted">${left ? T.noActive : T.allDone}</span>${count}`; }
   else {
     const t = state.unit_types[a[1]];
     const bits = [`${T.movesL} ${a[6]}/${t.move}`, `${T.hpL} ${a[4]}/${t.hp}`];
     if (t.fuel) bits.push(`${T.fuelL} ${a[8]}/${t.fuel}`);
     if (a[7]) bits.push(T["ord_" + a[7]] || a[7]);
+    if (a[9] != null) bits.push(T.aboard);
     box.innerHTML = `<span class="tok" style="background:${color(a[2])};display:inline-block;min-width:18px;` +
       `padding:0 3px;border-radius:3px;color:#fff;font:600 12px/18px ui-monospace,monospace;text-align:center">${a[1]}</span> ` +
-      `<b>${esc(t.name)}</b>${a[5] ? " +" + a[5] + " " + T.aboard : ""}<br><span class="muted">${bits.join(" · ")}</span>`;
+      `<b>${esc(t.name)}</b>${a[5] ? " +" + a[5] + " " + T.aboard : ""}<br><span class="muted">${bits.join(" · ")}</span>${count}`;
   }
   const can = !!a && state.my_turn;
   document.querySelectorAll("#orders button").forEach((b) => {
@@ -1370,6 +1441,39 @@ async function playReel(acts) {
 $("reelSkip").onclick = () => { skipReel = true; };
 
 // ---------------------------------------------------------------- data
+// ---------------------------------------------------------------- login
+// Without a seat the map asks for one, as the TUI page does: name, faction,
+// password; the gateway takes the seat and the map follows it.
+let loginShown = false;
+async function showLogin() {
+  if (seat) { notice(T.noseat); return; }
+  notice("");
+  $("login").classList.add("on");
+  if (loginShown) return;
+  loginShown = true;
+  $("lgName").value = store.get("theempire.name", "");
+  const langs = Object.keys(TEXTS);
+  $("lgLang").innerHTML = langs.map((l) => `<option value="${l}"${l === lang ? " selected" : ""}>${TEXTS[l].name || l}</option>`).join("");
+  $("lgLang").onchange = () => { store.set("theempire.lang", $("lgLang").value); location.reload(); };
+  try {
+    const info = await (await fetch(ROOT + "info?lang=" + lang)).json();
+    $("loginSub").textContent = `${info.scenario || ""} · ${info.started ? T.running : T.waitingP}`;
+    $("lgFaction").innerHTML = `<option value="">${esc(T.firstFree)}</option>` + (info.seats || []).map((x) =>
+      `<option value="${esc(x.key)}"${x.taken ? " disabled" : ""}>${esc(x.faction)}${x.taken ? " — " + esc(x.name || T.taken) : ""}</option>`).join("");
+    $("lgPassBox").style.display = info.password ? "" : "none";
+  } catch (e) {}
+}
+$("loginForm").onsubmit = (e) => {
+  e.preventDefault();
+  store.set("theempire.name", $("lgName").value);
+  $("lgErr").textContent = "";
+  if (socket && socket.readyState === 1) {
+    socket.send(JSON.stringify({ t: "join", name: $("lgName").value, faction: $("lgFaction").value,
+                                 password: $("lgPass").value }));
+  }
+};
+$("tuiLink").title = T.tuiTitle;
+
 function notice(html) { const n = $("notice"); n.innerHTML = html || ""; n.style.display = html ? "block" : "none"; }
 async function loadWorld(hex) {
   world = await (await fetch(ROOT + "map/world.json?hex=" + (hex ? 1 : 0))).json();
@@ -1394,7 +1498,7 @@ async function onState(d) {
   if (!territory) return;
   buildBase();
   if (!fitted) { fit(); fitted = true; }
-  if (d.turn !== skippedTurn) { skipped.clear(); skippedTurn = d.turn; }
+  if (d.turn !== skippedTurn) { skipped.clear(); passed.clear(); skippedTurn = d.turn; }
   // the active unit: still ours and with moves, or the next one waiting for orders
   const a = activeUnit();
   if (d.my_turn && (!a || a[6] <= 0 || a[7])) {
@@ -1427,13 +1531,12 @@ if (fromLink) {
   try { seat = sessionStorage.getItem("theempire.seat") || ""; } catch (e) {}
 }
 function connect() {
-  if (!seat && !/^[0-9a-f]{32}$/.test(browserId)) { notice(T.noseat); return; }
   const proto = location.protocol === "https:" ? "wss:" : "ws:";
   const ws = socket = new WebSocket(`${proto}//${location.host}${ROOT}map/ws?id=${browserId}&lang=${lang}`);
   ws.onopen = () => ws.send(JSON.stringify({ t: "hello", seat }));
   ws.onmessage = (ev) => {
     const m = JSON.parse(ev.data);
-    if (m.t === "state") { notice(""); queue = queue.then(() => onState(m.d)).catch(console.error); }
+    if (m.t === "state") { notice(""); $("login").classList.remove("on"); queue = queue.then(() => onState(m.d)).catch(console.error); }
     else if (m.t === "result") { const then = pending.get(m.id); pending.delete(m.id); if (then) then(m); }
     else if (m.t === "path") {
       if (route && route.cell === m.cell && m.unit === active) {
@@ -1441,7 +1544,9 @@ function connect() {
         draw();
       }
     }
-    else if (m.t === "noseat") notice(T.noseat);
+    else if (m.t === "noseat") showLogin();
+    else if (m.t === "joined") { $("login").classList.remove("on"); }
+    else if (m.t === "joinerror") $("lgErr").textContent = m.message;
     else if (m.t === "offline") notice(T.offline);
   };
   ws.onclose = () => { notice(T.offline); setTimeout(connect, 3000); };

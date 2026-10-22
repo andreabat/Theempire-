@@ -225,3 +225,31 @@ def test_weapons_and_cards_for_the_map():
     assert commands.apply(g, 0, cmd) == "ok" and "plan" not in f.cards
     assert mapview.card_result("plan", "ok", "en") == "♠ Five-Year Plan: done!"
     assert "stays in your hand" in mapview.card_result("revolt", "notarget", "en")
+
+
+def test_the_map_page_takes_a_seat_by_itself(server):
+    srv, tmp = server
+    gw = WebGateway(("127.0.0.1", srv.port), "127.0.0.1", 0, srv.web_info, log=lambda line: None)
+    gw.listen()
+    threading.Thread(target=gw.serve_forever, daemon=True).start()
+    try:
+        info = json.loads(urllib.request.urlopen(f"http://127.0.0.1:{gw.port}/info?lang=en", timeout=10).read())
+        assert info["scenario"] == "European Theatre 1985"
+        browser = os.urandom(16).hex()
+        ws = WSClient(gw.port, f"/map/ws?id={browser}&lang=en")
+        ws.send({"t": "hello", "seat": ""})
+        assert b"noseat" in ws.read_until(rb"noseat")
+        ws.send({"t": "join", "name": "Anna", "faction": "nato", "password": "bad"})
+        assert b"joinerror" in ws.read_until(rb"joinerror")
+        ws.send({"t": "join", "name": "Anna", "faction": "nato", "password": "pw"})
+        out = ws.read_until(rb'"t":"state"', timeout=20)
+        assert b'"joined"' in out or b'"viewer":0' in out
+        if b'"viewer":0' not in out:
+            assert b'"viewer":0' in ws.read_until(rb'"t":"state"', timeout=20)
+        assert srv.slots[0].name == "Anna" and srv.started
+        # the TUI of the same browser finds the seat: the token is where its client keeps it
+        saved = json.loads((tmp / "homes" / browser / ".theempire" / "online.json").read_text())
+        assert saved[f"127.0.0.1:{srv.port}"]["nato"] == srv.slots[0].token
+        ws.close()
+    finally:
+        gw.stop()

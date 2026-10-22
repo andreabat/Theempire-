@@ -285,11 +285,14 @@ def view_game(g: Game, viewer: int, lang: str | None = None, with_territory: boo
     vis = g.visible(viewer)
     units = []
     for u in g.units.values():
-        if u.carrier is not None:
-            continue                     # aboard: the ship shows how many it carries
         mine = u.owner == viewer
+        if u.carrier is not None and not mine:
+            continue                     # aboard: the ship shows how many it carries
+        # [id, kind, owner, cell, hp, cargo, moves, order, fuel, carrier]: our units
+        # aboard are listed too (the map draws only their ship), to give them orders
         units.append([u.id, u.kind, u.owner, u.cell, u.hp, len(u.cargo),
-                      u.moves if mine else None, u.order if mine else None, u.fuel if mine else None])
+                      u.moves if mine else None, u.order if mine else None, u.fuel if mine else None,
+                      u.carrier])
     out = {
         "viewer": viewer,
         "hex": w.hexgrid,

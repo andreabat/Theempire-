@@ -191,7 +191,9 @@ class WebGateway:
     def handle(self, req: BaseHTTPRequestHandler) -> None:
         url = urlparse(req.path)
         path = url.path.rstrip("/") or "/"
-        if path == "/":
+        if path in ("/", "/map"):           # the graphical map is the web's home page
+            self._reply(req, MAP_PAGE.read_bytes(), "text/html; charset=utf-8")
+        elif path == "/tui":                # the terminal, as in a real one
             self._reply(req, PAGE.read_bytes(), "text/html; charset=utf-8")
         elif path.startswith("/vendor/"):
             name = path[len("/vendor/"):]
@@ -206,7 +208,14 @@ class WebGateway:
             req.send_response(HTTPStatus.NO_CONTENT)
             req.end_headers()
         elif path == "/info":
-            self._reply(req, json.dumps(self.info()).encode(), "application/json")
+            info = dict(self.info())
+            lang = (parse_qs(url.query).get("lang") or [""])[0]
+            if lang in i18n.LANGS:      # names in the page's language
+                info["scenario"] = i18n.word(info.get("scenario", ""), lang)
+                info["ai"] = [i18n.word(n, lang) for n in info.get("ai", [])]
+                info["seats"] = [{**x, "faction": i18n.word(x.get("faction", ""), lang)}
+                                 for x in info.get("seats", [])]
+            self._reply(req, json.dumps(info).encode(), "application/json")
         elif path.startswith("/sounds/"):
             name = path[len("/sounds/"):].removesuffix(".wav")
             self.sounds_ready.wait(30)  # the first visitors may beat the synthesiser
@@ -218,8 +227,6 @@ class WebGateway:
                 req.send_error(HTTPStatus.NOT_FOUND)
         elif path == "/ws":
             self._websocket(req, parse_qs(url.query))
-        elif path == "/map":
-            self._reply(req, MAP_PAGE.read_bytes(), "text/html; charset=utf-8")
         elif path == "/map/world.json":
             from theempire import mapview
             hexgrid = (parse_qs(url.query).get("hex") or ["0"])[0] == "1"
@@ -383,6 +390,7 @@ class WebGateway:
             ws.close()
             return
         gone = threading.Event()
+        wake = threading.Event()                # a seat was just taken: look again at once
         server: list[socket.socket] = []
         shared: dict = {}                       # the last game and viewer, for the routes
         cards_sent: dict = {}                   # command id -> card played, for its message
@@ -417,6 +425,11 @@ class WebGateway:
                             send_msg(server[0], {"type": "cmd", "id": data.get("id"), "cmd": cmd})
                         except OSError:
                             pass
+                    elif data.get("t") == "join" and not server:
+                        joined = self._map_join(browser, data)
+                        reply(joined)
+                        if joined.get("t") == "joined":
+                            wake.set()
                     elif data.get("t") == "path" and "game" in shared:
                         route = mapview.path(shared["game"], shared["viewer"], data.get("unit"),
                                              data.get("cell"))
@@ -425,6 +438,7 @@ class WebGateway:
             except (ConnectionError, OSError):
                 pass
             gone.set()
+            wake.set()
             for sock in server:         # wakes the reader below
                 try:
                     sock.shutdown(socket.SHUT_RDWR)
@@ -445,7 +459,8 @@ class WebGateway:
                     token = next(iter(seats.values()), "") if isinstance(seats, dict) else ""
                 if not token:
                     reply({"t": "noseat"})
-                    gone.wait(3)
+                    wake.wait(3)
+                    wake.clear()
                     continue
                 try:
                     sock = socket.create_connection(self.target, timeout=10)
@@ -494,6 +509,42 @@ class WebGateway:
                     sock.close()
         finally:
             ws.close()
+
+    def _map_join(self, browser: str, data: dict) -> dict:
+        """Take a seat for the map page as the terminal client would (name,
+        faction, password); the token goes where that browser's terminal
+        client keeps it, so the map and the TUI share the seat."""
+        from theempire.net import MAX_SERVER_MESSAGE, PROTOCOL, recv_msg, send_msg
+        if not re.fullmatch(r"[0-9a-f]{32}", browser):
+            return {"t": "joinerror", "message": tr("rifiutato dal server")}
+        name = printable(str(data.get("name", "")))[:24].strip() or tr("Giocatore")
+        faction = str(data.get("faction", ""))
+        faction = faction if re.fullmatch(r"[a-z]{1,16}", faction) else ""
+        tokens = WEB_HOMES / browser / ".theempire" / "online.json"
+        address = f"{self.target[0]}:{self.target[1]}"
+        try:
+            known = json.loads(tokens.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            known = {}
+        known = known if isinstance(known, dict) else {}
+        seats = known.get(address) if isinstance(known.get(address), dict) else {}
+        try:
+            with socket.create_connection(self.target, timeout=10) as sock:
+                send_msg(sock, {"type": "hello", "version": PROTOCOL, "name": name,
+                                "faction": faction or None,
+                                "token": str(seats.get(faction, "")) if faction else "",
+                                "password": str(data.get("password", ""))[:64]})
+                reply = recv_msg(sock, MAX_SERVER_MESSAGE)
+        except (OSError, ValueError, ConnectionError) as exc:
+            return {"t": "joinerror", "message": str(exc)}
+        if reply.get("type") != "welcome":
+            return {"t": "joinerror", "message": str(reply.get("message") or tr("rifiutato dal server"))}
+        seats[str(reply.get("faction_key", ""))] = reply["token"]
+        known[address] = seats
+        tokens.parent.mkdir(parents=True, exist_ok=True)
+        tokens.write_text(json.dumps(known), encoding="utf-8")
+        self.log(tr("web: {name} si collega ({seat})", name=name, seat=reply.get("faction_key", "")))
+        return {"t": "joined"}
 
     @staticmethod
     def _pump(fd: int, ws: WebSocket) -> None:

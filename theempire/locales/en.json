@@ -743,5 +743,6 @@
  "✉ {who}: {text}": "✉ {who}: {text}",
  "✔ Ben fatto!": "✔ Well done!",
  "✖ {faction} ha perso l'ultima città: è fuori dalla guerra": "✖ {faction} has lost its last city: it is out of the war",
- "✦ EVENTI MONDIALI (uno ogni 5-8 turni)": "✦ WORLD EVENTS (one every 5-8 turns)"
+ "✦ EVENTI MONDIALI (uno ogni 5-8 turni)": "✦ WORLD EVENTS (one every 5-8 turns)",
+ "Terminale nel browser:    {url}": "Terminal in the browser:  {url}"
 }
