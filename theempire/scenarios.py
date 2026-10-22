@@ -36,6 +36,9 @@ class Scenario:
     # a theatre of war: (west, east, south, north) in degrees; nothing outside
     # it takes part (no cities, no movement). None = the whole world.
     bounds: tuple[float, float, float, float] | None = None
+    # the seas of the theatre, if wider than its land: so that the fleets can
+    # sail round the coasts (the Mediterranean south of the last city...)
+    sea_bounds: tuple[float, float, float, float] | None = None
     # cities given to a faction whatever their country: (city, faction key)
     city_owners: tuple[tuple[str, str], ...] = ()
     # countries whose cities stay out of a theatre that touches them
@@ -132,6 +135,7 @@ SCENARIOS: dict[str, Scenario] = {s.key: s for s in (
         max_turns=150,
         modern=False,
         bounds=(-11.0, 42.0, 37.0, 71.0),      # from Lisbon to Moscow, from Athens to the North Cape
+        sea_bounds=(-25.0, 42.0, 30.0, 75.0),  # the Atlantic off Europe and all the Mediterranean
         city_owners=(("Berlin", "pact"),),     # the capital of the GDR
         outside=("TUN", "DZA", "MAR", "SYR", "CYP", "MLT"),  # Africa and the Levant stay out
     ),

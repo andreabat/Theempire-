@@ -368,7 +368,7 @@ python3 -m theempire --join mioserver.example.org:7777 --faction east
 | **Tutorial: the Balkan campaign** (`tutorial`) | Italian Command against Rebel Republic | An instructor teaches you the game step by step, up to the conquest of Tirana |
 | **World War III** (`ww3`) | Atlantic Alliance, Eurasian Union, Eastern Bloc | Three armed blocs; the rest of the world is neutral and can be conquered |
 | **Cold War 1985** (`coldwar`) | NATO, Warsaw Pact | The original Theatre Europe brought to a world scale; China stays neutral |
-| **European Theatre 1985** (`europe`) | NATO, Warsaw Pact | Only Europe, from Lisbon to Moscow and from Athens to the North Cape (52 cities): short games, Germany divided (Berlin with the Pact), Sweden, Austria, Switzerland and Yugoslavia neutral. Outside the theatre the map is grey and nobody enters it; the game opens already zoomed on Europe. No modern weapons |
+| **European Theatre 1985** (`europe`) | NATO, Warsaw Pact | Only Europe, from Lisbon to Moscow and from Athens to the North Cape (52 cities): short games, Germany divided (Berlin with the Pact), Sweden, Austria, Switzerland and Yugoslavia neutral. Outside the theatre the map is grey and nobody enters it (its seas reach a little further, to the African coast and out into the Atlantic, so that the fleets can sail round Europe); the game opens already zoomed on Europe. No modern weapons |
 | **Six empires** (`empire`) | six empires | A single capital each, the whole world to take, atomic bombs must be built |
 
 ## Rules

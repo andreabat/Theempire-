@@ -420,10 +420,14 @@ class Game:
         bounds = self.scenario.bounds
         if bounds is None:
             return None
-        west, east, south, north = bounds
         w = self.world
-        return bytearray(1 if west <= w.lonlat(i)[0] <= east and south <= w.lonlat(i)[1] <= north else 0
-                         for i in range(w.size))
+        sea = self.scenario.sea_bounds or bounds
+
+        def inside(i: int, box) -> bool:
+            west, east, south, north = box
+            lon, lat = w.lonlat(i)
+            return west <= lon <= east and south <= lat <= north
+        return bytearray(1 if inside(i, bounds if w.land[i] else sea) else 0 for i in range(w.size))
 
     def in_theatre(self, cell: int) -> bool:
         """Is this cell part of the war (always, unless the scenario has a theatre)?"""

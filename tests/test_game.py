@@ -294,3 +294,20 @@ def test_european_theatre(world):
     assert g.classify(tank, outside) is None
     assert g.path(tank, outside) is None
     assert not g.scenario.modern
+
+
+def test_european_theatre_fleets_can_sail():
+    """The theatre's seas reach past its last cities: no port is boxed in
+    (Athens was), and the Atlantic meets the Aegean and the North Sea."""
+    for hexgrid in (False, True):
+        g = Game("europe", seed=1, hexgrid=hexgrid)
+        w = g.world
+        for c in g.cities:
+            if w.coastal[c.cell]:
+                assert any(not w.land[n] and g.in_theatre(n) for n in w.neighbors[c.cell]), c.name
+        port = lambda name: next(c for c in g.cities if c.name == name)
+        start = next(n for n in w.neighbors[port("Lisbon").cell] if not w.land[n] and g.in_theatre(n))
+        sea = w.bfs([start], lambda i: g.in_theatre(i) and not w.land[i])
+        for name in ("Athens", "Amsterdam", "Rome"):
+            assert any(n in sea for n in w.neighbors[port(name).cell]), name
+        assert not any(g.in_theatre(c.cell) for c in g.cities if c.iso in ("TUN", "DZA", "MAR"))
