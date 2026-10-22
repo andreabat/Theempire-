@@ -251,8 +251,10 @@ nella web TUI torna indietro): i due condividono il posto del browser.
   esagoni regolari, come un wargame stampato; il pulsante ⬡ passa alle
   proporzioni vere della geografia (predefinite sui quadrati).
 - **Musica e suoni**: la mappa suona la musica del momento, come il
-  terminale (lobby, guerra, tensione, fine partita): 🎵 la accende o la
-  spegne, 🔊 gli effetti, 🎚 passa dai suoni moderni a quelli retrò.
+  terminale (lobby, guerra, tensione, fine partita). 🎵 (o `M`) sceglie la
+  musica come nel terminale: automatica, nessuna, Kalinka, l'inno, la Toccata...
+  e i vostri MIDI della cartella musica del server; la scelta viene ricordata.
+  🔊 accende o spegne gli effetti, 🎚 passa dai suoni moderni a quelli retrò.
 - **Mani e mouse**: trascinate per spostarvi, rotella o pizzico per lo zoom,
   un tocco su una casella mostra cosa c'è (luogo, città, padrone, le vostre
   unità). Il mondo si richiude da est a ovest, come nel gioco. Il pannello

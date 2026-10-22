@@ -107,6 +107,8 @@ def test_page_assets_and_info(gateway):
     assert len(get(gw, "/vendor/xterm.js").read()) > 100_000
     info = json.loads(get(gw, "/info").read())
     assert [s["key"] for s in info["seats"]] == ["nato", "pact"] and info["password"]
+    music = json.loads(get(gw, "/music.json?lang=en").read())["choices"]
+    assert music[0] == ["auto", "automatic (depends on the moment)"] and ["kalinka", "Kalinka"] in music
     for bad in ("/vendor/../web.py", "/sounds/../../x", "/etc/passwd"):
         with pytest.raises(urllib.error.HTTPError):
             get(gw, bad)

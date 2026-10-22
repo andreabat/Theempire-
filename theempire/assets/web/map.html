@@ -212,7 +212,8 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} },
 };
 const TEXTS = {
-  it: { musicBtn: "Musica", styleBtn: "Stile dei suoni: moderno o retrò (8 bit)", styleModern: "Suoni moderni (cinematografici).", styleRetro: "Suoni retrò (8 bit, come Theatre Europe).",
+  it: { musicTitle: "Musica",
+       musicBtn: "Musica: scegli il brano (M)", styleBtn: "Stile dei suoni: moderno o retrò (8 bit)", styleModern: "Suoni moderni (cinematografici).", styleRetro: "Suoni retrò (8 bit, come Theatre Europe).",
        name: "Italiano", nameL: "Il tuo nome", factionL: "Fazione", firstFree: "la prima libera", passwordL: "Password della partita", langL: "Lingua", go: "ENTRA IN GUERRA", tuiAlt: "oppure gioca nel terminale (TUI)", taken: "occupata", running: "partita in corso", waitingP: "in attesa dei giocatori", tuiTitle: "Gioca nel terminale (TUI)",
        waitingL: "In attesa di ordini",
        cardsBtn: "♠ Carte", play: "Gioca", onFaction: "♠ {card}: su quale fazione?", cardOwnCity: "♠ {card}: tocca una tua città (Esc annulla).", cardEnemyUnit: "♠ {card}: tocca un'unità nemica fuori dalle città (Esc annulla).", cardEnemyCity: "♠ {card}: tocca una città nemica (Esc annulla).", cardNeutralCity: "♠ {card}: tocca una città neutrale (Esc annulla).", close: "Chiudi",
@@ -228,7 +229,8 @@ const TEXTS = {
         offline: "Server non raggiungibile: riprovo…", waiting: "in attesa dei giocatori", realtime: "tempo reale",
         over: "Partita finita", units: "unità", aboard: "a bordo",
         aspect: "Proporzioni: plancia da wargame o geografia vera", labels: "Nomi delle città", home: "Torna alla tua zona" },
-  en: { musicBtn: "Music", styleBtn: "Sound style: modern or retro (8-bit)", styleModern: "Modern sounds (cinematic).", styleRetro: "Retro sounds (8-bit, like Theatre Europe).",
+  en: { musicTitle: "Music",
+       musicBtn: "Music: choose the tune (M)", styleBtn: "Sound style: modern or retro (8-bit)", styleModern: "Modern sounds (cinematic).", styleRetro: "Retro sounds (8-bit, like Theatre Europe).",
        name: "English", nameL: "Your name", factionL: "Faction", firstFree: "the first free one", passwordL: "Game password", langL: "Language", go: "GO TO WAR", tuiAlt: "or play in the terminal (TUI)", taken: "taken", running: "game in progress", waitingP: "waiting for players", tuiTitle: "Play in the terminal (TUI)",
        waitingL: "Waiting for orders",
        cardsBtn: "♠ Cards", play: "Play", onFaction: "♠ {card}: on which faction?", cardOwnCity: "♠ {card}: tap one of your cities (Esc cancels).", cardEnemyUnit: "♠ {card}: tap an enemy unit outside the cities (Esc cancels).", cardEnemyCity: "♠ {card}: tap an enemy city (Esc cancels).", cardNeutralCity: "♠ {card}: tap a neutral city (Esc cancels).", close: "Close",
@@ -244,7 +246,8 @@ const TEXTS = {
         offline: "Server unreachable: retrying…", waiting: "waiting for players", realtime: "real time",
         over: "Game over", units: "units", aboard: "aboard",
         aspect: "Proportions: wargame board or true geography", labels: "City names", home: "Back to your area" },
-  fr: { musicBtn: "Musique", styleBtn: "Style des sons : moderne ou rétro (8 bits)", styleModern: "Sons modernes (cinématographiques).", styleRetro: "Sons rétro (8 bits, comme Theatre Europe).",
+  fr: { musicTitle: "Musique",
+       musicBtn: "Musique : choisir le morceau (M)", styleBtn: "Style des sons : moderne ou rétro (8 bits)", styleModern: "Sons modernes (cinématographiques).", styleRetro: "Sons rétro (8 bits, comme Theatre Europe).",
        name: "Français", nameL: "Votre nom", factionL: "Faction", firstFree: "la première libre", passwordL: "Mot de passe de la partie", langL: "Langue", go: "PARTIR EN GUERRE", tuiAlt: "ou jouer dans le terminal (TUI)", taken: "prise", running: "partie en cours", waitingP: "en attente des joueurs", tuiTitle: "Jouer dans le terminal (TUI)",
        waitingL: "En attente d'ordres",
        cardsBtn: "♠ Cartes", play: "Jouer", onFaction: "♠ {card} : sur quelle faction ?", cardOwnCity: "♠ {card} : touchez une de vos villes (Échap annule).", cardEnemyUnit: "♠ {card} : touchez une unité ennemie hors des villes (Échap annule).", cardEnemyCity: "♠ {card} : touchez une ville ennemie (Échap annule).", cardNeutralCity: "♠ {card} : touchez une ville neutre (Échap annule).", close: "Fermer",
@@ -260,7 +263,8 @@ const TEXTS = {
         offline: "Serveur injoignable : nouvel essai…", waiting: "en attente des joueurs", realtime: "temps réel",
         over: "Partie terminée", units: "unités", aboard: "à bord",
         aspect: "Proportions : plateau de wargame ou vraie géographie", labels: "Noms des villes", home: "Revenir à votre zone" },
-  es: { musicBtn: "Música", styleBtn: "Estilo de sonido: moderno o retro (8 bits)", styleModern: "Sonidos modernos (cinematográficos).", styleRetro: "Sonidos retro (8 bits, como Theatre Europe).",
+  es: { musicTitle: "Música",
+       musicBtn: "Música: elige la pieza (M)", styleBtn: "Estilo de sonido: moderno o retro (8 bits)", styleModern: "Sonidos modernos (cinematográficos).", styleRetro: "Sonidos retro (8 bits, como Theatre Europe).",
        name: "Español", nameL: "Tu nombre", factionL: "Facción", firstFree: "la primera libre", passwordL: "Contraseña de la partida", langL: "Idioma", go: "A LA GUERRA", tuiAlt: "o juega en el terminal (TUI)", taken: "ocupada", running: "partida en curso", waitingP: "esperando jugadores", tuiTitle: "Jugar en el terminal (TUI)",
        waitingL: "Esperando órdenes",
        cardsBtn: "♠ Cartas", play: "Jugar", onFaction: "♠ {card}: ¿sobre qué facción?", cardOwnCity: "♠ {card}: toca una de tus ciudades (Esc cancela).", cardEnemyUnit: "♠ {card}: toca una unidad enemiga fuera de las ciudades (Esc cancela).", cardEnemyCity: "♠ {card}: toca una ciudad enemiga (Esc cancela).", cardNeutralCity: "♠ {card}: toca una ciudad neutral (Esc cancela).", close: "Cerrar",
@@ -276,7 +280,8 @@ const TEXTS = {
         offline: "Servidor inalcanzable: reintentando…", waiting: "esperando jugadores", realtime: "tiempo real",
         over: "Partida terminada", units: "unidades", aboard: "a bordo",
         aspect: "Proporciones: tablero de wargame o geografía real", labels: "Nombres de las ciudades", home: "Volver a tu zona" },
-  de: { musicBtn: "Musik", styleBtn: "Klangstil: modern oder retro (8 Bit)", styleModern: "Moderne Klänge (filmisch).", styleRetro: "Retro-Klänge (8 Bit, wie Theatre Europe).",
+  de: { musicTitle: "Musik",
+       musicBtn: "Musik: Stück wählen (M)", styleBtn: "Klangstil: modern oder retro (8 Bit)", styleModern: "Moderne Klänge (filmisch).", styleRetro: "Retro-Klänge (8 Bit, wie Theatre Europe).",
        name: "Deutsch", nameL: "Dein Name", factionL: "Fraktion", firstFree: "die erste freie", passwordL: "Passwort der Partie", langL: "Sprache", go: "IN DEN KRIEG", tuiAlt: "oder im Terminal spielen (TUI)", taken: "besetzt", running: "Partie läuft", waitingP: "wartet auf Spieler", tuiTitle: "Im Terminal spielen (TUI)",
        waitingL: "Warten auf Befehle",
        cardsBtn: "♠ Karten", play: "Spielen", onFaction: "♠ {card}: gegen welche Fraktion?", cardOwnCity: "♠ {card}: tippe auf eine deiner Städte (Esc bricht ab).", cardEnemyUnit: "♠ {card}: tippe auf eine feindliche Einheit außerhalb der Städte (Esc bricht ab).", cardEnemyCity: "♠ {card}: tippe auf eine feindliche Stadt (Esc bricht ab).", cardNeutralCity: "♠ {card}: tippe auf eine neutrale Stadt (Esc bricht ab).", close: "Schließen",
@@ -292,7 +297,8 @@ const TEXTS = {
         offline: "Server nicht erreichbar: neuer Versuch…", waiting: "wartet auf Spieler", realtime: "Echtzeit",
         over: "Partie beendet", units: "Einheiten", aboard: "an Bord",
         aspect: "Proportionen: Wargame-Brett oder echte Geografie", labels: "Städtenamen", home: "Zurück zu deinem Gebiet" },
-  pt: { musicBtn: "Música", styleBtn: "Estilo de som: moderno ou retro (8 bits)", styleModern: "Sons modernos (cinematográficos).", styleRetro: "Sons retro (8 bits, como Theatre Europe).",
+  pt: { musicTitle: "Música",
+       musicBtn: "Música: escolha a faixa (M)", styleBtn: "Estilo de som: moderno ou retro (8 bits)", styleModern: "Sons modernos (cinematográficos).", styleRetro: "Sons retro (8 bits, como Theatre Europe).",
        name: "Português", nameL: "O seu nome", factionL: "Facção", firstFree: "a primeira livre", passwordL: "Senha da partida", langL: "Idioma", go: "PARA A GUERRA", tuiAlt: "ou jogue no terminal (TUI)", taken: "ocupada", running: "partida em andamento", waitingP: "aguardando jogadores", tuiTitle: "Jogar no terminal (TUI)",
        waitingL: "À espera de ordens",
        cardsBtn: "♠ Cartas", play: "Jogar", onFaction: "♠ {card}: sobre qual facção?", cardOwnCity: "♠ {card}: toque numa das suas cidades (Esc cancela).", cardEnemyUnit: "♠ {card}: toque numa unidade inimiga fora das cidades (Esc cancela).", cardEnemyCity: "♠ {card}: toque numa cidade inimiga (Esc cancela).", cardNeutralCity: "♠ {card}: toque numa cidade neutra (Esc cancela).", close: "Fechar",
@@ -1025,6 +1031,7 @@ function orderKey(k) {
   if (k === "C") { startAim("chem"); return true; }
   if (k === "Z") { openSpace(); return true; }
   if (k === "K") { openCards(); return true; }
+  if (k === "M") { openMusic(); return true; }
   if (k === "Escape" && aim) { stopAim(); return true; }
   const map = { n: "next", Tab: "next", " ": "skip", s: "sentry", f: "fortify", v: "wake" };
   if (map[k]) { order(map[k]); return true; }
@@ -1246,7 +1253,9 @@ function sfx(name) {
 }
 // The music follows the moment, as in the terminal: the lobby, the war, the
 // tension when midnight is close, the end of the game.
-let musicOn = store.get("theempire.map.music", "1") === "1", musicTrack = "", musicEl = null;
+// what to play: "auto" (the moment), "off", or a tune of the M menu
+let musicChoice = store.get("theempire.map.musicChoice", store.get("theempire.map.music", "1") === "0" ? "off" : "auto");
+let musicOn = musicChoice !== "off", musicTrack = "", musicEl = null;
 const LOOPS = new Set(["menu", "war", "tension", "kalinka", "anthem"]);
 function musicFor(d) {
   if (!d.started) return "menu";
@@ -1257,26 +1266,40 @@ function musicFor(d) {
   return d.doomsday <= 5 ? "tension" : "war";
 }
 function setMusic(track) {
-  const want = musicOn ? track : "";
+  const want = musicChoice === "off" ? "" : musicChoice === "auto" ? track : musicChoice;
   const key = want && soundStyle + ":" + want;
   if (key === musicTrack) return;
   musicTrack = key;
   if (musicEl) { musicEl.pause(); musicEl = null; }
   if (!want) return;
   musicEl = new Audio(soundUrl(want));
-  musicEl.loop = LOOPS.has(want); musicEl.volume = 0.55;
+  musicEl.loop = LOOPS.has(want) || want.startsWith("user-"); musicEl.volume = 0.55;
   // browsers wait for a first tap, and a new style is still being made: try again
   musicEl.play().catch(() => {
     musicTrack = "";
     clearTimeout(setMusic.retry);
-    setMusic.retry = setTimeout(() => { if (state && musicOn && !musicTrack) setMusic(musicFor(state)); }, 4000);
+    setMusic.retry = setTimeout(() => { if (state && musicChoice !== "off" && !musicTrack) setMusic(musicFor(state)); }, 4000);
   });
 }
-$("musicBtn").onclick = () => {
-  musicOn = !musicOn; store.set("theempire.map.music", musicOn ? "1" : "0");
-  $("musicBtn").style.opacity = musicOn ? "1" : ".45";
-  if (state) setMusic(musicFor(state));
-};
+// 🎵: choose the music, as M in the terminal (and the player's own MIDI files)
+async function openMusic() {
+  let choices = [["auto", "auto"], ["off", "off"]];
+  try { choices = (await (await fetch(ROOT + "music.json?lang=" + lang)).json()).choices; } catch (e) {}
+  const box = dialog(`<div class="hd"><b>${esc(T.musicTitle)}</b><button class="x">✕</button></div>` +
+    `<div class="list">${choices.map(([k, name]) => `<button class="opt one${k === musicChoice ? " cur" : ""}" data-m="${esc(k)}">` +
+      `<span class="nm">${k === "off" ? "🔇" : k === "auto" ? "✦" : "♪"} ${esc(name)}</span></button>`).join("")}</div>`);
+  box.querySelectorAll(".opt").forEach((b) => {
+    b.onclick = () => {
+      musicChoice = b.dataset.m; musicOn = musicChoice !== "off";
+      store.set("theempire.map.musicChoice", musicChoice);
+      $("musicBtn").style.opacity = musicOn ? "1" : ".45";
+      closeProduction();
+      if (state) setMusic(musicFor(state));
+    };
+  });
+  const cur = box.querySelector(".opt.cur"); if (cur) cur.focus();
+}
+$("musicBtn").onclick = openMusic;
 $("musicBtn").style.opacity = musicOn ? "1" : ".45";
 $("styleBtn").onclick = () => {
   soundStyle = soundStyle === "modern" ? "retro" : "modern";
@@ -1286,7 +1309,7 @@ $("styleBtn").onclick = () => {
   sfx("turn");
 };
 // the first tap anywhere lets the browser play the music
-addEventListener("pointerdown", () => { if (state && musicOn && !musicTrack) setMusic(musicFor(state)); }, { capture: true });
+addEventListener("pointerdown", () => { if (state && musicChoice !== "off" && !musicTrack) setMusic(musicFor(state)); }, { capture: true });
 $("sound").onclick = () => { soundOn = !soundOn; store.set("theempire.map.sound", soundOn ? "1" : "0"); $("sound").textContent = soundOn ? "🔊" : "🔇"; };
 $("sound").textContent = soundOn ? "🔊" : "🔇";
 function kick() {

@@ -219,6 +219,14 @@ class WebGateway:
         elif path == "/favicon.ico":
             req.send_response(HTTPStatus.NO_CONTENT)
             req.end_headers()
+        elif path == "/music.json":         # the tunes the map can play, as the M menu
+            lang = (parse_qs(url.query).get("lang") or [""])[0]
+            lang = lang if lang in i18n.LANGS else None
+            names = []
+            for choice in audio.music_choices():
+                name = audio.MUSIC_NAMES.get(choice)
+                names.append([choice, i18n.word(name, lang) if name else audio.music_name(choice)])
+            self._reply(req, json.dumps({"choices": names}).encode(), "application/json")
         elif path == "/info":
             info = dict(self.info())
             lang = (parse_qs(url.query).get("lang") or [""])[0]

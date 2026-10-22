@@ -250,8 +250,10 @@ web TUI goes back): the two share the browser's seat.
   regular hexagons, like a printed wargame; the ⬡ button switches to the
   true proportions of the geography (the default on squares).
 - **Music and sounds**: the map plays the music of the moment, as the terminal does
-  (lobby, war, tension, the end of the game): 🎵 turns it on or off, 🔊 the
-  effects, 🎚 switches between the modern and the retro sounds.
+  (lobby, war, tension, the end of the game). 🎵 (or `M`) chooses the music as in the
+  terminal: automatic, none, Kalinka, the anthem, the Toccata... and your own
+  MIDI files from the server's music folder; the choice is remembered. 🔊 turns the
+  effects on or off, 🎚 switches between the modern and the retro sounds.
 - **Hands and mouse**: drag to move, wheel or pinch to zoom, a tap on a cell
   shows what is there (place, city, owner, your units). The world wraps
   east-west, as in the game. The side panel lists the factions, the cell
