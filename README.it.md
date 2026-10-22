@@ -95,10 +95,26 @@ testi nuovi.
 
 ## Musica ed effetti sonori
 
-Suoni e musiche sono **sintetizzati dal gioco stesso** in stile 8-bit, con
-onde quadre, triangolari e rumore come i computer di Theatre Europe. Nel
-progetto non c'è nessun file audio: al primo avvio vengono generati in un paio
-di secondi in `~/.theempire/sounds`.
+Suoni e musiche sono **sintetizzati dal gioco stesso**: nel progetto non c'è
+nessun file audio. Al primo avvio vengono generati in sottofondo in
+`~/.theempire/sounds` (circa mezzo minuto per lo stile moderno, pochi secondi
+per quello retrò). Due **stili**, da scegliere nel menu `M` («stile dei
+suoni», tasto `r`) o con 🎚 sulla mappa:
+
+- **moderno** (predefinito): cinematografico, come uno strategico di oggi.
+  Denti di sega senza aliasing e pad «supersaw» di voci leggermente stonate,
+  filtri che si aprono e si chiudono, ottoni gravi, taiko e timpani, il basso
+  che pompa con la cassa, il riverbero di una sala. Le esplosioni sono a
+  strati (lo schiocco, il corpo, il sub-basso che cade, i detriti, l'eco); jet
+  e missili si schiariscono mentre arrivano e si scuriscono mentre se ne
+  vanno; l'attacco nucleare ha la sirena antiaerea, il fischio, il lampo e un
+  lungo boato. Ogni effetto è portato allo stesso volume percepito e poi
+  messo nel mix: passi e motori in fondo, bombe davanti, musica sotto gli
+  effetti.
+- **retrò**: l'originale a 8 bit, onde quadre e triangolari e rumore come i
+  computer di Theatre Europe.
+
+Tutti e due suonano gli stessi brani (sotto); cambiano solo gli strumenti.
 
 - **Musica**: nel menu e nella lobby la Toccata in re minore di Bach
   (omaggio a Theatre Europe; la composizione è di pubblico dominio), in
@@ -234,6 +250,9 @@ nella web TUI torna indietro): i due condividono il posto del browser.
   da wargame** (il numero sull'angolo è la pila). Sugli esagoni la plancia ha
   esagoni regolari, come un wargame stampato; il pulsante ⬡ passa alle
   proporzioni vere della geografia (predefinite sui quadrati).
+- **Musica e suoni**: la mappa suona la musica del momento, come il
+  terminale (lobby, guerra, tensione, fine partita): 🎵 la accende o la
+  spegne, 🔊 gli effetti, 🎚 passa dai suoni moderni a quelli retrò.
 - **Mani e mouse**: trascinate per spostarvi, rotella o pizzico per lo zoom,
   un tocco su una casella mostra cosa c'è (luogo, città, padrone, le vostre
   unità). Il mondo si richiude da est a ovest, come nel gioco. Il pannello
@@ -892,7 +911,8 @@ theempire/
   commands.py   i comandi del giocatore, validati: unica via per cambiare la partita
   net.py        multiplayer: server autoritativo, client, protocollo JSON su TCP
   ui.py         interfaccia curses: mappa Braille, pannello, registro, lobby, menu
-  audio.py      sintetizzatore chiptune, effetti, voci delle unità e musiche, riproduzione in background
+  audio.py      i suoni retrò (chiptune), i brani, la riproduzione in background
+  soundkit.py   i suoni moderni: filtri, riverbero, esplosioni a strati, musica cinematografica
   web.py        web TUI: gateway HTTP/WebSocket che porta il client nel browser
   mapview.py    la mappa grafica web: maschera della terra, territori e vista di un posto, in JSON
   chronicle.py  le righe del bollettino di guerra, comuni al terminale e alla mappa

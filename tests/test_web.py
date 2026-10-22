@@ -86,7 +86,8 @@ def gateway(tmp_path, monkeypatch):
     srv = GameServer(game, "127.0.0.1", 0, password="pw", log=lambda line: None)
     srv.listen()
     threading.Thread(target=srv.serve_forever, daemon=True).start()
-    gw = WebGateway(("127.0.0.1", srv.port), "127.0.0.1", 0, srv.web_info, log=lambda line: None)
+    gw = WebGateway(("127.0.0.1", srv.port), "127.0.0.1", 0, srv.web_info, log=lambda line: None,
+                    prepare_sounds=False)
     gw.listen()
     threading.Thread(target=gw.serve_forever, daemon=True).start()
     yield gw, srv

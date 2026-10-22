@@ -95,10 +95,25 @@ catalogues.
 
 ## Music and sound effects
 
-Sounds and music are **synthesised by the game itself** in 8-bit style, with
-square and triangle waves and noise like the computers of Theatre Europe. There
-are no audio files in the project: on first launch they are generated in a couple
-of seconds in `~/.theempire/sounds`.
+Sounds and music are **synthesised by the game itself**: there are no audio
+files in the project. On first launch they are generated in the background
+in `~/.theempire/sounds` (about half a minute for the modern style, a few
+seconds for the retro one). Two **styles**, to choose in the `M` menu
+("sound style", key `r`) or with 🎚 on the map:
+
+- **modern** (the default): cinematic, like a strategy game of today.
+  Band-limited saws and detuned "supersaw" pads, filters that open and close,
+  low brass, taiko and timpani, the bass pumping with the kick, a hall
+  reverb. The explosions are layered (the crack, the body, the sub drop,
+  the debris, the echo); jets and missiles brighten as they come and darken
+  as they go; the nuclear strike has an air-raid siren, the whistle, the
+  flash and a long rumble. Every effect is brought to the same loudness and
+  then placed in a mix: steps and engines in the background, bombs in front,
+  music under the effects.
+- **retro**: the 8-bit original, square and triangle waves and noise like the
+  computers of Theatre Europe.
+
+Both play the same tunes (below); only the instruments change.
 
 - **Music**: in the menu and the lobby, Bach's Toccata in D minor
   (a tribute to Theatre Europe; the composition is in the public domain), in
@@ -234,6 +249,9 @@ web TUI goes back): the two share the browser's seat.
   (the number on the corner is the stack). On hexagons the board has
   regular hexagons, like a printed wargame; the ⬡ button switches to the
   true proportions of the geography (the default on squares).
+- **Music and sounds**: the map plays the music of the moment, as the terminal does
+  (lobby, war, tension, the end of the game): 🎵 turns it on or off, 🔊 the
+  effects, 🎚 switches between the modern and the retro sounds.
 - **Hands and mouse**: drag to move, wheel or pinch to zoom, a tap on a cell
   shows what is there (place, city, owner, your units). The world wraps
   east-west, as in the game. The side panel lists the factions, the cell
@@ -881,7 +899,8 @@ theempire/
   commands.py   the player's commands, validated: the only way to change the game
   net.py        multiplayer: authoritative server, client, JSON protocol over TCP
   ui.py         curses interface: Braille map, panel, log, lobby, menus
-  audio.py      chiptune synthesiser, effects, unit voices and music, background playback
+  audio.py      the retro (chiptune) sounds, the tunes, background playback
+  soundkit.py   the modern sounds: filters, reverb, layered explosions, cinematic music
   web.py        web TUI: HTTP/WebSocket gateway that brings the client to the browser
   mapview.py    the graphical web map: land mask, territory and the view of a seat, as JSON
   chronicle.py  the lines of the war bulletin, shared by the terminal and the map

@@ -2,17 +2,74 @@ import sys
 import time
 import wave
 
+import pytest
+
 from theempire import audio
 from theempire.game import Event, Game
 from theempire.ui import pick_sound
 from theempire.world import load_world
 
 
-def test_generate_every_sound(tmp_path):
-    audio.generate(tmp_path)
+@pytest.fixture(scope="module")
+def modern(tmp_path_factory):
+    """The modern sounds, made once for the module (half a minute)."""
+    folder = tmp_path_factory.mktemp("sounds") / "modern"
+    audio.generate(folder)
+    return folder
+
+
+def test_generate_every_sound(tmp_path, modern):
+    audio.generate(tmp_path / "retro")
+    for folder in (tmp_path / "retro", modern):
+        for name in audio._SFX_NAMES + audio._MUSIC_NAMES:
+            with wave.open(str(folder / f"{name}.wav")) as w:
+                assert w.getframerate() == audio.RATE and w.getnframes() > audio.RATE // 4
+
+
+def _samples(path):
+    from array import array
+    with wave.open(str(path)) as w:
+        data = array("h", w.readframes(w.getnframes()))
+    if sys.byteorder == "big":
+        data.byteswap()
+    return data
+
+
+def test_modern_sounds_are_clean(modern):
+    """No silence, no clipping run, no DC offset, a real attack, and the
+    loops do not click where they start again."""
     for name in audio._SFX_NAMES + audio._MUSIC_NAMES:
-        with wave.open(str(tmp_path / f"{name}.wav")) as w:
-            assert w.getframerate() == audio.RATE and w.getnframes() > audio.RATE // 4
+        x = _samples(modern / f"{name}.wav")
+        peak = max(abs(v) for v in x)
+        assert peak > 8000, name                              # audible
+        rms = (sum(v * v for v in x) / len(x)) ** 0.5
+        assert rms > 300, name
+        assert abs(sum(x) / len(x)) < 400, name                # no DC offset
+        run = longest = 0
+        for v in x:                                            # no long flat-topped clipping
+            run = run + 1 if abs(v) >= 32700 else 0
+            longest = max(longest, run)
+        assert longest < 20, name
+        if audio.loops(name):
+            assert abs(x[0]) < 3000 and abs(x[-1]) < 6000, name
+
+
+def test_the_style_is_chosen_and_kept(tmp_path, monkeypatch):
+    monkeypatch.setattr(audio, "SETTINGS", tmp_path / "settings.json")
+    monkeypatch.setattr(audio, "SOUNDS", tmp_path / "sounds")
+    assert audio.load_style() == "modern" and audio.cache_dir().name == "modern"
+    a = audio.Audio(mode="off", cache=tmp_path / "sounds" / "retro")
+    assert a.style == "retro"
+    a.set_style("modern")
+    assert audio.load_style() == "modern" and a.cache == tmp_path / "sounds" / "modern"
+    a.set_style("retro")
+    assert audio.load_style() == "retro" and audio.cache_dir().name == "retro"
+    a.close()
+    sent = []
+    e = audio.EscapeAudio(write=sent.append)
+    assert sent[-1] == b"\x1b]7777;style;retro;0\x07"
+    e.set_style("modern")
+    assert sent[-1] == b"\x1b]7777;style;modern;0\x07" and audio.load_style() == "modern"
 
 
 def fake_player(tmp_path):
@@ -36,7 +93,7 @@ def wait_for(check, timeout=10.0):
 def test_effects_and_looping_music(tmp_path, monkeypatch):
     monkeypatch.setattr(audio, "SETTINGS", tmp_path / "settings.json")
     player, log = fake_player(tmp_path)
-    a = audio.Audio(mode="all", cache=tmp_path / "snd")
+    a = audio.Audio(mode="all", cache=tmp_path / "retro")
     a.player = player
     assert a.ready.wait(30)
     a.sfx("battle")
@@ -58,7 +115,7 @@ def test_effects_and_looping_music(tmp_path, monkeypatch):
 def test_kalinka_loops_when_selected(tmp_path, monkeypatch):
     monkeypatch.setattr(audio, "SETTINGS", tmp_path / "settings.json")
     player, log = fake_player(tmp_path)
-    a = audio.Audio(mode="all", cache=tmp_path / "snd")
+    a = audio.Audio(mode="all", cache=tmp_path / "retro")
     a.player = player
     assert a.ready.wait(30)
     a.select_music("kalinka")
@@ -68,7 +125,7 @@ def test_kalinka_loops_when_selected(tmp_path, monkeypatch):
 
 def test_music_choice_persisted(tmp_path, monkeypatch):
     monkeypatch.setattr(audio, "SETTINGS", tmp_path / "settings.json")
-    a = audio.Audio(cache=tmp_path / "snd")
+    a = audio.Audio(cache=tmp_path / "retro")
     a.select_music("kalinka")
     assert audio.load_music() == "kalinka"
     a.toggle_effects()
@@ -91,7 +148,7 @@ def test_legacy_audio_mode_migration(tmp_path, monkeypatch):
 
 def test_bell_without_player(tmp_path):
     rings = []
-    a = audio.Audio(mode="all", cache=tmp_path / "snd", bell=lambda: rings.append(1))
+    a = audio.Audio(mode="all", cache=tmp_path / "retro", bell=lambda: rings.append(1))
     a.player = None
     a.sfx("nuke")
     a.sfx("battle")      # minor events do not ring

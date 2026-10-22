@@ -97,7 +97,8 @@ def test_watchers_need_a_seat_and_only_read(server):
 
 def test_gateway_serves_the_map(server):
     srv, tmp = server
-    gw = WebGateway(("127.0.0.1", srv.port), "127.0.0.1", 0, srv.web_info, log=lambda line: None)
+    gw = WebGateway(("127.0.0.1", srv.port), "127.0.0.1", 0, srv.web_info, log=lambda line: None,
+                    prepare_sounds=False)
     gw.listen()
     threading.Thread(target=gw.serve_forever, daemon=True).start()
     try:
@@ -229,7 +230,8 @@ def test_weapons_and_cards_for_the_map():
 
 def test_the_map_page_takes_a_seat_by_itself(server):
     srv, tmp = server
-    gw = WebGateway(("127.0.0.1", srv.port), "127.0.0.1", 0, srv.web_info, log=lambda line: None)
+    gw = WebGateway(("127.0.0.1", srv.port), "127.0.0.1", 0, srv.web_info, log=lambda line: None,
+                    prepare_sounds=False)
     gw.listen()
     threading.Thread(target=gw.serve_forever, daemon=True).start()
     try:

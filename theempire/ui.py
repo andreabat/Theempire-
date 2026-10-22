@@ -14,7 +14,7 @@ from functools import lru_cache
 from pathlib import Path
 
 from theempire import cards, chronicle, events, i18n, missions, regions
-from theempire.audio import Audio, music_keys, music_name
+from theempire.audio import STYLE_NAMES, Audio, music_keys, music_name
 from theempire.commands import describe
 from theempire.game import CHEM_RANGE, DIRECTIVES, Unit
 from theempire.i18n import N, tr, word
@@ -1353,12 +1353,22 @@ class UI:
         items = [(key, word(music_name(choice)), choice) for key, choice in music_keys().items()]
         items.append(("e", tr("effetti sonori: attivi (premi per spegnerli)") if a.effects
                       else tr("effetti sonori: muti (premi per accenderli)"), "effects"))
+        style = getattr(a, "style", "modern")
+        items.append(("r", tr("stile dei suoni: {style} (premi per cambiarlo)",
+                              style=word(STYLE_NAMES.get(style, style))), "style"))
         picked = self.choose(tr("Audio: musica ed effetti"), items, current=a.music_choice)
         if picked is None:
             return
         if picked[1] == "effects":
             on = a.toggle_effects()
             self.status = tr("Effetti sonori: attivi.") if on else tr("Effetti sonori: muti.")
+            return
+        if picked[1] == "style":
+            new = "retro" if style == "modern" else "modern"
+            if hasattr(a, "set_style"):
+                a.set_style(new)
+            self.status = tr("Stile dei suoni: {style}. La prima volta i nuovi suoni si preparano in "
+                             "sottofondo (mezzo minuto).", style=word(STYLE_NAMES[new]))
             return
         a.select_music(picked[1])
         if a.available:

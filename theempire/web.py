@@ -136,7 +136,8 @@ class WebGateway:
     """Serves the page and bridges each browser to a terminal client."""
 
     def __init__(self, target: tuple[str, int], host: str = "0.0.0.0", port: int = 8080,
-                 info: Callable[[], dict] | None = None, log: Callable[[str], None] = print):
+                 info: Callable[[], dict] | None = None, log: Callable[[str], None] = print,
+                 prepare_sounds: bool = True):
         self.target = target
         self.host, self.port = host, port
         self.info = info or (lambda: {})
@@ -144,15 +145,26 @@ class WebGateway:
         self.sessions = 0
         self.lock = threading.Lock()
         self.httpd: ThreadingHTTPServer | None = None
-        self.sounds_ready = threading.Event()
-        threading.Thread(target=self._sounds, daemon=True).start()
+        self.sounds_ready: dict[str, threading.Event] = {}
+        if prepare_sounds:              # ready before the first visitor (else made when asked for)
+            self._sounds(audio.load_style())
 
-    def _sounds(self) -> None:
-        try:
-            audio.generate(audio.CACHE)
-        except OSError:
-            pass
-        self.sounds_ready.set()
+    def _sounds(self, style: str) -> threading.Event:
+        """The sounds of a style, made in the background the first time."""
+        with self.lock:
+            ready = self.sounds_ready.get(style)
+            if ready is not None:
+                return ready
+            ready = self.sounds_ready[style] = threading.Event()
+
+        def work() -> None:
+            try:
+                audio.generate(audio.cache_dir(style), style)
+            except OSError:
+                pass
+            ready.set()
+        threading.Thread(target=work, daemon=True).start()
+        return ready
 
     def listen(self) -> int:
         gateway = self
@@ -218,10 +230,15 @@ class WebGateway:
             self._reply(req, json.dumps(info).encode(), "application/json")
         elif path.startswith("/sounds/"):
             name = path[len("/sounds/"):].removesuffix(".wav")
-            self.sounds_ready.wait(30)  # the first visitors may beat the synthesiser
-            wav = audio.CACHE / f"{name}.wav"
+            style = (parse_qs(url.query).get("style") or [audio.load_style()])[0]
+            style = style if style in audio.STYLES else audio.load_style()
             known = audio._SFX_NAMES + audio._MUSIC_NAMES + tuple(audio.user_tracks())
-            if name in known and wav.exists():
+            if name not in known:       # before waiting: a bad name is refused at once
+                req.send_error(HTTPStatus.NOT_FOUND)
+                return
+            self._sounds(style).wait(60)  # the first visitors may beat the synthesiser
+            wav = audio.cache_dir(style) / f"{name}.wav"
+            if wav.exists():
                 self._reply(req, wav.read_bytes(), "audio/wav", cache=True)
             else:
                 req.send_error(HTTPStatus.NOT_FOUND)

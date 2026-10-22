@@ -379,6 +379,7 @@
  "Sottomarino": "Submarine",
  "Spazio": "Space",
  "Spionaggio": "Espionage",
+ "Stile dei suoni: {style}. La prima volta i nuovi suoni si preparano in sottofondo (mezzo minuto).": "Sound style: {style}. The first time, the new sounds are prepared in the background (half a minute).",
  "Sud America": "South America",
  "Sud-Est As.": "SE Asia",
  "Sud-Est Asiatico": "Southeast Asia",
@@ -395,6 +396,7 @@
  "Tempo reale": "Real time",
  "Tempo reale: tutti giocano insieme, senza turni; a ogni impulso le mosse si ricaricano, le città producono e l'IA agisce.": "Real time: everybody plays at once, no turns; at every pulse moves come back, cities produce and the AI acts.",
  "Tempo scaduto per {faction}.": "Time is up for {faction}.",
+ "Terminale nel browser:    {url}": "Terminal in the browser:  {url}",
  "Terza Guerra Mondiale": "World War III",
  "Testata nucleare": "Nuclear warhead",
  "Testate disponibili: {n}": "Warheads available: {n}",
@@ -539,6 +541,7 @@
  "messaggio non valido": "invalid message",
  "messaggio troppo grande": "message too large",
  "mezzanotte": "midnight",
+ "moderno (cinematografico)": "modern (cinematic)",
  "musica ed effetti, solo effetti, o niente (predefinito: l'ultima scelta; tasto M per il menu audio)": "music and effects, effects only, or nothing (default: the last choice; M key for the audio menu)",
  "nessun limite": "no limit",
  "nessun posto con questo gettone": "no seat with this token",
@@ -578,6 +581,7 @@
  "prova la Guerra Fredda 1985 o la Terza Guerra Mondiale.": "try Cold War 1985 or World War III.",
  "quadrati": "squares",
  "qweadzxc muovi · frecce cursore · n prossima · g vai · p produzione · E fine turno · ? aiuto": "qweadzxc move · arrows cursor · n next · g go to · p production · E end turn · ? help",
+ "retrò (8 bit, come Theatre Europe)": "retro (8-bit, like Theatre Europe)",
  "riesce nel {pct}% dei casi": "succeeds {pct}% of the time",
  "rifiutato dal server": "refused by the server",
  "riprendi {file}": "resume {file}",
@@ -594,6 +598,7 @@
  "simboli ♟ ♜ ✈": "symbols ♟ ♜ ✈",
  "sottomarino": "submarine",
  "spie su {faction}": "spies on {faction}",
+ "stile dei suoni: {style} (premi per cambiarlo)": "sound style: {style} (press to change it)",
  "su {unit} {place}": "on {unit} {place}",
  "sulla città di {city}": "on the city of {city}",
  "sì": "yes",
@@ -743,6 +748,5 @@
  "✉ {who}: {text}": "✉ {who}: {text}",
  "✔ Ben fatto!": "✔ Well done!",
  "✖ {faction} ha perso l'ultima città: è fuori dalla guerra": "✖ {faction} has lost its last city: it is out of the war",
- "✦ EVENTI MONDIALI (uno ogni 5-8 turni)": "✦ WORLD EVENTS (one every 5-8 turns)",
- "Terminale nel browser:    {url}": "Terminal in the browser:  {url}"
+ "✦ EVENTI MONDIALI (uno ogni 5-8 turni)": "✦ WORLD EVENTS (one every 5-8 turns)"
 }

@@ -379,6 +379,7 @@
  "Sottomarino": "Sous-marin",
  "Spazio": "Espace",
  "Spionaggio": "Espionnage",
+ "Stile dei suoni: {style}. La prima volta i nuovi suoni si preparano in sottofondo (mezzo minuto).": "Style des sons : {style}. La première fois, les nouveaux sons se préparent en arrière-plan (une demi-minute).",
  "Sud America": "Amérique du Sud",
  "Sud-Est As.": "Asie du S.-E.",
  "Sud-Est Asiatico": "Asie du Sud-Est",
@@ -395,6 +396,7 @@
  "Tempo reale": "Temps réel",
  "Tempo reale: tutti giocano insieme, senza turni; a ogni impulso le mosse si ricaricano, le città producono e l'IA agisce.": "Temps réel : tout le monde joue en même temps, sans tours ; à chaque impulsion les mouvements reviennent, les villes produisent et l'IA agit.",
  "Tempo scaduto per {faction}.": "Temps écoulé pour {faction}.",
+ "Terminale nel browser:    {url}": "Terminal dans le navigateur : {url}",
  "Terza Guerra Mondiale": "Troisième Guerre mondiale",
  "Testata nucleare": "Ogive nucléaire",
  "Testate disponibili: {n}": "Ogives disponibles : {n}",
@@ -539,6 +541,7 @@
  "messaggio non valido": "message non valable",
  "messaggio troppo grande": "message trop grand",
  "mezzanotte": "minuit",
+ "moderno (cinematografico)": "moderne (cinématographique)",
  "musica ed effetti, solo effetti, o niente (predefinito: l'ultima scelta; tasto M per il menu audio)": "musique et effets, effets seuls, ou rien (par défaut : le dernier choix ; touche M pour le menu audio)",
  "nessun limite": "aucune limite",
  "nessun posto con questo gettone": "aucune place avec ce jeton",
@@ -578,6 +581,7 @@
  "prova la Guerra Fredda 1985 o la Terza Guerra Mondiale.": "essaie Guerre froide 1985 ou Troisième Guerre mondiale.",
  "quadrati": "carrés",
  "qweadzxc muovi · frecce cursore · n prossima · g vai · p produzione · E fine turno · ? aiuto": "qweadzxc bouger · flèches curseur · n suivante · g aller · p production · E fin du tour · ? aide",
+ "retrò (8 bit, come Theatre Europe)": "rétro (8 bits, comme Theatre Europe)",
  "riesce nel {pct}% dei casi": "réussit dans {pct} % des cas",
  "rifiutato dal server": "refusé par le serveur",
  "riprendi {file}": "reprendre {file}",
@@ -594,6 +598,7 @@
  "simboli ♟ ♜ ✈": "symboles ♟ ♜ ✈",
  "sottomarino": "sous-marin",
  "spie su {faction}": "espions sur {faction}",
+ "stile dei suoni: {style} (premi per cambiarlo)": "style des sons : {style} (appuyez pour le changer)",
  "su {unit} {place}": "sur {unit} {place}",
  "sulla città di {city}": "sur la ville de {city}",
  "sì": "oui",
@@ -743,6 +748,5 @@
  "✉ {who}: {text}": "✉ {who} : {text}",
  "✔ Ben fatto!": "✔ Bien joué !",
  "✖ {faction} ha perso l'ultima città: è fuori dalla guerra": "✖ {faction} a perdu sa dernière ville : hors de la guerre",
- "✦ EVENTI MONDIALI (uno ogni 5-8 turni)": "✦ ÉVÉNEMENTS MONDIAUX (un tous les 5 à 8 tours)",
- "Terminale nel browser:    {url}": "Terminal dans le navigateur : {url}"
+ "✦ EVENTI MONDIALI (uno ogni 5-8 turni)": "✦ ÉVÉNEMENTS MONDIAUX (un tous les 5 à 8 tours)"
 }

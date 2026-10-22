@@ -1,9 +1,11 @@
-"""Sound effects and chiptune music, synthesised in pure Python.
+"""Sound effects and music, synthesised in pure Python.
 
 Nothing is shipped as audio: the first time the game runs, every effect and
-tune is generated with simple square, triangle and noise oscillators (the
-sound of an 8-bit home computer, like Theatre Europe's) and written as WAV
-files to ``~/.theempire/sounds``. They are played with whatever command-line
+tune is generated and written as WAV files to ``~/.theempire/sounds``. Two
+styles: "modern" (the default, soundkit.py: filtered saws, layered
+explosions, reverb, cinematic drums) and "retro", simple square, triangle
+and noise oscillators, the sound of an 8-bit home computer like Theatre
+Europe's. They are played with whatever command-line
 player the system has (afplay, paplay, pw-play, aplay or ffplay). Without one,
 the game falls back to the terminal bell for the important events.
 """
@@ -25,9 +27,12 @@ from pathlib import Path
 from theempire.i18n import N, word
 
 RATE = 22050
-VERSION = "v5"  # bump whenever a sound changes, so caches are rebuilt
-CACHE = Path.home() / ".theempire" / "sounds" / VERSION
+VERSION = "v6"  # bump whenever a sound changes, so caches are rebuilt
+SOUNDS = Path.home() / ".theempire" / "sounds" / VERSION
+CACHE = SOUNDS / "modern"
 SETTINGS = Path.home() / ".theempire" / "settings.json"
+STYLES = ("modern", "retro")
+STYLE_NAMES = {"modern": N("moderno (cinematografico)"), "retro": N("retrò (8 bit, come Theatre Europe)")}
 LOOPING = {"menu", "war", "tension", "kalinka", "anthem"}
 # What the player can pick as background music: "auto" follows the moment
 # (menu, war, tension, victory, defeat, midnight), "off" means no music at
@@ -108,9 +113,10 @@ class Track:
             buf[i0 + k] += samples[k]
 
     def pcm(self, gain: float = 1.0) -> bytes:
-        """16-bit samples, normalised so the loudest one is at ``gain``."""
+        """16-bit samples, normalised so the loudest one is at ``gain`` (a
+        track already brought to its level, ``leveled``, is kept as it is)."""
         peak = max(1e-9, max(abs(v) for v in self.buf))
-        scale = 32000 * gain / peak
+        scale = 32000 * gain / peak if not getattr(self, "leveled", False) else 32000 / max(1.0, peak)
         out = array("h", (int(v * scale) for v in self.buf))
         if sys.byteorder == "big":
             out.byteswap()
@@ -410,16 +416,131 @@ def _sfx() -> dict[str, Track]:
     return out
 
 
+# ----------------------------------------------------------- the tunes
+# The melodies, shared by the two sound styles (retro chiptune and modern).
+# Notes are (name, beats).
+MENU_LEAD = [("A5", 0.25), ("G5", 0.25), ("A5", 1.5), ("R", 0.5),
+        ("G5", 0.25), ("F5", 0.25), ("E5", 0.25), ("D5", 0.25), ("C#5", 1.0), ("D5", 2.0), ("R", 1),
+        ("A4", 0.25), ("G4", 0.25), ("A4", 1.5), ("R", 0.5),
+        ("E4", 0.5), ("F4", 0.5), ("C#4", 0.5), ("D4", 2.5), ("R", 1),
+        ("A3", 0.25), ("G3", 0.25), ("A3", 1.5), ("R", 0.5),
+        ("G3", 0.25), ("F3", 0.25), ("E3", 0.25), ("D3", 0.25), ("C#3", 1.0), ("D3", 3.0), ("R", 1)]
+
+WAR_MELODY = [("D5", 1), ("D5", 0.5), ("E5", 0.5), ("F5", 1), ("D5", 1),
+          ("A5", 1.5), ("G5", 0.5), ("F5", 1), ("E5", 1),
+          ("D5", 1), ("F5", 0.5), ("E5", 0.5), ("D5", 1), ("C#5", 1),
+          ("D5", 3), ("R", 1),
+          ("F5", 1), ("F5", 0.5), ("G5", 0.5), ("A5", 1), ("F5", 1),
+          ("Bb5", 1.5), ("A5", 0.5), ("G5", 1), ("F5", 1),
+          ("E5", 1), ("G5", 0.5), ("F5", 0.5), ("E5", 1), ("C#5", 1),
+          ("D5", 3), ("R", 1)]
+
+WAR_BASS_BAR = {"D": [("D2", 1), ("A2", 1), ("D3", 1), ("A2", 1)],
+            "Bb": [("Bb1", 1), ("F2", 1), ("Bb2", 1), ("F2", 1)],
+            "A": [("A1", 1), ("E2", 1), ("A2", 1), ("E2", 1)],
+            "F": [("F2", 1), ("C3", 1), ("F3", 1), ("C3", 1)],
+            "G": [("G1", 1), ("D2", 1), ("G2", 1), ("D2", 1)]}
+
+WAR_CHORDS = ("D", "Bb", "A", "D", "F", "G", "A", "D")
+
+KALINKA_REFRAIN = [
+    ("C#5", 0.75), ("R", 0.25), ("B4", 0.5), ("R", 0.5), ("G#4", 0.25), ("R", 0.25),
+    ("A4", 0.25), ("R", 0.25), ("B4", 0.5), ("R", 0.5), ("G#4", 0.25), ("R", 0.25),
+    ("A4", 0.25), ("R", 0.25), ("B4", 0.5), ("C#5", 0.25), ("B4", 0.25), ("A4", 0.25),
+    ("R", 0.25), ("G#4", 0.25), ("R", 0.25), ("F#4", 0.75), ("R", 0.25), ("C#5", 0.25),
+    ("R", 0.25), ("C#5", 0.25), ("R", 0.25), ("B4", 0.5), ("R", 0.25), ("A4", 0.25),
+    ("G#4", 0.25), ("R", 0.25), ("A4", 0.25), ("R", 0.25), ("B4", 0.75), ("R", 0.25),
+    ("G#4", 0.25), ("R", 0.25), ("A4", 0.25), ("R", 0.25), ("B4", 0.5), ("C#5", 0.25),
+    ("B4", 0.25), ("R", 0.5), ("G#4", 0.25), ("R", 0.25), ("F#4", 0.75), ("R", 0.25),
+    ("C#5", 0.25), ("R", 0.25), ("C#5", 0.25), ("R", 0.25), ("B4", 0.75), ("R", 0.25),
+    ("G#4", 0.25), ("R", 0.25), ("A4", 0.25), ("R", 0.25), ("B4", 0.75), ("R", 0.25),
+    ("G#4", 0.25), ("R", 0.25), ("A4", 0.25), ("R", 0.25), ("B4", 0.5), ("C#5", 0.25),
+    ("B4", 0.25), ("R", 0.5), ("G#4", 0.25), ("R", 0.25), ("F#4", 0.25), ("R", 0.75),
+    ("C#5", 0.25), ("R", 0.25), ("C#5", 0.25), ("R", 0.25), ("B4", 0.5), ("R", 0.25),
+    ("A4", 0.25), ("G#4", 0.25), ("R", 0.25), ("A4", 0.25), ("R", 0.25), ("B4", 0.5),
+    ("R", 0.5), ("G#4", 0.25), ("R", 0.25), ("A4", 0.25), ("R", 0.25), ("B4", 0.5),
+    ("C#5", 0.25), ("B4", 0.25), ("R", 0.5), ("G#4", 0.25), ("R", 0.25)]
+
+KALINKA_VERSE = [
+    ("F#5", 1.5), ("R", 0.25), ("G#5", 0.25), ("E5", 2), ("C#6", 1), ("R", 0.25),
+    ("E6", 0.75), ("R", 0.25), ("D6", 0.25), ("D6", 0.5), ("C#6", 0.5), ("B5", 0.5),
+    ("A5", 1.5), ("B5", 0.25), ("A5", 0.25), ("R", 2), ("C#6", 1), ("E6", 1), ("D6", 0.75),
+    ("E6", 0.25), ("C#6", 0.5), ("B5", 0.5), ("A5", 1.5), ("R", 0.25), ("B5", 0.25),
+    ("E5", 1.5), ("R", 0.5), ("F#5", 1.75), ("R", 0.25), ("F#5", 1), ("G#5", 1), ("B5", 1),
+    ("R", 0.25), ("A5", 1), ("G#5", 0.25), ("A5", 0.25), ("G#5", 0.25), ("F#5", 0.25),
+    ("R", 0.25), ("G#5", 0.25), ("F#5", 0.25), ("E5", 2), ("R", 2), ("E6", 1), ("E5", 1),
+    ("F#5", 1), ("G#5", 0.5), ("R", 0.5), ("C#6", 1), ("E6", 1), ("D6", 0.5), ("E6", 0.25),
+    ("D6", 0.25), ("C#6", 0.5), ("B5", 0.5), ("A5", 1.5), ("B5", 0.25), ("A5", 0.25),
+    ("E5", 2), ("C#6", 1), ("E6", 1), ("D6", 0.75), ("E6", 0.25), ("C#6", 0.5),
+    ("B5", 0.5), ("A5", 2), ("E5", 1.5), ("R", 0.5), ("F#5", 1.75), ("R", 0.25),
+    ("F#5", 1), ("G#5", 1), ("B5", 1), ("A5", 1), ("G#5", 0.5), ("R", 0.25), ("A5", 0.25),
+    ("F#5", 0.5), ("R", 0.5)]
+
+KALINKA_BASS = [
+    ("R", 1), ("C#2", 0.75), ("R", 0.25), ("G#2", 0.5), ("R", 0.5), ("C#2", 0.5),
+    ("R", 0.5), ("G#2", 0.5), ("R", 0.5), ("C#2", 0.75), ("R", 0.25), ("G#2", 0.5),
+    ("R", 0.5), ("F#2", 0.5), ("R", 0.5), ("F#2", 0.5), ("R", 0.5), ("C#2", 0.75),
+    ("R", 0.25), ("G#2", 0.5), ("R", 0.5), ("C#2", 0.75), ("R", 0.25), ("G#2", 0.5),
+    ("R", 0.5), ("C#2", 0.75), ("R", 0.25), ("G#2", 0.75), ("R", 0.25), ("F#2", 0.5),
+    ("R", 0.5), ("F#2", 0.75), ("R", 0.25), ("C#2", 0.75), ("R", 0.25), ("G#2", 0.75),
+    ("R", 0.25), ("C#2", 0.75), ("R", 0.25), ("G#2", 0.5), ("R", 0.5), ("C#2", 0.75),
+    ("R", 0.25), ("G#2", 0.5), ("R", 0.5), ("F#2", 0.75), ("R", 0.25), ("F#2", 0.5),
+    ("R", 0.5), ("C#2", 0.75), ("R", 0.25), ("G#2", 0.5), ("R", 0.5), ("C#2", 0.75),
+    ("R", 0.25), ("G#2", 0.5), ("R", 0.5), ("C#2", 0.75), ("R", 0.25), ("G#2", 0.5),
+    ("R", 0.5), ("F#2", 1.75), ("R", 0.25), ("E2", 1.75), ("R", 0.25), ("A2", 1.75),
+    ("R", 0.25), ("E2", 2), ("A2", 2), ("E2", 2), ("A2", 2), ("E2", 2), ("A2", 1.75),
+    ("R", 0.25), ("E2", 2), ("D2", 1.75), ("R", 0.25), ("D2", 1), ("C#2", 1), ("B1", 4),
+    ("E2", 3.75), ("R", 0.25), ("E2", 1), ("D2", 1), ("C#2", 1), ("B1", 1), ("A2", 1.75),
+    ("R", 0.25), ("E2", 2), ("A2", 2), ("E2", 2), ("A2", 2), ("E2", 2), ("A2", 2),
+    ("E2", 2), ("D2", 1.75), ("R", 0.25), ("D2", 1), ("C#2", 1), ("B1", 2), ("G#1", 2)]
+
+KALINKA_TEMPO = [(0, 174), (31, 99), (33, 59), (35, 119)]
+
+ANTHEM_MELODY = [
+    ("G4", 0.5),
+    # «Союз нерушимый республик свободных / Сплотила навеки Великая Русь»
+    ("C5", 1), ("G4", 0.75), ("A4", 0.25), ("B4", 1), ("E4", 0.5), ("E4", 0.5),
+    ("A4", 1), ("G4", 0.75), ("F4", 0.25), ("G4", 1), ("C4", 0.5), ("C4", 0.5),
+    ("D4", 1), ("D4", 0.75), ("E4", 0.25), ("F4", 1), ("F4", 0.75), ("G4", 0.25),
+    ("A4", 1), ("B4", 0.5), ("C5", 0.5), ("D5", 1.5), ("G4", 0.5),
+    # «Да здравствует созданный волей народов / Единый, могучий Советский Союз»
+    ("E5", 1), ("D5", 0.75), ("C5", 0.25), ("D5", 1), ("B4", 0.5), ("G4", 0.5),
+    ("C5", 1), ("B4", 0.75), ("A4", 0.25), ("B4", 1), ("E4", 0.5), ("E4", 0.5),
+    ("A4", 1), ("G4", 0.75), ("F4", 0.25), ("G4", 1), ("C4", 0.5), ("C4", 0.5),
+    ("C5", 1), ("B4", 0.75), ("A4", 0.25), ("G4", 1.5), ("R", 0.5),
+    # «Славься, Отечество наше свободное, / Дружбы народов надёжный оплот!»
+    ("E5", 2), ("D5", 0.5), ("C5", 0.5), ("B4", 0.5), ("C5", 0.5),
+    ("D5", 1.5), ("G4", 0.5), ("G4", 1), ("R", 1),
+    ("C5", 2), ("B4", 0.5), ("A4", 0.5), ("G4", 0.5), ("A4", 0.5),
+    ("B4", 1.5), ("E4", 0.5), ("E4", 0.5), ("G4", 0.5), ("A4", 0.5), ("B4", 0.5),
+    # «Знамя советское, знамя народное / Пусть от победы к победе ведёт!»
+    ("C5", 1), ("A4", 0.75), ("B4", 0.25), ("C5", 1), ("A4", 0.75), ("B4", 0.25),
+    ("C5", 1), ("A4", 0.5), ("C5", 0.5), ("F5", 2),
+    ("F5", 2), ("E5", 0.5), ("D5", 0.5), ("C5", 0.5), ("D5", 0.5),
+    ("E5", 1.5), ("C5", 0.5), ("C5", 2),
+    ("D5", 2), ("C5", 0.5), ("B4", 0.5), ("A4", 0.5), ("B4", 0.5),
+    ("C5", 1.5), ("A4", 0.5), ("A4", 2),
+    ("C5", 1), ("B4", 0.75), ("A4", 0.25), ("G4", 1), ("C4", 0.5), ("C4", 0.5),
+    # last ending: «...ведёт!» broadening to the tonic
+    ("C5", 1), ("B4", 0.75), ("A4", 0.25), ("G4", 2),
+    ("G4", 2), ("A4", 1), ("B4", 1), ("C5", 3), ("R", 1),
+]
+
+ANTHEM_CHORDS = ["C", "E", "F", "C", "D", "G", "F", "G",       # verse, line 1
+          "C", "G", "A", "E", "F", "C", "F", "G",       # verse, line 2
+          "C", "C", "G", "G", "A", "A", "E", "E",       # refrain
+          "F", "F", "F", "F", "D", "G", "C", "C",
+          "G", "G", "A", "A", "F", "C", "F", "G",
+          "G", "G", "C", "C"]
+
+ANTHEM_FIFTH = {"C": "G", "D": "A", "E": "B", "F": "C", "G": "D", "A": "E"}
+
+
 def _music() -> dict[str, Track]:
     out: dict[str, Track] = {}
     # Menu: the opening of Bach's Toccata in D minor (public domain), in chiptune.
     bpm = 70
-    lead = [("A5", 0.25), ("G5", 0.25), ("A5", 1.5), ("R", 0.5),
-            ("G5", 0.25), ("F5", 0.25), ("E5", 0.25), ("D5", 0.25), ("C#5", 1.0), ("D5", 2.0), ("R", 1),
-            ("A4", 0.25), ("G4", 0.25), ("A4", 1.5), ("R", 0.5),
-            ("E4", 0.5), ("F4", 0.5), ("C#4", 0.5), ("D4", 2.5), ("R", 1),
-            ("A3", 0.25), ("G3", 0.25), ("A3", 1.5), ("R", 0.5),
-            ("G3", 0.25), ("F3", 0.25), ("E3", 0.25), ("D3", 0.25), ("C#3", 1.0), ("D3", 3.0), ("R", 1)]
+    lead = MENU_LEAD
     beats = sum(b for _, b in lead)
     t = Track(beats * 60 / bpm + 0.5)
     sequence(t, lead, bpm, square, vol=0.22, duty=0.25, release=0.05)
@@ -428,21 +549,10 @@ def _music() -> dict[str, Track]:
     out["menu"] = t
     # War: a minor-key march with an ostinato bass and a snare.
     bpm = 116
-    melody = [("D5", 1), ("D5", 0.5), ("E5", 0.5), ("F5", 1), ("D5", 1),
-              ("A5", 1.5), ("G5", 0.5), ("F5", 1), ("E5", 1),
-              ("D5", 1), ("F5", 0.5), ("E5", 0.5), ("D5", 1), ("C#5", 1),
-              ("D5", 3), ("R", 1),
-              ("F5", 1), ("F5", 0.5), ("G5", 0.5), ("A5", 1), ("F5", 1),
-              ("Bb5", 1.5), ("A5", 0.5), ("G5", 1), ("F5", 1),
-              ("E5", 1), ("G5", 0.5), ("F5", 0.5), ("E5", 1), ("C#5", 1),
-              ("D5", 3), ("R", 1)]
-    bass_bar = {"D": [("D2", 1), ("A2", 1), ("D3", 1), ("A2", 1)],
-                "Bb": [("Bb1", 1), ("F2", 1), ("Bb2", 1), ("F2", 1)],
-                "A": [("A1", 1), ("E2", 1), ("A2", 1), ("E2", 1)],
-                "F": [("F2", 1), ("C3", 1), ("F3", 1), ("C3", 1)],
-                "G": [("G1", 1), ("D2", 1), ("G2", 1), ("D2", 1)]}
+    melody = WAR_MELODY
+    bass_bar = WAR_BASS_BAR
     bass = []
-    for chord in ("D", "Bb", "A", "D", "F", "G", "A", "D"):
+    for chord in WAR_CHORDS:
         bass += bass_bar[chord]
     t = Track(32 * 60 / bpm + 0.3)
     sequence(t, melody, bpm, square, vol=0.17, duty=0.25, release=0.03)
@@ -485,55 +595,10 @@ def _music() -> dict[str, Track]:
     # (accordion line) over the original bass. Beats are quarters; the
     # tempo changes as in the arrangement: the refrain runs, then a pause
     # and the broad verse, and the loop starts again from the refrain.
-    refrain = [
-        ("C#5", 0.75), ("R", 0.25), ("B4", 0.5), ("R", 0.5), ("G#4", 0.25), ("R", 0.25),
-        ("A4", 0.25), ("R", 0.25), ("B4", 0.5), ("R", 0.5), ("G#4", 0.25), ("R", 0.25),
-        ("A4", 0.25), ("R", 0.25), ("B4", 0.5), ("C#5", 0.25), ("B4", 0.25), ("A4", 0.25),
-        ("R", 0.25), ("G#4", 0.25), ("R", 0.25), ("F#4", 0.75), ("R", 0.25), ("C#5", 0.25),
-        ("R", 0.25), ("C#5", 0.25), ("R", 0.25), ("B4", 0.5), ("R", 0.25), ("A4", 0.25),
-        ("G#4", 0.25), ("R", 0.25), ("A4", 0.25), ("R", 0.25), ("B4", 0.75), ("R", 0.25),
-        ("G#4", 0.25), ("R", 0.25), ("A4", 0.25), ("R", 0.25), ("B4", 0.5), ("C#5", 0.25),
-        ("B4", 0.25), ("R", 0.5), ("G#4", 0.25), ("R", 0.25), ("F#4", 0.75), ("R", 0.25),
-        ("C#5", 0.25), ("R", 0.25), ("C#5", 0.25), ("R", 0.25), ("B4", 0.75), ("R", 0.25),
-        ("G#4", 0.25), ("R", 0.25), ("A4", 0.25), ("R", 0.25), ("B4", 0.75), ("R", 0.25),
-        ("G#4", 0.25), ("R", 0.25), ("A4", 0.25), ("R", 0.25), ("B4", 0.5), ("C#5", 0.25),
-        ("B4", 0.25), ("R", 0.5), ("G#4", 0.25), ("R", 0.25), ("F#4", 0.25), ("R", 0.75),
-        ("C#5", 0.25), ("R", 0.25), ("C#5", 0.25), ("R", 0.25), ("B4", 0.5), ("R", 0.25),
-        ("A4", 0.25), ("G#4", 0.25), ("R", 0.25), ("A4", 0.25), ("R", 0.25), ("B4", 0.5),
-        ("R", 0.5), ("G#4", 0.25), ("R", 0.25), ("A4", 0.25), ("R", 0.25), ("B4", 0.5),
-        ("C#5", 0.25), ("B4", 0.25), ("R", 0.5), ("G#4", 0.25), ("R", 0.25)]
-    verse = [
-        ("F#5", 1.5), ("R", 0.25), ("G#5", 0.25), ("E5", 2), ("C#6", 1), ("R", 0.25),
-        ("E6", 0.75), ("R", 0.25), ("D6", 0.25), ("D6", 0.5), ("C#6", 0.5), ("B5", 0.5),
-        ("A5", 1.5), ("B5", 0.25), ("A5", 0.25), ("R", 2), ("C#6", 1), ("E6", 1), ("D6", 0.75),
-        ("E6", 0.25), ("C#6", 0.5), ("B5", 0.5), ("A5", 1.5), ("R", 0.25), ("B5", 0.25),
-        ("E5", 1.5), ("R", 0.5), ("F#5", 1.75), ("R", 0.25), ("F#5", 1), ("G#5", 1), ("B5", 1),
-        ("R", 0.25), ("A5", 1), ("G#5", 0.25), ("A5", 0.25), ("G#5", 0.25), ("F#5", 0.25),
-        ("R", 0.25), ("G#5", 0.25), ("F#5", 0.25), ("E5", 2), ("R", 2), ("E6", 1), ("E5", 1),
-        ("F#5", 1), ("G#5", 0.5), ("R", 0.5), ("C#6", 1), ("E6", 1), ("D6", 0.5), ("E6", 0.25),
-        ("D6", 0.25), ("C#6", 0.5), ("B5", 0.5), ("A5", 1.5), ("B5", 0.25), ("A5", 0.25),
-        ("E5", 2), ("C#6", 1), ("E6", 1), ("D6", 0.75), ("E6", 0.25), ("C#6", 0.5),
-        ("B5", 0.5), ("A5", 2), ("E5", 1.5), ("R", 0.5), ("F#5", 1.75), ("R", 0.25),
-        ("F#5", 1), ("G#5", 1), ("B5", 1), ("A5", 1), ("G#5", 0.5), ("R", 0.25), ("A5", 0.25),
-        ("F#5", 0.5), ("R", 0.5)]
-    bass = [
-        ("R", 1), ("C#2", 0.75), ("R", 0.25), ("G#2", 0.5), ("R", 0.5), ("C#2", 0.5),
-        ("R", 0.5), ("G#2", 0.5), ("R", 0.5), ("C#2", 0.75), ("R", 0.25), ("G#2", 0.5),
-        ("R", 0.5), ("F#2", 0.5), ("R", 0.5), ("F#2", 0.5), ("R", 0.5), ("C#2", 0.75),
-        ("R", 0.25), ("G#2", 0.5), ("R", 0.5), ("C#2", 0.75), ("R", 0.25), ("G#2", 0.5),
-        ("R", 0.5), ("C#2", 0.75), ("R", 0.25), ("G#2", 0.75), ("R", 0.25), ("F#2", 0.5),
-        ("R", 0.5), ("F#2", 0.75), ("R", 0.25), ("C#2", 0.75), ("R", 0.25), ("G#2", 0.75),
-        ("R", 0.25), ("C#2", 0.75), ("R", 0.25), ("G#2", 0.5), ("R", 0.5), ("C#2", 0.75),
-        ("R", 0.25), ("G#2", 0.5), ("R", 0.5), ("F#2", 0.75), ("R", 0.25), ("F#2", 0.5),
-        ("R", 0.5), ("C#2", 0.75), ("R", 0.25), ("G#2", 0.5), ("R", 0.5), ("C#2", 0.75),
-        ("R", 0.25), ("G#2", 0.5), ("R", 0.5), ("C#2", 0.75), ("R", 0.25), ("G#2", 0.5),
-        ("R", 0.5), ("F#2", 1.75), ("R", 0.25), ("E2", 1.75), ("R", 0.25), ("A2", 1.75),
-        ("R", 0.25), ("E2", 2), ("A2", 2), ("E2", 2), ("A2", 2), ("E2", 2), ("A2", 1.75),
-        ("R", 0.25), ("E2", 2), ("D2", 1.75), ("R", 0.25), ("D2", 1), ("C#2", 1), ("B1", 4),
-        ("E2", 3.75), ("R", 0.25), ("E2", 1), ("D2", 1), ("C#2", 1), ("B1", 1), ("A2", 1.75),
-        ("R", 0.25), ("E2", 2), ("A2", 2), ("E2", 2), ("A2", 2), ("E2", 2), ("A2", 2),
-        ("E2", 2), ("D2", 1.75), ("R", 0.25), ("D2", 1), ("C#2", 1), ("B1", 2), ("G#1", 2)]
-    tempo = [(0, 174), (31, 99), (33, 59), (35, 119)]   # (beat, bpm)
+    refrain = KALINKA_REFRAIN
+    verse = KALINKA_VERSE
+    bass = KALINKA_BASS
+    tempo = KALINKA_TEMPO   # (beat, bpm)
     beats = sum(b for _, b in bass)
     t = Track(beat_time(tempo, beats) + 0.3)
     sequence(t, refrain + verse, tempo, square, vol=0.2, duty=0.25, release=0.03)
@@ -547,43 +612,10 @@ def _music() -> dict[str, Track]:
     # «Союз нерушимый республик свободных» and the refrain «Славься,
     # Отечество наше свободное» with its two endings. Beats are quarters.
     bpm = 76
-    melody = [
-        ("G4", 0.5),
-        # «Союз нерушимый республик свободных / Сплотила навеки Великая Русь»
-        ("C5", 1), ("G4", 0.75), ("A4", 0.25), ("B4", 1), ("E4", 0.5), ("E4", 0.5),
-        ("A4", 1), ("G4", 0.75), ("F4", 0.25), ("G4", 1), ("C4", 0.5), ("C4", 0.5),
-        ("D4", 1), ("D4", 0.75), ("E4", 0.25), ("F4", 1), ("F4", 0.75), ("G4", 0.25),
-        ("A4", 1), ("B4", 0.5), ("C5", 0.5), ("D5", 1.5), ("G4", 0.5),
-        # «Да здравствует созданный волей народов / Единый, могучий Советский Союз»
-        ("E5", 1), ("D5", 0.75), ("C5", 0.25), ("D5", 1), ("B4", 0.5), ("G4", 0.5),
-        ("C5", 1), ("B4", 0.75), ("A4", 0.25), ("B4", 1), ("E4", 0.5), ("E4", 0.5),
-        ("A4", 1), ("G4", 0.75), ("F4", 0.25), ("G4", 1), ("C4", 0.5), ("C4", 0.5),
-        ("C5", 1), ("B4", 0.75), ("A4", 0.25), ("G4", 1.5), ("R", 0.5),
-        # «Славься, Отечество наше свободное, / Дружбы народов надёжный оплот!»
-        ("E5", 2), ("D5", 0.5), ("C5", 0.5), ("B4", 0.5), ("C5", 0.5),
-        ("D5", 1.5), ("G4", 0.5), ("G4", 1), ("R", 1),
-        ("C5", 2), ("B4", 0.5), ("A4", 0.5), ("G4", 0.5), ("A4", 0.5),
-        ("B4", 1.5), ("E4", 0.5), ("E4", 0.5), ("G4", 0.5), ("A4", 0.5), ("B4", 0.5),
-        # «Знамя советское, знамя народное / Пусть от победы к победе ведёт!»
-        ("C5", 1), ("A4", 0.75), ("B4", 0.25), ("C5", 1), ("A4", 0.75), ("B4", 0.25),
-        ("C5", 1), ("A4", 0.5), ("C5", 0.5), ("F5", 2),
-        ("F5", 2), ("E5", 0.5), ("D5", 0.5), ("C5", 0.5), ("D5", 0.5),
-        ("E5", 1.5), ("C5", 0.5), ("C5", 2),
-        ("D5", 2), ("C5", 0.5), ("B4", 0.5), ("A4", 0.5), ("B4", 0.5),
-        ("C5", 1.5), ("A4", 0.5), ("A4", 2),
-        ("C5", 1), ("B4", 0.75), ("A4", 0.25), ("G4", 1), ("C4", 0.5), ("C4", 0.5),
-        # last ending: «...ведёт!» broadening to the tonic
-        ("C5", 1), ("B4", 0.75), ("A4", 0.25), ("G4", 2),
-        ("G4", 2), ("A4", 1), ("B4", 1), ("C5", 3), ("R", 1),
-    ]
+    melody = ANTHEM_MELODY
     # One chord per half bar (root, fifth), following the official harmony.
-    chords = ["C", "E", "F", "C", "D", "G", "F", "G",       # verse, line 1
-              "C", "G", "A", "E", "F", "C", "F", "G",       # verse, line 2
-              "C", "C", "G", "G", "A", "A", "E", "E",       # refrain
-              "F", "F", "F", "F", "D", "G", "C", "C",
-              "G", "G", "A", "A", "F", "C", "F", "G",
-              "G", "G", "C", "C"]
-    fifth = {"C": "G", "D": "A", "E": "B", "F": "C", "G": "D", "A": "E"}
+    chords = ANTHEM_CHORDS
+    fifth = ANTHEM_FIFTH
     bass = [("G2", 0.5)]
     for root in chords:
         low = "1" if root in "AB" else "2"
@@ -597,11 +629,23 @@ def _music() -> dict[str, Track]:
     return out
 
 
-def generate(cache: Path = CACHE) -> None:
-    """Write every effect and tune as a WAV file (once; later runs reuse them)."""
+def cache_dir(style: str | None = None) -> Path:
+    """Where the sounds of a style live (the chosen style by default)."""
+    style = style if style in STYLES else load_style()
+    return SOUNDS / style
+
+
+def generate(cache: Path = CACHE, style: str | None = None) -> None:
+    """Write every effect and tune as a WAV file (once; later runs reuse them).
+    The style is the folder's name (modern or retro) unless given."""
+    style = style if style in STYLES else (cache.name if cache.name in STYLES else "modern")
+    if style == "modern":
+        from theempire import soundkit
+        builders = ((soundkit.sfx, _SFX_NAMES, 0.9), (soundkit.music, _MUSIC_NAMES, 0.5))
+    else:
+        builders = ((_sfx, _SFX_NAMES, 0.9), (_music, _MUSIC_NAMES, 0.45))
     cache.mkdir(parents=True, exist_ok=True)
-    for builder in (_sfx, _music):
-        names = _SFX_NAMES if builder is _sfx else _MUSIC_NAMES
+    for builder, names, level in builders:
         if all((cache / f"{n}.wav").exists() for n in names):
             continue
         for name, track in builder().items():
@@ -612,7 +656,7 @@ def generate(cache: Path = CACHE) -> None:
                 w.setsampwidth(2)
                 w.setframerate(RATE)
                 # Music sits under the effects.
-                w.writeframes(track.pcm(0.9 if builder is _sfx else 0.45))
+                w.writeframes(track.pcm(level))
             tmp.replace(path)
     _render_user_music(cache)
 
@@ -696,6 +740,19 @@ def save_music(choice: str) -> None:
     _save(data)
 
 
+def load_style() -> str:
+    """The sound style: "modern" unless the player chose the retro one."""
+    style = _settings().get("sound_style", "modern")
+    return style if style in STYLES else "modern"
+
+
+def save_style(style: str) -> None:
+    if style in STYLES:
+        data = _settings()
+        data["sound_style"] = style
+        _save(data)
+
+
 def load_effects() -> bool:
     """Whether the sound effects are on (legacy "audio" mode migrates here)."""
     data = _settings()
@@ -718,14 +775,15 @@ class Audio:
     MAX_EFFECTS = 3
 
     def __init__(self, mode: str | None = None, music: str | None = None,
-                 effects: bool | None = None, cache: Path = CACHE, bell=None):
+                 effects: bool | None = None, cache: Path | None = None, bell=None):
         if mode is not None:                      # --audio all|sfx|off
             self.music_choice = "off" if mode in ("sfx", "off") else "auto"
             self.effects = mode != "off"
         else:
             self.music_choice = music if music is not None else load_music()
             self.effects = effects if effects is not None else load_effects()
-        self.cache = cache
+        self.cache = cache if cache is not None else cache_dir()
+        self.style = self.cache.name if self.cache.name in STYLES else load_style()
         self.bell = bell              # fallback, e.g. curses.beep
         self.player = find_player()
         self.ready = threading.Event()
@@ -747,10 +805,12 @@ class Audio:
 
         def work():
             try:
-                generate(self.cache)
+                generate(self.cache, self.style)
                 self.ready.set()
             except OSError:
                 self.player = None
+            finally:
+                self._generating = False
         threading.Thread(target=work, daemon=True).start()
 
     @property
@@ -815,6 +875,27 @@ class Audio:
             self._start()
         self.music(self.wanted)
 
+    def set_style(self, style: str) -> None:
+        """Modern or retro: the other folder of sounds, made if needed (the
+        old sounds play until the new ones are ready)."""
+        if style not in STYLES or style == self.style:
+            return
+        save_style(style)
+        self.style, self.cache = style, cache_dir(style)
+        if all((self.cache / f"{n}.wav").exists() for n in _SFX_NAMES + _MUSIC_NAMES):
+            with self.lock:
+                self.track = None          # the tune starts again in the new style
+                self._stop_music()
+            self.music(self.wanted)
+            return
+        self.ready.clear()
+        with self.lock:
+            self.track = None
+            self._stop_music()
+        if self.player is not None:
+            self._start()
+        self.music(self.wanted)
+
     def toggle_effects(self) -> bool:
         """Mute or unmute the sound effects; returns the new state."""
         self.effects = not self.effects
@@ -869,8 +950,10 @@ class EscapeAudio:
         self.write = write or self._stdout
         self.music_choice = load_music()
         self.effects = load_effects()
+        self.style = load_style()
         self.track: str | None = None
         self.wanted: str | None = None
+        self._send("style", self.style, "0")
 
     @staticmethod
     def _stdout(data: bytes) -> None:
@@ -908,6 +991,14 @@ class EscapeAudio:
         self.effects = not self.effects
         save_effects(self.effects)
         return self.effects
+
+    def set_style(self, style: str) -> None:
+        if style in STYLES and style != self.style:
+            self.style = style
+            save_style(style)
+            self._send("style", style, "0")
+            track, self.track = self.track, None
+            self.music(self.wanted if track is not None else None)
 
     def close(self) -> None:
         self._send("music", "", "0")

@@ -250,10 +250,11 @@ fetch("info").then((r) => r.json()).then((data) => { info = data; showInfo(); })
 // ------------------------------------------------------------- audio
 const audio = {
   ctx: null, buffers: {}, running: [], music: null, musicName: "", on: store.get("theempire.sound", "1") === "1",
+  style: store.get("theempire.style", "modern"),
   start() { if (!this.ctx) { try { this.ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} } },
   async load(name) {
     if (this.buffers[name]) return this.buffers[name];
-    const data = await (await fetch("sounds/" + name + ".wav")).arrayBuffer();
+    const data = await (await fetch("sounds/" + name + ".wav?style=" + this.style)).arrayBuffer();
     return (this.buffers[name] = await this.ctx.decodeAudioData(data));
   },
   async play(name, loop, gain) {
@@ -416,6 +417,10 @@ function start(name, faction, password) {
     const [kind, name, flag] = data.split(";");
     if (kind === "sfx") audio.sfx(name, flag === "1");
     else if (kind === "music") audio.setMusic(name, flag === "1");
+    else if (kind === "style" && name !== audio.style) {     // modern or retro: the other sounds
+      audio.style = name; store.set("theempire.style", name); audio.buffers = {};
+      if (audio.musicName) audio.setMusic(audio.musicName, audio.musicLoop);
+    }
     return true;
   });
   const proto = location.protocol === "https:" ? "wss:" : "ws:";
