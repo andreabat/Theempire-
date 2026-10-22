@@ -42,6 +42,7 @@ from theempire.commands import printable
 from theempire.i18n import tr
 
 PAGE = Path(__file__).resolve().parent / "assets" / "web" / "index.html"
+MAP_PAGE = PAGE.with_name("map.html")        # the graphical map (mapview.py)
 WEB_HOMES = Path.home() / ".theempire" / "web"
 WS_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 MAX_FRAME = 1 << 20
@@ -116,6 +117,9 @@ class WebSocket:
 
     def send_bytes(self, data: bytes) -> None:
         self._send(0x2, data)
+
+    def send_text(self, text: str) -> None:
+        self._send(0x1, text.encode("utf-8"))
 
     def close(self) -> None:
         if self.closed:
@@ -214,6 +218,21 @@ class WebGateway:
                 req.send_error(HTTPStatus.NOT_FOUND)
         elif path == "/ws":
             self._websocket(req, parse_qs(url.query))
+        elif path == "/map":
+            self._reply(req, MAP_PAGE.read_bytes(), "text/html; charset=utf-8")
+        elif path == "/map/world.json":
+            from theempire import mapview
+            hexgrid = (parse_qs(url.query).get("hex") or ["0"])[0] == "1"
+            self._reply(req, json.dumps(mapview.world(hexgrid)).encode(), "application/json")
+        elif path == "/map/land.png":
+            from theempire import mapview
+            png = mapview.land_png()
+            if png is None:
+                req.send_error(HTTPStatus.NOT_FOUND)
+            else:
+                self._reply(req, png, "image/png", cache=True)
+        elif path == "/map/ws":
+            self._websocket(req, parse_qs(url.query), self._map_session)
         else:
             req.send_error(HTTPStatus.NOT_FOUND)
 
@@ -228,7 +247,7 @@ class WebGateway:
         req.wfile.write(body)
 
     # -- one browser
-    def _websocket(self, req: BaseHTTPRequestHandler, query: dict) -> None:
+    def _websocket(self, req: BaseHTTPRequestHandler, query: dict, session=None) -> None:
         key = req.headers.get("Sec-WebSocket-Key", "")
         if req.headers.get("Upgrade", "").lower() != "websocket" or not key:
             req.send_error(HTTPStatus.BAD_REQUEST)
@@ -247,7 +266,7 @@ class WebGateway:
             req.end_headers()
             req.wfile.flush()
             req.close_connection = True
-            self._session(WebSocket(req.connection), query)
+            (session or self._session)(WebSocket(req.connection), query)
         finally:
             with self.lock:
                 self.sessions -= 1
@@ -340,6 +359,87 @@ class WebGateway:
                 pass
             ws.close()
             self.log(tr("web: {name} si è scollegato", name=name))
+
+    # -- one map page
+    def _map_session(self, ws: WebSocket, query: dict) -> None:
+        """The graphical map of a browser: it watches the game with the eyes
+        of the seat that browser holds (its terminal client keeps the token),
+        so the fog of war is the same as in the TUI."""
+        from theempire import mapview
+        from theempire.net import MAX_SERVER_MESSAGE, PROTOCOL, recv_msg, send_msg
+
+        browser = (query.get("id") or [""])[0]
+        lang = (query.get("lang") or [""])[0]
+        lang = lang if lang in i18n.LANGS else i18n.language()
+        if not re.fullmatch(r"[0-9a-f]{32}", browser):
+            ws.close()
+            return
+        gone = threading.Event()
+        server: list[socket.socket] = []
+
+        def listen() -> None:           # the page only talks to say goodbye
+            try:
+                while ws.recv() is not None:
+                    pass
+            except (ConnectionError, OSError):
+                pass
+            gone.set()
+            for sock in server:         # wakes the reader below
+                try:
+                    sock.shutdown(socket.SHUT_RDWR)
+                except OSError:
+                    pass
+        threading.Thread(target=listen, daemon=True).start()
+        tokens = WEB_HOMES / browser / ".theempire" / "online.json"
+        address = f"{self.target[0]}:{self.target[1]}"
+        sent_territory = ""
+        try:
+            while not gone.is_set():
+                try:
+                    seats = json.loads(tokens.read_text(encoding="utf-8")).get(address) or {}
+                except (OSError, ValueError, AttributeError):
+                    seats = {}
+                token = next(iter(seats.values()), "") if isinstance(seats, dict) else ""
+                if not token:
+                    ws.send_text(json.dumps({"t": "noseat"}))
+                    gone.wait(3)
+                    continue
+                try:
+                    sock = socket.create_connection(self.target, timeout=10)
+                except OSError:
+                    ws.send_text(json.dumps({"t": "offline"}))
+                    gone.wait(3)
+                    continue
+                server[:] = [sock]
+                try:
+                    send_msg(sock, {"type": "hello", "version": PROTOCOL, "watch": True, "token": token})
+                    reply = recv_msg(sock, MAX_SERVER_MESSAGE)
+                    if reply.get("type") != "welcome":
+                        ws.send_text(json.dumps({"t": "noseat"}))
+                        gone.wait(3)
+                        continue
+                    viewer = reply["faction"]
+                    sock.settimeout(None)
+                    while not gone.is_set():
+                        msg = recv_msg(sock, MAX_SERVER_MESSAGE)
+                        if msg.get("type") != "state":
+                            continue
+                        data = mapview.view(msg["state"], viewer, lang)
+                        if data["territory_key"] == sent_territory:
+                            del data["territory"]     # the page has it already
+                        sent_territory = data["territory_key"]
+                        data["started"] = bool(msg.get("started"))
+                        ws.send_text(json.dumps({"t": "state", "d": data}, separators=(",", ":")))
+                except (ConnectionError, OSError, ValueError, KeyError):
+                    if not gone.is_set():
+                        ws.send_text(json.dumps({"t": "offline"}))
+                        gone.wait(3)
+                finally:
+                    sock.close()
+        except (ConnectionError, OSError):
+            pass
+        finally:
+            ws.close()
 
     @staticmethod
     def _pump(fd: int, ws: WebSocket) -> None:

@@ -219,6 +219,30 @@ python3 -m theempire --serve --web --scenario ww3 --faction west --faction east 
   Caddy or nginx) or a VPN. It works on Linux and macOS, because it uses the system's
   virtual terminals.
 
+### The graphical map
+Next to the terminal there is a real map, drawn in the browser: the 🗺 button
+at the top of the web TUI opens it in a new tab (or open
+`http://<server-address>:8080/map` with the same browser).
+
+- **What it shows**: the coastline from the fine land map, each city's
+  territory in the colour of its owner, the fog of war, the theatre of war,
+  fallout, cities with their names, and the units as **wargame counters**
+  (the number on the corner is the stack). On hexagons the board has
+  regular hexagons, like a printed wargame; the ⬡ button switches to the
+  true proportions of the geography (the default on squares).
+- **Hands and mouse**: drag to move, wheel or pinch to zoom, a tap on a cell
+  shows what is there (place, city, owner, your units). The world wraps
+  east-west, as in the game. The side panel lists the factions, the cell
+  and the latest events; ☰ hides it, `Aa` the city names, ⌂ brings you back.
+- **The same fog as in the game**: the map follows the seat that browser holds
+  (it joins the server as a *watcher* with that seat's token), so it shows
+  only what your faction sees. Without a seat it asks you to join first from
+  the game page.
+- For now it only shows: you give orders from the TUI next to it, and the
+  map updates by itself after every move. Orders, menus and bulletins on the
+  map are the next steps.
+- It needs nothing from the internet: no map tiles, no external services.
+
 ## Online multiplayer
 
 An online game has a **server** that holds the game and runs the AI
@@ -805,6 +829,7 @@ theempire/
   ui.py         curses interface: Braille map, panel, log, lobby, menus
   audio.py      chiptune synthesiser, effects, unit voices and music, background playback
   web.py        web TUI: HTTP/WebSocket gateway that brings the client to the browser
+  mapview.py    the graphical web map: land mask, territory and the view of a seat, as JSON
   assets/web/   web TUI page and xterm.js (MIT)
   cli.py        command line
   serversetup.py  the server setup screen

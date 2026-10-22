@@ -29,6 +29,8 @@
          border-bottom: 1px solid var(--line); font-size: 13px; }
   #bar .title { flex: 1; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   #bar button { width: auto; padding: 4px 10px; font-size: 13px; }
+  #bar a { padding: 4px 10px; font-size: 13px; border: 1px solid var(--line); border-radius: 6px;
+           background: var(--panel); color: var(--text); text-decoration: none; }
   #term { flex: 1; min-height: 0; padding: 2px; touch-action: none; }
   /* no pull-to-refresh, no rubber band, no page zoom while playing */
   html, body { overscroll-behavior: none; }
@@ -73,6 +75,7 @@
     <button id="bigger" title="Testo più grande" data-t-title="bigger">A+</button>
     <button id="padToggle" title="Pulsantiera per schermi touch" data-t-title="pad">⌨</button>
     <button id="soundToggle" title="Audio del browser" data-t-title="sound">🔊</button>
+    <a id="mapLink" href="map" target="_blank" rel="noopener" title="Mappa grafica" data-t-title="mapPage">🗺</a>
   </div>
   <div id="term"></div>
   <div id="pad">
@@ -128,7 +131,7 @@ $("name").value = store.get("theempire.name", "");
 // The page's own few texts (the game's are translated by the client, which
 // receives the language as lang= in the WebSocket URL).
 const TEXTS = {
-  it: { name: "Italiano", sub: "Strategia globale a turni · Theatre Europe × conquista mondiale",
+  it: { mapPage: "Mappa grafica (nuova scheda)", name: "Italiano", sub: "Strategia globale a turni · Theatre Europe × conquista mondiale",
         nameLabel: "Il tuo nome", faction: "Fazione", firstFree: "la prima libera",
         password: "Password della partita (se c'è)", lang: "Lingua", go: "ENTRA IN GUERRA",
         smaller: "Testo più piccolo", bigger: "Testo più grande", pad: "Pulsantiera per schermi touch",
@@ -139,7 +142,7 @@ const TEXTS = {
         running: "partita in corso", waiting: "in attesa dei giocatori", free: "libera",
         offline: "(offline)", ai: "Guidate dall'IA:", noPassword: "non serve",
         ended: "Sessione terminata. Ricarica la pagina per rientrare al tuo posto." },
-  en: { name: "English", sub: "Turn-based global strategy · Theatre Europe × world conquest",
+  en: { mapPage: "Graphical map (new tab)", name: "English", sub: "Turn-based global strategy · Theatre Europe × world conquest",
         nameLabel: "Your name", faction: "Faction", firstFree: "the first free one",
         password: "Game password (if any)", lang: "Language", go: "GO TO WAR",
         smaller: "Smaller text", bigger: "Larger text", pad: "Button pad for touch screens",
@@ -150,7 +153,7 @@ const TEXTS = {
         running: "game in progress", waiting: "waiting for players", free: "free",
         offline: "(offline)", ai: "Led by the AI:", noPassword: "not needed",
         ended: "Session ended. Reload the page to get back to your seat." },
-  fr: { name: "Français", sub: "Stratégie mondiale au tour par tour · Theatre Europe × conquête du monde",
+  fr: { mapPage: "Carte graphique (nouvel onglet)", name: "Français", sub: "Stratégie mondiale au tour par tour · Theatre Europe × conquête du monde",
         nameLabel: "Votre nom", faction: "Faction", firstFree: "la première libre",
         password: "Mot de passe de la partie (s'il y en a un)", lang: "Langue", go: "PARTIR EN GUERRE",
         smaller: "Texte plus petit", bigger: "Texte plus grand", pad: "Boutons pour écrans tactiles",
@@ -161,7 +164,7 @@ const TEXTS = {
         running: "partie en cours", waiting: "en attente des joueurs", free: "libre",
         offline: "(hors ligne)", ai: "Dirigées par l'IA :", noPassword: "pas nécessaire",
         ended: "Session terminée. Rechargez la page pour retrouver votre place." },
-  es: { name: "Español", sub: "Estrategia global por turnos · Theatre Europe × conquista mundial",
+  es: { mapPage: "Mapa gráfico (nueva pestaña)", name: "Español", sub: "Estrategia global por turnos · Theatre Europe × conquista mundial",
         nameLabel: "Tu nombre", faction: "Facción", firstFree: "la primera libre",
         password: "Contraseña de la partida (si la hay)", lang: "Idioma", go: "A LA GUERRA",
         smaller: "Texto más pequeño", bigger: "Texto más grande", pad: "Botonera para pantallas táctiles",
@@ -172,7 +175,7 @@ const TEXTS = {
         running: "partida en curso", waiting: "esperando jugadores", free: "libre",
         offline: "(desconectado)", ai: "Dirigidas por la IA:", noPassword: "no hace falta",
         ended: "Sesión terminada. Recarga la página para volver a tu puesto." },
-  de: { name: "Deutsch", sub: "Rundenbasierte Weltstrategie · Theatre Europe × Welteroberung",
+  de: { mapPage: "Grafische Karte (neuer Tab)", name: "Deutsch", sub: "Rundenbasierte Weltstrategie · Theatre Europe × Welteroberung",
         nameLabel: "Dein Name", faction: "Fraktion", firstFree: "die erste freie",
         password: "Passwort der Partie (falls vorhanden)", lang: "Sprache", go: "IN DEN KRIEG",
         smaller: "Kleinere Schrift", bigger: "Größere Schrift", pad: "Tastenfeld für Touchscreens",
@@ -183,7 +186,7 @@ const TEXTS = {
         running: "Partie läuft", waiting: "wartet auf Spieler", free: "frei",
         offline: "(offline)", ai: "Von der KI gesteuert:", noPassword: "nicht nötig",
         ended: "Sitzung beendet. Lade die Seite neu, um an deinen Platz zurückzukehren." },
-  pt: { name: "Português", sub: "Estratégia global por turnos · Theatre Europe × conquista mundial",
+  pt: { mapPage: "Mapa gráfico (novo separador)", name: "Português", sub: "Estratégia global por turnos · Theatre Europe × conquista mundial",
         nameLabel: "O seu nome", faction: "Facção", firstFree: "a primeira livre",
         password: "Senha da partida (se houver)", lang: "Idioma", go: "PARA A GUERRA",
         smaller: "Texto menor", bigger: "Texto maior", pad: "Botões para telas de toque",

@@ -89,6 +89,7 @@ class Connection:
     sock: socket.socket
     address: str
     slot: Slot | None = None
+    watching: int | None = None         # a map page: the faction whose view it gets
     send_lock: threading.Lock = field(default_factory=threading.Lock)
 
     def send(self, obj: dict) -> bool:
@@ -132,6 +133,7 @@ class GameServer:
         self.stopping = threading.Event()
         self.sock: socket.socket | None = None
         self.last_pulse = time.time()   # real time: when the last pulse came
+        self.watchers: list[Connection] = []   # map pages, each on a player's seat
         if resume:              # a saved game: its players get their seats back
             self._load_slots()
         else:                   # a new game: every seat is free again
@@ -214,7 +216,7 @@ class GameServer:
                 return
             while True:
                 msg = recv_msg(conn.sock, MAX_CLIENT_MESSAGE)
-                if msg.get("type") == "cmd" and isinstance(msg.get("cmd"), dict):
+                if msg.get("type") == "cmd" and isinstance(msg.get("cmd"), dict) and conn.slot:
                     self._command(conn, msg)
         except (ConnectionError, ProtocolError, OSError, socket.timeout, struct.error):
             pass
@@ -225,6 +227,8 @@ class GameServer:
         if hello.get("type") != "hello" or hello.get("version") != PROTOCOL:
             conn.send({"type": "error", "message": tr("versione del gioco diversa da quella del server")})
             return False
+        if hello.get("watch"):      # the seat token is the proof: it was given after the password
+            return self._watch(conn, str(hello.get("token") or ""))
         if self.password and not hmac.compare_digest(str(hello.get("password", "")), self.password):
             conn.send({"type": "error", "message": tr("password errata")})
             return False
@@ -269,8 +273,30 @@ class GameServer:
             self._broadcast()
         return True
 
+    def _watch(self, conn: Connection, token: str) -> bool:
+        """A map page (web.py) following the game with the eyes of a seat
+        it holds the token of. It only reads: its commands are ignored."""
+        with self.lock:
+            slot = next((s for s in self.slots.values()
+                         if token and s.token and hmac.compare_digest(s.token, token)), None)
+            if slot is None:
+                conn.send({"type": "error", "message": tr("nessun posto con questo gettone")})
+                return False
+            conn.watching = slot.faction
+            self.watchers.append(conn)
+            conn.send({"type": "welcome", "faction": slot.faction, "watch": True,
+                       "faction_key": self.game.factions[slot.faction].key})
+            conn.send(self._state_for(slot.faction))
+        return True
+
+    def _state_for(self, f: int) -> dict:
+        return {"type": "state", "state": commands.view_for(self.game, f), "lobby": self.lobby(),
+                "started": self.started, "deadline": self._deadline()}
+
     def _leave(self, conn: Connection) -> None:
         with self.lock:
+            if conn in self.watchers:
+                self.watchers.remove(conn)
             slot = conn.slot
             if slot is not None and slot.conn is conn:
                 slot.conn = None
@@ -342,6 +368,13 @@ class GameServer:
                     msg["reel"] = reel
                 if slot.conn.send(msg) and reel and "reel" in msg:
                     self.reels.pop(slot.faction, None)
+        views: dict[int, dict] = {}
+        for conn in list(self.watchers):
+            f = conn.watching
+            if f not in views:
+                views[f] = self._state_for(f)
+            if not conn.send(views[f]):
+                self.watchers.remove(conn)
 
     def _pulse(self) -> None:
         """Real time: the next pulse for everybody when its time has come."""

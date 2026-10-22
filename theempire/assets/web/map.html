@@ -1,0 +1,548 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>The Empire · Mappa</title>
+<style>
+  :root { --bg: #07090d; --panel: rgba(17, 21, 28, .92); --line: #263040; --text: #d6dde8;
+          --dim: #8592a6; --accent: #ff4d4d; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--text);
+               font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; overscroll-behavior: none; }
+  canvas { position: fixed; inset: 0; width: 100%; height: 100%; touch-action: none; cursor: grab; }
+  canvas.drag { cursor: grabbing; }
+  #top { position: fixed; top: 0; left: 0; right: 0; display: flex; gap: 12px; align-items: center;
+         padding: 6px 12px; background: var(--panel); border-bottom: 1px solid var(--line);
+         white-space: nowrap; overflow: hidden; }
+  #top .title { font-weight: 600; letter-spacing: .04em; }
+  #top .dim { color: var(--dim); overflow: hidden; text-overflow: ellipsis; }
+  #top .clock { margin-left: auto; color: var(--accent); font-variant-numeric: tabular-nums; }
+  #top button, #tools button { font: inherit; color: var(--text); background: #1a2130; border: 1px solid var(--line);
+                border-radius: 6px; padding: 3px 10px; cursor: pointer; }
+  #side { position: fixed; top: 38px; right: 8px; width: 300px; max-height: calc(100% - 50px); overflow: auto;
+          background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+  #side.closed { display: none; }
+  #side h3 { margin: 10px 0 4px; font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--dim); }
+  #side h3:first-child { margin-top: 0; }
+  .fac { display: flex; align-items: center; gap: 8px; padding: 2px 0; }
+  .fac .sw { width: 12px; height: 12px; border-radius: 3px; flex: none; }
+  .fac .n { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fac.me .n { font-weight: 600; }
+  .fac.out .n { text-decoration: line-through; color: var(--dim); }
+  .fac .c { color: var(--dim); font-variant-numeric: tabular-nums; }
+  #cell { color: var(--text); }
+  #cell .u { display: inline-flex; align-items: center; gap: 4px; margin: 2px 6px 2px 0; }
+  #cell .tok { display: inline-block; min-width: 18px; padding: 0 3px; border-radius: 3px; color: #fff;
+               font: 600 12px/18px ui-monospace, monospace; text-align: center; }
+  #log div { padding: 2px 0; border-top: 1px solid var(--line); font-size: 13px; }
+  #log div:first-child { border-top: 0; }
+  #log .t { color: var(--dim); font-variant-numeric: tabular-nums; margin-right: 6px; }
+  #log .alert, #log .wmd { color: #ffb4a8; }
+  #tools { position: fixed; left: 8px; bottom: 8px; display: flex; gap: 6px; }
+  #tools button { padding: 6px 12px; font-size: 16px; }
+  #tools button.on { border-color: var(--accent); }
+  #notice { position: fixed; left: 50%; top: 45%; transform: translate(-50%, -50%); max-width: 440px;
+            background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px;
+            text-align: center; display: none; }
+  #notice a { color: var(--accent); }
+  @media (max-width: 640px) {
+    #side { left: 8px; right: 8px; width: auto; top: auto; bottom: 52px; max-height: 42%; }
+    #top .dim { display: none; }
+  }
+</style>
+</head>
+<body>
+<canvas id="map"></canvas>
+<div id="top">
+  <span class="title">THE EMPIRE</span>
+  <span class="dim" id="info"></span>
+  <span class="clock" id="clock"></span>
+  <button id="panelBtn">☰</button>
+</div>
+<div id="side">
+  <h3 data-t="factions">Fazioni</h3>
+  <div id="facs"></div>
+  <h3 data-t="selected">Casella</h3>
+  <div id="cell" data-t="clickHint">Tocca o clicca una casella.</div>
+  <h3 data-t="events">Eventi</h3>
+  <div id="log"></div>
+</div>
+<div id="tools">
+  <button id="zin" title="Zoom +">+</button>
+  <button id="zout" title="Zoom −">−</button>
+  <button id="home" title="⌂">⌂</button>
+  <button id="labels" title="Aa">Aa</button>
+  <button id="aspect" title="⬡">⬡</button>
+</div>
+<div id="notice"></div>
+
+<script>
+"use strict";
+// The graphical map of The Empire: it follows the game with the eyes of the
+// seat this browser holds (opened from the web TUI). Read-only for now.
+const $ = (id) => document.getElementById(id);
+const store = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : v; } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} },
+};
+const TEXTS = {
+  it: { factions: "Fazioni", selected: "Casella", events: "Eventi", clickHint: "Tocca o clicca una casella.",
+        neutral: "Neutrali", cities: "città", turn: "turno", midnight: "min a mezzanotte", sea: "mare", land: "terra",
+        city: "città", capital: "capitale", size: "dimensione", owner: "di", nobody: "neutrale", fog: "fuori vista",
+        noseat: "La mappa segue il tuo posto in partita. Entra prima dalla <a href=\"./\">pagina di gioco</a> con questo browser: la mappa si aggiorna da sola.",
+        offline: "Server non raggiungibile: riprovo…", waiting: "in attesa dei giocatori", realtime: "tempo reale",
+        over: "Partita finita", units: "unità", aboard: "a bordo",
+        aspect: "Proporzioni: plancia da wargame o geografia vera", labels: "Nomi delle città", home: "Torna alla tua zona" },
+  en: { factions: "Factions", selected: "Cell", events: "Events", clickHint: "Tap or click a cell.",
+        neutral: "Neutral", cities: "cities", turn: "turn", midnight: "min to midnight", sea: "sea", land: "land",
+        city: "city", capital: "capital", size: "size", owner: "of", nobody: "neutral", fog: "out of sight",
+        noseat: "The map follows your seat in the game. First join from the <a href=\"./\">game page</a> with this browser: the map then updates by itself.",
+        offline: "Server unreachable: retrying…", waiting: "waiting for players", realtime: "real time",
+        over: "Game over", units: "units", aboard: "aboard",
+        aspect: "Proportions: wargame board or true geography", labels: "City names", home: "Back to your area" },
+  fr: { factions: "Factions", selected: "Case", events: "Événements", clickHint: "Touchez ou cliquez une case.",
+        neutral: "Neutres", cities: "villes", turn: "tour", midnight: "min avant minuit", sea: "mer", land: "terre",
+        city: "ville", capital: "capitale", size: "taille", owner: "à", nobody: "neutre", fog: "hors de vue",
+        noseat: "La carte suit votre place dans la partie. Entrez d'abord depuis la <a href=\"./\">page de jeu</a> avec ce navigateur : la carte se met à jour toute seule.",
+        offline: "Serveur injoignable : nouvel essai…", waiting: "en attente des joueurs", realtime: "temps réel",
+        over: "Partie terminée", units: "unités", aboard: "à bord",
+        aspect: "Proportions : plateau de wargame ou vraie géographie", labels: "Noms des villes", home: "Revenir à votre zone" },
+  es: { factions: "Facciones", selected: "Casilla", events: "Eventos", clickHint: "Toca o haz clic en una casilla.",
+        neutral: "Neutrales", cities: "ciudades", turn: "turno", midnight: "min para medianoche", sea: "mar", land: "tierra",
+        city: "ciudad", capital: "capital", size: "tamaño", owner: "de", nobody: "neutral", fog: "fuera de vista",
+        noseat: "El mapa sigue tu puesto en la partida. Entra primero desde la <a href=\"./\">página de juego</a> con este navegador: el mapa se actualiza solo.",
+        offline: "Servidor inalcanzable: reintentando…", waiting: "esperando jugadores", realtime: "tiempo real",
+        over: "Partida terminada", units: "unidades", aboard: "a bordo",
+        aspect: "Proporciones: tablero de wargame o geografía real", labels: "Nombres de las ciudades", home: "Volver a tu zona" },
+  de: { factions: "Fraktionen", selected: "Feld", events: "Ereignisse", clickHint: "Tippe oder klicke auf ein Feld.",
+        neutral: "Neutrale", cities: "Städte", turn: "Zug", midnight: "Min. bis Mitternacht", sea: "Meer", land: "Land",
+        city: "Stadt", capital: "Hauptstadt", size: "Größe", owner: "von", nobody: "neutral", fog: "außer Sicht",
+        noseat: "Die Karte folgt deinem Platz in der Partie. Tritt zuerst über die <a href=\"./\">Spielseite</a> mit diesem Browser bei: die Karte aktualisiert sich dann selbst.",
+        offline: "Server nicht erreichbar: neuer Versuch…", waiting: "wartet auf Spieler", realtime: "Echtzeit",
+        over: "Partie beendet", units: "Einheiten", aboard: "an Bord",
+        aspect: "Proportionen: Wargame-Brett oder echte Geografie", labels: "Städtenamen", home: "Zurück zu deinem Gebiet" },
+  pt: { factions: "Facções", selected: "Casa", events: "Eventos", clickHint: "Toque ou clique numa casa.",
+        neutral: "Neutras", cities: "cidades", turn: "turno", midnight: "min para a meia-noite", sea: "mar", land: "terra",
+        city: "cidade", capital: "capital", size: "tamanho", owner: "de", nobody: "neutra", fog: "fora de vista",
+        noseat: "O mapa segue o seu lugar na partida. Entre primeiro pela <a href=\"./\">página do jogo</a> com este navegador: o mapa atualiza-se sozinho.",
+        offline: "Servidor inacessível: tentando de novo…", waiting: "aguardando jogadores", realtime: "tempo real",
+        over: "Partida terminada", units: "unidades", aboard: "a bordo",
+        aspect: "Proporções: tabuleiro de wargame ou geografia real", labels: "Nomes das cidades", home: "Voltar à sua zona" },
+};
+let lang = store.get("theempire.lang", "") || (navigator.language || "").slice(0, 2).toLowerCase();
+if (!TEXTS[lang]) lang = "it";
+const T = TEXTS[lang];
+document.documentElement.lang = lang;
+document.querySelectorAll("[data-t]").forEach((el) => { el.textContent = T[el.dataset.t]; });
+for (const k of ["aspect", "labels", "home"]) document.getElementById(k).title = T[k];
+const browserId = store.get("theempire.browser", "");
+const ROOT = location.pathname.replace(/\/map\/?$/, "/");   // where the game's pages live
+
+// ---------------------------------------------------------------- colours
+const COLORS = { blue: "#3d8bfd", red: "#ef4444", green: "#22c55e", cyan: "#06b6d4",
+                 magenta: "#d946ef", yellow: "#eab308", white: "#e5e7eb" };
+const SEA = "#0a1726", LAND = "#4a5040";
+const color = (f) => (f >= 0 && state ? COLORS[state.factions[f].color] || "#aaa" : LAND);
+function mix(a, b, t) {
+  const p = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+  const x = p(a), y = p(b);
+  return "rgb(" + x.map((v, i) => Math.round(v * (1 - t) + y[i] * t)).join(",") + ")";
+}
+
+// ---------------------------------------------------------------- geometry
+// Base picture: the fine land mask, CW × CH pixels per cell (8 × 16).
+let world = null, landImg = null, base = null, state = null, territory = null;
+let CW = 8, CH = 16;
+const bits = (b64, n) => {
+  const raw = atob(b64), out = new Uint8Array(n);
+  for (let i = 0; i < n; i++) out[i] = (raw.charCodeAt(i >> 3) >> (7 - (i & 7))) & 1;
+  return out;
+};
+function cellOrigin(i) {
+  const x = i % world.width, y = Math.floor(i / world.width);
+  return [x * CW + (world.hex && (y & 1) ? CW / 2 : 0), y * CH];
+}
+function cellCentre(i) {
+  const [x0, y0] = cellOrigin(i);
+  return [x0 + CW / 2, y0 + (world.hex ? CH * 0.625 : CH / 2)];
+}
+function cellPath(ctx, i) {          // in base pixels
+  const [x0, y0] = cellOrigin(i), r = CH / 4;
+  if (!world.hex) { ctx.rect(x0, y0, CW, CH); return; }
+  ctx.moveTo(x0 + CW / 2, y0); ctx.lineTo(x0 + CW, y0 + r); ctx.lineTo(x0 + CW, y0 + CH);
+  ctx.lineTo(x0 + CW / 2, y0 + CH + r); ctx.lineTo(x0, y0 + CH); ctx.lineTo(x0, y0 + r); ctx.closePath();
+}
+function cellAt(bx, by) {            // the cell whose centre is nearest, wrapping east-west
+  const W = world.width * CW;
+  bx = ((bx % W) + W) % W;
+  let best = -1, bd = Infinity;
+  const y0 = Math.floor(by / CH);
+  for (let y = y0 - 1; y <= y0 + 1; y++) {
+    if (y < 0 || y >= world.height) continue;
+    const shift = world.hex && (y & 1) ? CW / 2 : 0;
+    const x0 = Math.floor((bx - shift) / CW);
+    for (let x = x0 - 1; x <= x0 + 1; x++) {
+      const i = y * world.width + ((x % world.width) + world.width) % world.width;
+      const [cx, cy] = cellCentre(i);
+      let dx = Math.abs(cx - bx); dx = Math.min(dx, W - dx);
+      const d = dx * dx + (cy - by) * (cy - by) * (world.hex ? 1 : 0.25);
+      if (d < bd) { bd = d; best = i; }
+    }
+  }
+  return best;
+}
+
+// The base picture, redrawn when the state changes: territory on the land,
+// fog of war, the theatre of war.
+function buildBase() {
+  const W = world.width * CW, H = world.height * CH;
+  if (!base) { base = document.createElement("canvas"); base.width = W; base.height = H; }
+  const terr = document.createElement("canvas"); terr.width = W; terr.height = H;
+  const t = terr.getContext("2d");
+  t.fillStyle = LAND; t.fillRect(0, 0, W, H);
+  const owners = new Map(state.cities.map((c) => [c[0], c[5]]));
+  const fills = {};
+  for (let i = 0; i < territory.length; i++) {
+    const src = territory[i];
+    if (src < 0) continue;
+    const o = owners.get(src);
+    if (o === undefined || o < 0) continue;
+    (fills[o] = fills[o] || []).push(i);
+  }
+  for (const o in fills) {
+    t.fillStyle = mix(color(+o), LAND, 0.45);
+    t.beginPath();
+    for (const i of fills[o]) cellPath(t, i);
+    t.fill();
+  }
+  if (landImg) { t.globalCompositeOperation = "destination-in"; t.drawImage(landImg, 0, 0, W, H); }
+  const b = base.getContext("2d");
+  b.globalCompositeOperation = "source-over";
+  b.fillStyle = SEA; b.fillRect(0, 0, W, H);
+  b.drawImage(terr, 0, 0);
+  // fog of war and the world outside the theatre
+  const vis = bits(state.visible, world.width * world.height);
+  const theatre = state.theatre ? bits(state.theatre, vis.length) : null;
+  b.fillStyle = "rgba(0,0,0,.42)"; b.beginPath();
+  for (let i = 0; i < vis.length; i++) if (!vis[i] && (!theatre || theatre[i])) cellPath(b, i);
+  b.fill();
+  if (theatre) {
+    b.fillStyle = "rgba(20,22,26,.82)"; b.beginPath();
+    for (let i = 0; i < vis.length; i++) if (!theatre[i]) cellPath(b, i);
+    b.fill();
+  }
+  if (state.fallout.length) {
+    b.fillStyle = "rgba(190,230,40,.35)"; b.beginPath();
+    for (const i of state.fallout) cellPath(b, i);
+    b.fill();
+  }
+  state.vis = vis;
+}
+
+// ---------------------------------------------------------------- view
+const canvas = $("map"), ctx = canvas.getContext("2d");
+// base pixel at the top-left corner, screen px per base px; ax stretches
+// east-west: 1 = the geography as it is, more = the cells of a board game
+let view = { x: 0, y: 0, s: 1, ax: 1 };
+let board = null;                    // "board" proportions (regular hexagons): on/off
+const SX = () => view.s * view.ax;
+function setAspect() {
+  // a regular hexagon is 0.87 times as wide as it is tall (with its points)
+  view.ax = board ? (world.hex ? 0.866 * CH * 1.25 / CW : CH / CW) : 1;
+  $("aspect").classList.toggle("on", board);
+}
+let selected = -1, showLabels = store.get("theempire.map.labels", "1") === "1", fitted = false;
+function resize() {
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  canvas.width = Math.round(innerWidth * dpr); canvas.height = Math.round(innerHeight * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  clampView(); draw();
+}
+function minScale() { return world ? Math.max(innerWidth / (world.width * CW * view.ax) * 0.5, innerHeight / (world.height * CH)) : 1; }
+function clampView() {
+  if (!world) return;
+  view.s = Math.max(minScale(), Math.min(14, view.s));
+  const H = world.height * CH, visH = innerHeight / view.s;
+  view.y = visH >= H ? (H - visH) / 2 : Math.max(0, Math.min(H - visH, view.y));
+  const W = world.width * CW;
+  view.x = ((view.x % W) + W) % W;
+}
+function zoomAt(f, sx, sy) {
+  const bx = view.x + sx / SX(), by = view.y + sy / view.s;
+  view.s *= f; clampView();
+  view.x = bx - sx / SX(); view.y = by - sy / view.s; clampView(); draw();
+}
+function fit() {
+  // the theatre of war, or the viewer's own cities
+  let cells = [];
+  if (state.theatre) { const th = bits(state.theatre, world.width * world.height); th.forEach((v, i) => { if (v) cells.push(i); }); }
+  else cells = state.cities.filter((c) => c[5] === state.viewer).map((c) => c[2]);
+  if (!cells.length) { view.s = minScale(); clampView(); return; }
+  // the columns on the short side of the world: unwrap around the first one
+  const W = world.width, ref = cells[0] % W;
+  let xs = cells.map((i) => { let d = (i % W) - ref; if (d > W / 2) d -= W; if (d < -W / 2) d += W; return ref + d; });
+  const ys = cells.map((i) => Math.floor(i / W));
+  const x0 = Math.min(...xs), x1 = Math.max(...xs) + 1, y0 = Math.min(...ys), y1 = Math.max(...ys) + 1;
+  const pad = state.theatre ? 1 : 6;
+  const w = (x1 - x0 + 2 * pad) * CW, h = (y1 - y0 + 2 * pad) * CH;
+  view.s = Math.min(innerWidth / (w * view.ax), (innerHeight - 40) / h);
+  view.x = (x0 - pad) * CW - (innerWidth / SX() - w) / 2;
+  view.y = (y0 - pad) * CH - (innerHeight / view.s - h) / 2 - 20 / view.s;
+  clampView();
+}
+
+function draw() {
+  ctx.fillStyle = SEA; ctx.fillRect(0, 0, innerWidth, innerHeight);
+  if (!world || !base) return;
+  const W = world.width * CW, s = view.s, sx = SX();
+  // smoothed: the coast stays round when zoomed in (the grid is drawn sharp on top)
+  ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "high";
+  // the world wraps east-west: draw it as many times as it takes to fill the screen
+  for (let ox = -view.x; ox < innerWidth / sx; ox += W) {
+    ctx.drawImage(base, ox * sx, -view.y * s, W * sx, base.height * s);
+  }
+  const cw = CW * sx;                // a cell on the screen
+  // the grid, once the cells are big enough to see
+  if (cw >= 9) {
+    ctx.beginPath();
+    forScreenCells((i, dx) => { inBase(() => { ctx.translate(dx, 0); cellPath(ctx, i); }); });
+    ctx.lineWidth = 1; ctx.strokeStyle = "rgba(255,255,255," + Math.min(0.22, (cw - 9) / 40 + 0.08) + ")";
+    ctx.stroke();
+  }
+  // cities
+  for (const c of state.cities) {
+    const [id, name, cell, size, capital, owner] = c;
+    for (const [x, y] of screenPos(cell)) {
+      const r = Math.max(2.2, Math.min(cw * 0.32, 3 + size * 1.6) * (cw < 6 ? 0.6 : 1));
+      ctx.fillStyle = owner >= 0 ? color(owner) : "#c9c9b8";
+      ctx.strokeStyle = "#05070a"; ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      if (capital) star(x, y, r * 1.35); else ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fill(); ctx.stroke();
+      if (showLabels && (cw >= 26 || (cw >= 9 && (capital || size >= 3)))) {
+        ctx.font = (capital ? "600 " : "") + Math.round(Math.max(11, Math.min(15, cw * 0.36))) + "px system-ui, sans-serif";
+        ctx.textAlign = "center"; ctx.textBaseline = "top";
+        ctx.lineWidth = 3; ctx.strokeStyle = "rgba(0,0,0,.75)"; ctx.strokeText(name, x, y + r + 2);
+        ctx.fillStyle = "#e8ecf2"; ctx.fillText(name, x, y + r + 2);
+      }
+    }
+  }
+  // units: wargame counters, one per cell (the stack shows its size)
+  const stacks = new Map();
+  for (const u of state.units) { const l = stacks.get(u[3]); if (l) l.push(u); else stacks.set(u[3], [u]); }
+  const size = Math.max(7, Math.min(cw * 0.78, CH * s * 0.6, 34));
+  for (const [cell, us] of stacks) {
+    for (const [x, y] of screenPos(cell)) {
+      const top = us.find((u) => u[2] !== state.viewer) || us[0];
+      const city = state.cityAt.has(cell);
+      const cx = x + (city ? size * 0.45 : 0), cy = y - (city ? size * 0.45 : 0);
+      if (cw < 5) { ctx.fillStyle = color(top[2]); ctx.fillRect(cx - 1.5, cy - 1.5, 3, 3); continue; }
+      ctx.fillStyle = color(top[2]); ctx.strokeStyle = "rgba(0,0,0,.85)"; ctx.lineWidth = 1.2;
+      roundRect(cx - size / 2, cy - size / 2, size, size, size * 0.16); ctx.fill(); ctx.stroke();
+      if (size >= 11) {
+        ctx.fillStyle = "#fff"; ctx.font = "700 " + Math.round(size * 0.62) + "px ui-monospace, monospace";
+        ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        ctx.fillText(top[1], cx, cy + size * 0.04);
+      }
+      if (us.length > 1 && size >= 11) {
+        const b = Math.max(9, size * 0.42);
+        ctx.fillStyle = "#05070a"; ctx.beginPath(); ctx.arc(cx + size / 2, cy - size / 2, b / 2 + 1, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "#fff"; ctx.font = "700 " + Math.round(b * 0.8) + "px system-ui, sans-serif";
+        ctx.fillText(String(us.length), cx + size / 2, cy - size / 2 + 0.5);
+      }
+    }
+  }
+  if (selected >= 0) {
+    ctx.beginPath();
+    for (const dx of wraps(selected)) inBase(() => { ctx.translate(dx, 0); cellPath(ctx, selected); });
+    ctx.lineWidth = 2.5; ctx.strokeStyle = "#fff"; ctx.stroke();
+  }
+}
+// adds to the current path in base pixels; the stroke, made afterwards in
+// screen pixels, keeps the same width in every direction
+function inBase(fn) {
+  ctx.save(); ctx.translate(-view.x * SX(), -view.y * view.s); ctx.scale(SX(), view.s); fn(); ctx.restore();
+}
+function star(x, y, r) {
+  for (let k = 0; k < 10; k++) {
+    const a = -Math.PI / 2 + k * Math.PI / 5, rr = k % 2 ? r * 0.45 : r;
+    const px = x + rr * Math.cos(a), py = y + rr * Math.sin(a);
+    k ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
+  }
+  ctx.closePath();
+}
+function roundRect(x, y, w, h, r) {
+  ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+}
+function wraps(i) {                  // the copies of a cell on the screen (base x offsets)
+  const W = world.width * CW, [cx] = cellCentre(i), out = [];
+  for (let k = Math.floor((view.x - cx) / W); (cx + k * W - view.x) * SX() < innerWidth + 60; k++) {
+    if ((cx + k * W - view.x) * SX() > -60) out.push(k * W);
+  }
+  return out;
+}
+function screenPos(i) {
+  const [cx, cy] = cellCentre(i), sy = (cy - view.y) * view.s;
+  if (sy < -40 || sy > innerHeight + 40) return [];
+  return wraps(i).map((dx) => [(cx + dx - view.x) * SX(), sy]);
+}
+function forScreenCells(fn) {
+  const s = view.s, W = world.width * CW;
+  const y0 = Math.max(0, Math.floor(view.y / CH) - 1), y1 = Math.min(world.height - 1, Math.ceil((view.y + innerHeight / s) / CH));
+  const x0 = Math.floor(view.x / CW) - 1, x1 = Math.ceil((view.x + innerWidth / SX()) / CW);
+  for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+    const wx = ((x % world.width) + world.width) % world.width;
+    fn(y * world.width + wx, Math.floor(x / world.width) * W);
+  }
+}
+
+// ---------------------------------------------------------------- panel
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+function panel() {
+  const me = state.viewer;
+  let rows = state.factions.map((f) => `<div class="fac${f.idx === me ? " me" : ""}${f.alive ? "" : " out"}">
+      <span class="sw" style="background:${COLORS[f.color] || "#aaa"}"></span><span class="n">${esc(f.name)}</span>
+      <span class="c">${f.cities} ${T.cities}${f.warheads != null ? " · ☢ " + f.warheads : ""}</span></div>`);
+  rows.push(`<div class="fac"><span class="sw" style="background:#c9c9b8"></span><span class="n">${T.neutral}</span>
+      <span class="c">${state.neutral} ${T.cities}</span></div>`);
+  $("facs").innerHTML = rows.join("");
+  $("log").innerHTML = state.events.slice().reverse().map((e) =>
+    `<div class="${esc(e.level)}"><span class="t">[${e.turn}]</span>${esc(e.text)}</div>`).join("");
+  const mode = state.realtime ? " · ⚡ " + T.realtime : "";
+  $("info").textContent = `${state.scenario} · ${state.date} · ${T.turn} ${state.turn}${mode}` +
+    (state.started ? "" : " · " + T.waiting) + (state.over ? " · " + T.over : "");
+  $("clock").textContent = `☢ ${state.doomsday} ${T.midnight}`;
+  cellInfo();
+}
+function cellInfo() {
+  if (selected < 0) return;
+  const i = selected, w = world.width;
+  const lon = world.lon0 + (i % w + 0.5) * world.dlon, lat = world.lat0 - (Math.floor(i / w) + 0.5) * world.dlat;
+  const ll = `${Math.abs(Math.round(lat))}°${lat >= 0 ? "N" : "S"} ${Math.abs(Math.round(lon))}°${lon >= 0 ? "E" : "W"}`;
+  const parts = [`<div>${ll} · ${world.landBits[i] ? T.land : T.sea}${state.vis && !state.vis[i] ? " · " + T.fog : ""}</div>`];
+  const city = state.cityAt.get(i);
+  const src = territory && territory[i];
+  if (city) {
+    const owner = city[5] >= 0 ? state.factions[city[5]].name : T.nobody;
+    parts.push(`<div><b>${esc(city[1])}</b> · ${city[4] ? T.capital + " · " : ""}${T.size} ${city[3]} · ${esc(owner)}</div>`);
+  } else if (src >= 0) {
+    const c = state.cityById.get(src);
+    if (c) parts.push(`<div>${T.owner} ${esc(c[1])} · ${esc(c[5] >= 0 ? state.factions[c[5]].name : T.nobody)}</div>`);
+  }
+  const here = state.units.filter((u) => u[3] === i);
+  if (here.length) {
+    parts.push("<div>" + here.map((u) => `<span class="u"><span class="tok" style="background:${color(u[2])}">${u[1]}</span>` +
+      `${esc(state.unit_names[u[1]] || u[1])}${u[5] ? " +" + u[5] + " " + T.aboard : ""}</span>`).join("") + "</div>");
+  }
+  $("cell").innerHTML = parts.join("");
+}
+
+// ---------------------------------------------------------------- input
+const pointers = new Map();
+let drag = null, pinch = null;
+canvas.addEventListener("pointerdown", (e) => {
+  canvas.setPointerCapture(e.pointerId);
+  pointers.set(e.pointerId, [e.clientX, e.clientY]);
+  if (pointers.size === 1) drag = { x: e.clientX, y: e.clientY, vx: view.x, vy: view.y, moved: false };
+  if (pointers.size === 2) {
+    const [a, b] = [...pointers.values()];
+    pinch = { d: Math.hypot(a[0] - b[0], a[1] - b[1]), s: view.s }; drag = null;
+  }
+});
+canvas.addEventListener("pointermove", (e) => {
+  if (!pointers.has(e.pointerId)) return;
+  pointers.set(e.pointerId, [e.clientX, e.clientY]);
+  if (pinch && pointers.size === 2) {
+    const [a, b] = [...pointers.values()];
+    const d = Math.hypot(a[0] - b[0], a[1] - b[1]);
+    zoomAt(pinch.s * d / pinch.d / view.s, (a[0] + b[0]) / 2, (a[1] + b[1]) / 2);
+  } else if (drag) {
+    const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+    if (Math.abs(dx) + Math.abs(dy) > 6) { drag.moved = true; canvas.classList.add("drag"); }
+    if (drag.moved) { view.x = drag.vx - dx / SX(); view.y = drag.vy - dy / view.s; clampView(); draw(); }
+  }
+});
+function release(e) {
+  if (!pointers.has(e.pointerId)) return;
+  pointers.delete(e.pointerId);
+  canvas.classList.remove("drag");
+  if (drag && !drag.moved && world && state) {
+    selected = cellAt(view.x + e.clientX / SX(), view.y + e.clientY / view.s);
+    $("side").classList.remove("closed");
+    cellInfo(); draw();
+  }
+  if (pointers.size < 2) pinch = null;
+  drag = null;
+}
+canvas.addEventListener("pointerup", release);
+canvas.addEventListener("pointercancel", release);
+canvas.addEventListener("wheel", (e) => {
+  e.preventDefault();
+  zoomAt(Math.exp(-e.deltaY * (e.deltaMode ? 0.05 : 0.0015)), e.clientX, e.clientY);
+}, { passive: false });
+$("zin").onclick = () => zoomAt(1.5, innerWidth / 2, innerHeight / 2);
+$("zout").onclick = () => zoomAt(1 / 1.5, innerWidth / 2, innerHeight / 2);
+$("home").onclick = () => { fit(); draw(); };
+$("labels").onclick = () => { showLabels = !showLabels; store.set("theempire.map.labels", showLabels ? "1" : "0"); draw(); };
+$("aspect").onclick = () => {
+  const cx = view.x + innerWidth / 2 / SX();
+  board = !board; store.set("theempire.map.board." + (world.hex ? "hex" : "sq"), board ? "1" : "0");
+  setAspect(); view.x = cx - innerWidth / 2 / SX(); clampView(); draw();
+};
+$("panelBtn").onclick = () => $("side").classList.toggle("closed");
+if (innerWidth < 640) $("side").classList.add("closed");
+addEventListener("resize", resize);
+addEventListener("keydown", (e) => {
+  const keys = { ArrowLeft: [-60 / SX(), 0], ArrowRight: [60 / SX(), 0], ArrowUp: [0, -60 / view.s], ArrowDown: [0, 60 / view.s] };
+  if (keys[e.key]) { view.x += keys[e.key][0]; view.y += keys[e.key][1]; clampView(); draw(); }
+  else if (e.key === "+" || e.key === "=") $("zin").onclick();
+  else if (e.key === "-") $("zout").onclick();
+});
+
+// ---------------------------------------------------------------- data
+function notice(html) { const n = $("notice"); n.innerHTML = html || ""; n.style.display = html ? "block" : "none"; }
+async function loadWorld(hex) {
+  world = await (await fetch(ROOT + "map/world.json?hex=" + (hex ? 1 : 0))).json();
+  world.landBits = bits(world.land, world.width * world.height);
+  if (world.hd) { CW = world.hd[0]; CH = world.hd[1]; }
+  base = null;
+  // hexagons look like a board game by default, squares like a map
+  board = store.get("theempire.map.board." + (world.hex ? "hex" : "sq"), world.hex ? "1" : "0") === "1";
+  setAspect();
+  if (!landImg) {
+    landImg = await new Promise((ok) => {
+      const img = new Image(); img.onload = () => ok(img); img.onerror = () => ok(null); img.src = ROOT + "map/land.png";
+    });
+  }
+}
+async function onState(d) {
+  if (!world || world.hex !== d.hex) await loadWorld(d.hex);
+  if (d.territory) territory = d.territory;
+  state = d;
+  state.cityAt = new Map(d.cities.map((c) => [c[2], c]));
+  state.cityById = new Map(d.cities.map((c) => [c[0], c]));
+  if (!territory) return;
+  buildBase();
+  if (!fitted) { fit(); fitted = true; }
+  panel(); draw();
+}
+let queue = Promise.resolve();
+function connect() {
+  if (!/^[0-9a-f]{32}$/.test(browserId)) { notice(T.noseat); return; }
+  const proto = location.protocol === "https:" ? "wss:" : "ws:";
+  const ws = new WebSocket(`${proto}//${location.host}${ROOT}map/ws?id=${browserId}&lang=${lang}`);
+  ws.onmessage = (ev) => {
+    const m = JSON.parse(ev.data);
+    if (m.t === "state") { notice(""); queue = queue.then(() => onState(m.d)).catch(console.error); }
+    else if (m.t === "noseat") notice(T.noseat);
+    else if (m.t === "offline") notice(T.offline);
+  };
+  ws.onclose = () => { notice(T.offline); setTimeout(connect, 3000); };
+}
+resize();
+connect();
+</script>
+</body>
+</html>

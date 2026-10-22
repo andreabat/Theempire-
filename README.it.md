@@ -219,6 +219,31 @@ python3 -m theempire --serve --web --scenario ww3 --faction west --faction east 
   Caddy o nginx) o una VPN. Funziona su Linux e macOS, perché usa i terminali
   virtuali del sistema.
 
+### La mappa grafica
+Accanto al terminale c'è una vera mappa, disegnata nel browser: il pulsante 🗺
+in alto nella web TUI la apre in una nuova scheda (oppure aprite
+`http://<indirizzo-del-server>:8080/map` con lo stesso browser).
+
+- **Cosa mostra**: la costa dalla mappa fine della terra, il territorio di
+  ogni città nel colore di chi la possiede, la nebbia di guerra, il teatro di
+  guerra, le zone contaminate, le città con i nomi e le unità come **pedine
+  da wargame** (il numero sull'angolo è la pila). Sugli esagoni la plancia ha
+  esagoni regolari, come un wargame stampato; il pulsante ⬡ passa alle
+  proporzioni vere della geografia (predefinite sui quadrati).
+- **Mani e mouse**: trascinate per spostarvi, rotella o pizzico per lo zoom,
+  un tocco su una casella mostra cosa c'è (luogo, città, padrone, le vostre
+  unità). Il mondo si richiude da est a ovest, come nel gioco. Il pannello
+  laterale elenca fazioni, casella ed eventi recenti; ☰ lo nasconde, `Aa`
+  i nomi delle città, ⌂ riporta alla vostra zona.
+- **La stessa nebbia del gioco**: la mappa segue il posto che quel browser
+  occupa (si collega al server come *osservatore* con il gettone di quel
+  posto), quindi mostra solo ciò che vede la vostra fazione. Senza un posto
+  chiede di entrare prima dalla pagina di gioco.
+- Per ora mostra soltanto: gli ordini si danno dalla TUI accanto, e la mappa
+  si aggiorna da sola dopo ogni mossa. Ordini, menu e bollettini sulla mappa
+  sono i prossimi passi.
+- Non le serve nulla da internet: niente tile, niente servizi esterni.
+
 ## Multiplayer online
 
 Una partita online ha un **server** che tiene la partita e guida le fazioni
@@ -811,6 +836,7 @@ theempire/
   ui.py         interfaccia curses: mappa Braille, pannello, registro, lobby, menu
   audio.py      sintetizzatore chiptune, effetti, voci delle unità e musiche, riproduzione in background
   web.py        web TUI: gateway HTTP/WebSocket che porta il client nel browser
+  mapview.py    la mappa grafica web: maschera della terra, territori e vista di un posto, in JSON
   assets/web/   pagina della web TUI e xterm.js (MIT)
   cli.py        riga di comando
   serversetup.py  la schermata di configurazione del server
