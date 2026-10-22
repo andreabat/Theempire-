@@ -247,8 +247,13 @@ at the top of the web TUI opens it in a new tab (or open
   and special item it can make, with cost, turns and strength, the current
   one highlighted. Choosing by hand takes the city out of the directive; "Back
   to the directive" puts it back. A yellow ring around each of your cities
-  shows how far its production has come. Cards, diplomacy, directives and
-  weapons of mass destruction stay in the TUI for now.
+  shows how far its production has come.
+- **Directive**: the "Directive" button under the factions (or `P`) gives one
+  order to the whole war economy, as in the terminal: manual, balanced, land
+  offensive, air power, naval supremacy, landings, defence, deterrence.
+  The cities set by hand stay as they are, unless you tick the box to
+  include them. Cards, diplomacy and weapons of mass destruction stay in
+  the TUI for now.
 - **Battles and the enemy turn, animated**: your own attacks play on the
   map (the weapon's fire flies to the target, the explosion, then ✕ on
   whoever lost or ⚑ on a captured city). When the others have moved, the

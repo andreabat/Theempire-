@@ -118,14 +118,14 @@ def view(state: dict, viewer: int, lang: str | None = None, with_territory: bool
 
 
 # what a map page may ask the server to do (the rest stays in the TUI for now)
-COMMANDS = {"move", "order", "wake", "end_turn", "load", "unload", "disband", "produce", "release"}
+COMMANDS = {"move", "order", "wake", "end_turn", "load", "unload", "disband", "produce", "release", "directive"}
 
 
 def command(cmd) -> dict | None:
     """A command from a map page, if it is one it may give."""
     if not isinstance(cmd, dict) or cmd.get("op") not in COMMANDS:
         return None
-    return {k: v for k, v in cmd.items() if k in ("op", "unit", "cell", "order", "target", "city", "key")}
+    return {k: v for k, v in cmd.items() if k in ("op", "unit", "cell", "order", "target", "city", "key", "name", "all")}
 
 
 def result_text(result: str, lang: str | None = None) -> str:
@@ -190,7 +190,10 @@ def production(g: Game, viewer: int, lang: str | None = None) -> dict:
                      "rate": round(rate, 1), "manual": c.manual, "options": options}
     directive = g.factions[viewer].directive
     return {"cities": out, "directive": directive,
-            "directive_name": i18n.word(DIRECTIVES.get(directive, ""), lang).split(" (")[0] if directive else ""}
+            "directive_name": i18n.word(DIRECTIVES.get(directive, ""), lang).split(" (")[0] if directive else "",
+            # the war economy's orders, as the terminal's P menu shows them
+            "directives": [[k, i18n.word(v, lang)] for k, v in DIRECTIVES.items()],
+            "manual": sum(1 for c in g.cities_of(viewer) if c.manual)}
 
 
 def view_game(g: Game, viewer: int, lang: str | None = None, with_territory: bool = True) -> dict:

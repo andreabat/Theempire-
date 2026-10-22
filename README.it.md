@@ -250,8 +250,12 @@ in alto nella web TUI la apre in una nuova scheda (oppure aprite
   turni e forza, quello attuale evidenziato. Scegliere a mano toglie la
   città dalla direttiva; «Torna alla direttiva» ce la rimette. Un anello
   giallo attorno a ogni vostra città mostra a che punto è la produzione.
-  Carte, diplomazia, direttive e armi di distruzione di massa per ora
-  restano nella TUI.
+- **Direttiva**: il pulsante «Direttiva» sotto le fazioni (o `P`) dà un
+  solo ordine a tutta l'economia di guerra, come nel terminale: manuale,
+  bilanciata, offensiva terrestre, potenza aerea, dominio dei mari, sbarchi,
+  difesa, deterrenza. Le città impostate a mano restano come sono, a meno
+  di spuntare la casella per includerle. Carte, diplomazia e armi di
+  distruzione di massa per ora restano nella TUI.
 - **Battaglie e turno nemico animati**: i vostri attacchi si vedono sulla
   mappa (il fuoco dell'arma vola sul bersaglio, l'esplosione, poi ✕ su chi
   ha perso o ⚑ sulla città presa). Quando gli altri hanno mosso parte il

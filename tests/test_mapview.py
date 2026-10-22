@@ -192,3 +192,16 @@ def test_production_menu_data_and_orders():
     assert big.production == "F" and big.manual
     enemy = next(c for c in g.cities_of(1))
     assert commands.apply(g, 0, {"op": "produce", "city": enemy.id, "key": "F"}) == "illegal"
+
+
+def test_directive_from_the_map():
+    g = Game("ww3", humans=("west",), seed=1)
+    city = g.cities_of(0)[0]
+    commands.apply(g, 0, {"op": "produce", "city": city.id, "key": "I"})
+    d = mapview.view(commands.view_for(g, 0), 0, "en")["production"]
+    assert d["manual"] == 1 and d["directive"] == "" and [k for k, _ in d["directives"]][:2] == ["", "auto"]
+    cmd = mapview.command({"op": "directive", "name": "air", "all": True})
+    assert cmd == {"op": "directive", "name": "air", "all": True}
+    assert int(commands.apply(g, 0, cmd)) > 0 and not city.manual
+    d = mapview.view(commands.view_for(g, 0), 0, "en")["production"]
+    assert d["directive"] == "air" and d["directive_name"] == "air power"
