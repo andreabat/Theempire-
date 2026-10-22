@@ -56,6 +56,20 @@
            background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 6px 14px;
            opacity: 0; transition: opacity .25s; pointer-events: none; }
   #toast.on { opacity: 1; }
+  #reel { position: fixed; top: 46px; left: 50%; transform: translateX(-50%); width: min(620px, calc(100% - 16px));
+          background: rgba(10, 12, 16, .9); border: 1px solid #5a2a2a; border-radius: 8px; padding: 6px 12px 8px;
+          display: none; }
+  #reel.on { display: block; }
+  #reel .head { display: flex; align-items: center; gap: 10px; font-size: 12px; letter-spacing: .1em;
+                color: var(--accent); font-weight: 600; }
+  #reel .head span { flex: 1; }
+  #reel button { font: inherit; font-size: 12px; color: var(--text); background: #1a2130; border: 1px solid var(--line);
+                 border-radius: 5px; padding: 2px 10px; cursor: pointer; letter-spacing: 0; }
+  #reelLine { min-height: 1.4em; margin-top: 3px; }
+  #reelLine.us { color: #ffb4a8; font-weight: 600; }
+  @keyframes shake { 0%, 100% { transform: translate(0, 0); } 25% { transform: translate(-4px, 2px); }
+                     50% { transform: translate(4px, -2px); } 75% { transform: translate(-2px, -3px); } }
+  canvas.shake { animation: shake .35s linear 2; }
   #notice { position: fixed; left: 50%; top: 45%; transform: translate(-50%, -50%); max-width: 440px;
             background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px;
             text-align: center; display: none; }
@@ -98,10 +112,13 @@
   <button id="home" title="⌂">⌂</button>
   <button id="labels" title="Aa">Aa</button>
   <button id="aspect" title="⬡">⬡</button>
+  <button id="sound" title="🔊">🔊</button>
   <button id="endTurn" class="go" data-t="endTurn">FINE TURNO</button>
 </div>
 <div id="notice"></div>
 <div id="toast"></div>
+<div id="reel"><div class="head"><span id="reelTitle"></span><button id="reelSkip"></button></div>
+  <div id="reelLine"></div></div>
 
 <script>
 "use strict";
@@ -113,7 +130,8 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} },
 };
 const TEXTS = {
-  it: { activeH: "Unità attiva", next: "Prossima", skip: "Salta", sentry: "Sentinella", fortify: "Fortifica", wake: "Sveglia", endTurn: "FINE TURNO", yourTurn: "tocca a te", turnOf: "turno di", noActive: "Nessuna unità selezionata: tocca una tua unità.", allDone: "Tutte le unità hanno ricevuto ordini.", routeHint: "Percorso mostrato: tocca di nuovo la casella per partire.", unreachable: "Destinazione irraggiungibile per questa unità.", movesL: "mosse", hpL: "PV", fuelL: "carburante", ord_sentry: "sentinella", ord_fortify: "fortificata", ord_goto: "in marcia", ord_auto: "automatica", woke: "Unità svegliate:", keysHint: "q w e / a d / z x c muovono · n prossima · E fine turno",
+  it: { reelTitle: "▶ BOLLETTINO DI GUERRA", reelSkip: "Salta ▶▶", sound: "Suoni sulla mappa", moving: "in movimento",
+       activeH: "Unità attiva", next: "Prossima", skip: "Salta", sentry: "Sentinella", fortify: "Fortifica", wake: "Sveglia", endTurn: "FINE TURNO", yourTurn: "tocca a te", turnOf: "turno di", noActive: "Nessuna unità selezionata: tocca una tua unità.", allDone: "Tutte le unità hanno ricevuto ordini.", routeHint: "Percorso mostrato: tocca di nuovo la casella per partire.", unreachable: "Destinazione irraggiungibile per questa unità.", movesL: "mosse", hpL: "PV", fuelL: "carburante", ord_sentry: "sentinella", ord_fortify: "fortificata", ord_goto: "in marcia", ord_auto: "automatica", woke: "Unità svegliate:", keysHint: "q w e / a d / z x c muovono · n prossima · E fine turno",
        factions: "Fazioni", selected: "Casella", events: "Eventi", clickHint: "Tocca o clicca una casella.",
         neutral: "Neutrali", cities: "città", turn: "turno", midnight: "min a mezzanotte", sea: "mare", land: "terra",
         city: "città", capital: "capitale", size: "dimensione", owner: "di", nobody: "neutrale", fog: "fuori vista",
@@ -121,7 +139,8 @@ const TEXTS = {
         offline: "Server non raggiungibile: riprovo…", waiting: "in attesa dei giocatori", realtime: "tempo reale",
         over: "Partita finita", units: "unità", aboard: "a bordo",
         aspect: "Proporzioni: plancia da wargame o geografia vera", labels: "Nomi delle città", home: "Torna alla tua zona" },
-  en: { activeH: "Active unit", next: "Next", skip: "Skip", sentry: "Sentry", fortify: "Fortify", wake: "Wake", endTurn: "END TURN", yourTurn: "your turn", turnOf: "turn of", noActive: "No unit selected: tap one of your units.", allDone: "Every unit has its orders.", routeHint: "Route shown: tap the cell again to set off.", unreachable: "This unit cannot reach that place.", movesL: "moves", hpL: "HP", fuelL: "fuel", ord_sentry: "sentry", ord_fortify: "fortified", ord_goto: "marching", ord_auto: "automatic", woke: "Units woken:", keysHint: "q w e / a d / z x c move · n next · E end turn",
+  en: { reelTitle: "▶ WAR BULLETIN", reelSkip: "Skip ▶▶", sound: "Sounds on the map", moving: "on the move",
+       activeH: "Active unit", next: "Next", skip: "Skip", sentry: "Sentry", fortify: "Fortify", wake: "Wake", endTurn: "END TURN", yourTurn: "your turn", turnOf: "turn of", noActive: "No unit selected: tap one of your units.", allDone: "Every unit has its orders.", routeHint: "Route shown: tap the cell again to set off.", unreachable: "This unit cannot reach that place.", movesL: "moves", hpL: "HP", fuelL: "fuel", ord_sentry: "sentry", ord_fortify: "fortified", ord_goto: "marching", ord_auto: "automatic", woke: "Units woken:", keysHint: "q w e / a d / z x c move · n next · E end turn",
        factions: "Factions", selected: "Cell", events: "Events", clickHint: "Tap or click a cell.",
         neutral: "Neutral", cities: "cities", turn: "turn", midnight: "min to midnight", sea: "sea", land: "land",
         city: "city", capital: "capital", size: "size", owner: "of", nobody: "neutral", fog: "out of sight",
@@ -129,7 +148,8 @@ const TEXTS = {
         offline: "Server unreachable: retrying…", waiting: "waiting for players", realtime: "real time",
         over: "Game over", units: "units", aboard: "aboard",
         aspect: "Proportions: wargame board or true geography", labels: "City names", home: "Back to your area" },
-  fr: { activeH: "Unité active", next: "Suivante", skip: "Passer", sentry: "Sentinelle", fortify: "Fortifier", wake: "Réveiller", endTurn: "FIN DU TOUR", yourTurn: "à vous", turnOf: "tour de", noActive: "Aucune unité choisie : touchez une de vos unités.", allDone: "Toutes les unités ont leurs ordres.", routeHint: "Itinéraire affiché : touchez à nouveau la case pour partir.", unreachable: "Destination inaccessible pour cette unité.", movesL: "mouvements", hpL: "PV", fuelL: "carburant", ord_sentry: "sentinelle", ord_fortify: "fortifiée", ord_goto: "en marche", ord_auto: "automatique", woke: "Unités réveillées :", keysHint: "q w e / a d / z x c déplacent · n suivante · E fin du tour",
+  fr: { reelTitle: "▶ BULLETIN DE GUERRE", reelSkip: "Passer ▶▶", sound: "Sons sur la carte", moving: "en mouvement",
+       activeH: "Unité active", next: "Suivante", skip: "Passer", sentry: "Sentinelle", fortify: "Fortifier", wake: "Réveiller", endTurn: "FIN DU TOUR", yourTurn: "à vous", turnOf: "tour de", noActive: "Aucune unité choisie : touchez une de vos unités.", allDone: "Toutes les unités ont leurs ordres.", routeHint: "Itinéraire affiché : touchez à nouveau la case pour partir.", unreachable: "Destination inaccessible pour cette unité.", movesL: "mouvements", hpL: "PV", fuelL: "carburant", ord_sentry: "sentinelle", ord_fortify: "fortifiée", ord_goto: "en marche", ord_auto: "automatique", woke: "Unités réveillées :", keysHint: "q w e / a d / z x c déplacent · n suivante · E fin du tour",
        factions: "Factions", selected: "Case", events: "Événements", clickHint: "Touchez ou cliquez une case.",
         neutral: "Neutres", cities: "villes", turn: "tour", midnight: "min avant minuit", sea: "mer", land: "terre",
         city: "ville", capital: "capitale", size: "taille", owner: "à", nobody: "neutre", fog: "hors de vue",
@@ -137,7 +157,8 @@ const TEXTS = {
         offline: "Serveur injoignable : nouvel essai…", waiting: "en attente des joueurs", realtime: "temps réel",
         over: "Partie terminée", units: "unités", aboard: "à bord",
         aspect: "Proportions : plateau de wargame ou vraie géographie", labels: "Noms des villes", home: "Revenir à votre zone" },
-  es: { activeH: "Unidad activa", next: "Siguiente", skip: "Saltar", sentry: "Centinela", fortify: "Fortificar", wake: "Despertar", endTurn: "FIN TURNO", yourTurn: "te toca", turnOf: "turno de", noActive: "Ninguna unidad seleccionada: toca una de tus unidades.", allDone: "Todas las unidades tienen órdenes.", routeHint: "Ruta mostrada: toca otra vez la casilla para partir.", unreachable: "Destino inalcanzable para esta unidad.", movesL: "movimientos", hpL: "PV", fuelL: "combustible", ord_sentry: "centinela", ord_fortify: "fortificada", ord_goto: "en marcha", ord_auto: "automática", woke: "Unidades despertadas:", keysHint: "q w e / a d / z x c mueven · n siguiente · E fin turno",
+  es: { reelTitle: "▶ PARTE DE GUERRA", reelSkip: "Saltar ▶▶", sound: "Sonidos en el mapa", moving: "en movimiento",
+       activeH: "Unidad activa", next: "Siguiente", skip: "Saltar", sentry: "Centinela", fortify: "Fortificar", wake: "Despertar", endTurn: "FIN TURNO", yourTurn: "te toca", turnOf: "turno de", noActive: "Ninguna unidad seleccionada: toca una de tus unidades.", allDone: "Todas las unidades tienen órdenes.", routeHint: "Ruta mostrada: toca otra vez la casilla para partir.", unreachable: "Destino inalcanzable para esta unidad.", movesL: "movimientos", hpL: "PV", fuelL: "combustible", ord_sentry: "centinela", ord_fortify: "fortificada", ord_goto: "en marcha", ord_auto: "automática", woke: "Unidades despertadas:", keysHint: "q w e / a d / z x c mueven · n siguiente · E fin turno",
        factions: "Facciones", selected: "Casilla", events: "Eventos", clickHint: "Toca o haz clic en una casilla.",
         neutral: "Neutrales", cities: "ciudades", turn: "turno", midnight: "min para medianoche", sea: "mar", land: "tierra",
         city: "ciudad", capital: "capital", size: "tamaño", owner: "de", nobody: "neutral", fog: "fuera de vista",
@@ -145,7 +166,8 @@ const TEXTS = {
         offline: "Servidor inalcanzable: reintentando…", waiting: "esperando jugadores", realtime: "tiempo real",
         over: "Partida terminada", units: "unidades", aboard: "a bordo",
         aspect: "Proporciones: tablero de wargame o geografía real", labels: "Nombres de las ciudades", home: "Volver a tu zona" },
-  de: { activeH: "Aktive Einheit", next: "Nächste", skip: "Überspringen", sentry: "Wache", fortify: "Befestigen", wake: "Wecken", endTurn: "ZUG ENDE", yourTurn: "du bist dran", turnOf: "Zug von", noActive: "Keine Einheit gewählt: tippe auf eine deiner Einheiten.", allDone: "Alle Einheiten haben Befehle.", routeHint: "Route angezeigt: tippe das Feld noch einmal, um loszuziehen.", unreachable: "Ziel für diese Einheit unerreichbar.", movesL: "Züge", hpL: "TP", fuelL: "Treibstoff", ord_sentry: "Wache", ord_fortify: "befestigt", ord_goto: "auf dem Marsch", ord_auto: "automatisch", woke: "Geweckte Einheiten:", keysHint: "q w e / a d / z x c bewegen · n nächste · E Zug Ende",
+  de: { reelTitle: "▶ KRIEGSBERICHT", reelSkip: "Überspringen ▶▶", sound: "Töne auf der Karte", moving: "in Bewegung",
+       activeH: "Aktive Einheit", next: "Nächste", skip: "Überspringen", sentry: "Wache", fortify: "Befestigen", wake: "Wecken", endTurn: "ZUG ENDE", yourTurn: "du bist dran", turnOf: "Zug von", noActive: "Keine Einheit gewählt: tippe auf eine deiner Einheiten.", allDone: "Alle Einheiten haben Befehle.", routeHint: "Route angezeigt: tippe das Feld noch einmal, um loszuziehen.", unreachable: "Ziel für diese Einheit unerreichbar.", movesL: "Züge", hpL: "TP", fuelL: "Treibstoff", ord_sentry: "Wache", ord_fortify: "befestigt", ord_goto: "auf dem Marsch", ord_auto: "automatisch", woke: "Geweckte Einheiten:", keysHint: "q w e / a d / z x c bewegen · n nächste · E Zug Ende",
        factions: "Fraktionen", selected: "Feld", events: "Ereignisse", clickHint: "Tippe oder klicke auf ein Feld.",
         neutral: "Neutrale", cities: "Städte", turn: "Zug", midnight: "Min. bis Mitternacht", sea: "Meer", land: "Land",
         city: "Stadt", capital: "Hauptstadt", size: "Größe", owner: "von", nobody: "neutral", fog: "außer Sicht",
@@ -153,7 +175,8 @@ const TEXTS = {
         offline: "Server nicht erreichbar: neuer Versuch…", waiting: "wartet auf Spieler", realtime: "Echtzeit",
         over: "Partie beendet", units: "Einheiten", aboard: "an Bord",
         aspect: "Proportionen: Wargame-Brett oder echte Geografie", labels: "Städtenamen", home: "Zurück zu deinem Gebiet" },
-  pt: { activeH: "Unidade ativa", next: "Próxima", skip: "Pular", sentry: "Sentinela", fortify: "Fortificar", wake: "Acordar", endTurn: "FIM TURNO", yourTurn: "sua vez", turnOf: "turno de", noActive: "Nenhuma unidade selecionada: toque numa das suas unidades.", allDone: "Todas as unidades têm ordens.", routeHint: "Rota mostrada: toque de novo na casa para partir.", unreachable: "Destino inalcançável para esta unidade.", movesL: "movimentos", hpL: "PV", fuelL: "combustível", ord_sentry: "sentinela", ord_fortify: "fortificada", ord_goto: "em marcha", ord_auto: "automática", woke: "Unidades acordadas:", keysHint: "q w e / a d / z x c movem · n próxima · E fim turno",
+  pt: { reelTitle: "▶ BOLETIM DE GUERRA", reelSkip: "Pular ▶▶", sound: "Sons no mapa", moving: "em movimento",
+       activeH: "Unidade ativa", next: "Próxima", skip: "Pular", sentry: "Sentinela", fortify: "Fortificar", wake: "Acordar", endTurn: "FIM TURNO", yourTurn: "sua vez", turnOf: "turno de", noActive: "Nenhuma unidade selecionada: toque numa das suas unidades.", allDone: "Todas as unidades têm ordens.", routeHint: "Rota mostrada: toque de novo na casa para partir.", unreachable: "Destino inalcançável para esta unidade.", movesL: "movimentos", hpL: "PV", fuelL: "combustível", ord_sentry: "sentinela", ord_fortify: "fortificada", ord_goto: "em marcha", ord_auto: "automática", woke: "Unidades acordadas:", keysHint: "q w e / a d / z x c movem · n próxima · E fim turno",
        factions: "Facções", selected: "Casa", events: "Eventos", clickHint: "Toque ou clique numa casa.",
         neutral: "Neutras", cities: "cidades", turn: "turno", midnight: "min para a meia-noite", sea: "mar", land: "terra",
         city: "cidade", capital: "capital", size: "tamanho", owner: "de", nobody: "neutra", fog: "fora de vista",
@@ -167,7 +190,8 @@ if (!TEXTS[lang]) lang = "it";
 const T = TEXTS[lang];
 document.documentElement.lang = lang;
 document.querySelectorAll("[data-t]").forEach((el) => { el.textContent = T[el.dataset.t]; });
-for (const k of ["aspect", "labels", "home"]) document.getElementById(k).title = T[k];
+for (const k of ["aspect", "labels", "home", "sound"]) document.getElementById(k).title = T[k];
+$("reelTitle").textContent = T.reelTitle; $("reelSkip").textContent = T.reelSkip;
 const browserId = store.get("theempire.browser", "");
 const ROOT = location.pathname.replace(/\/map\/?$/, "/");   // where the game's pages live
 
@@ -362,21 +386,18 @@ function draw() {
   }
   // units: wargame counters, one per cell (the stack shows its size)
   const stacks = new Map();
-  for (const u of state.units) { const l = stacks.get(u[3]); if (l) l.push(u); else stacks.set(u[3], [u]); }
-  const size = Math.max(7, Math.min(cw * 0.78, CH * s * 0.6, 34));
+  for (const u of state.units) {
+    if (hidden.has(u[0])) continue;     // still to arrive in the bulletin
+    const l = stacks.get(u[3]); if (l) l.push(u); else stacks.set(u[3], [u]);
+  }
+  const size = counterSize();
   for (const [cell, us] of stacks) {
     for (const [x, y] of screenPos(cell)) {
       const top = us.find((u) => u[2] !== state.viewer) || us.find((u) => u[0] === active) || us[0];
       const city = state.cityAt.has(cell);
       const cx = x + (city ? size * 0.45 : 0), cy = y - (city ? size * 0.45 : 0);
       if (cw < 5) { ctx.fillStyle = color(top[2]); ctx.fillRect(cx - 1.5, cy - 1.5, 3, 3); continue; }
-      ctx.fillStyle = color(top[2]); ctx.strokeStyle = "rgba(0,0,0,.85)"; ctx.lineWidth = 1.2;
-      roundRect(cx - size / 2, cy - size / 2, size, size, size * 0.16); ctx.fill(); ctx.stroke();
-      if (size >= 11) {
-        ctx.fillStyle = "#fff"; ctx.font = "700 " + Math.round(size * 0.62) + "px ui-monospace, monospace";
-        ctx.textAlign = "center"; ctx.textBaseline = "middle";
-        ctx.fillText(top[1], cx, cy + size * 0.04);
-      }
+      counter(cx, cy, size, top[2], top[1]);
       if (us.length > 1 && size >= 11) {
         const b = Math.max(9, size * 0.42);
         ctx.fillStyle = "#05070a"; ctx.beginPath(); ctx.arc(cx + size / 2, cy - size / 2, b / 2 + 1, 0, Math.PI * 2); ctx.fill();
@@ -400,6 +421,21 @@ function draw() {
     const end = nearest(screenPos(route.cell), prev);
     if (end) { ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(end[0], end[1], 4, 0, Math.PI * 2); ctx.fill(); }
   }
+  // the bulletin: units on the move and the effects of the battles
+  const now = performance.now();
+  for (const ph of phantoms.values()) {
+    const k = Math.min(1, (now - ph.start) / ph.dur), e = k * k * (3 - 2 * k);
+    const a = ph.from ? spot(ph.from) : null, b = spot(ph.to);
+    const x = a ? a[0] + (b[0] - a[0]) * e : b[0], y = a ? a[1] + (b[1] - a[1]) * e : b[1];
+    ctx.save(); ctx.globalAlpha = ph.from ? 1 : Math.min(1, k * 2);
+    ctx.shadowColor = color(ph.owner); ctx.shadowBlur = 14;
+    counter(x, y, size, ph.owner, ph.glyph); ctx.restore();
+  }
+  fx = fx.filter((f) => now - f.start < f.dur + (f.delay || 0));
+  for (const f of fx) {
+    const t = now - f.start - (f.delay || 0);
+    if (t >= 0) f.draw(Math.min(1, t / f.dur), Math.max(size, 20));
+  }
   const au = activeUnit();
   if (au && blinkOn) {
     const size = Math.max(9, Math.min(CW * SX() * 0.78, CH * view.s * 0.6, 34)) + 6;
@@ -420,6 +456,16 @@ function draw() {
 // screen pixels, keeps the same width in every direction
 function inBase(fn) {
   ctx.save(); ctx.translate(-view.x * SX(), -view.y * view.s); ctx.scale(SX(), view.s); fn(); ctx.restore();
+}
+function counterSize() { return Math.max(7, Math.min(CW * SX() * 0.78, CH * view.s * 0.6, 34)); }
+function counter(cx, cy, size, owner, glyph) {   // a wargame counter
+  ctx.fillStyle = color(owner); ctx.strokeStyle = "rgba(0,0,0,.85)"; ctx.lineWidth = 1.2;
+  roundRect(cx - size / 2, cy - size / 2, size, size, size * 0.16); ctx.fill(); ctx.stroke();
+  if (size >= 11) {
+    ctx.fillStyle = "#fff"; ctx.font = "700 " + Math.round(size * 0.62) + "px ui-monospace, monospace";
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText(glyph, cx, cy + size * 0.04);
+  }
 }
 function star(x, y, r) {
   for (let k = 0; k < 10; k++) {
@@ -525,6 +571,7 @@ function release(e) {
   if (!pointers.has(e.pointerId)) return;
   pointers.delete(e.pointerId);
   canvas.classList.remove("drag");
+  if (drag && !drag.moved && playing) { skipReel = true; drag = null; return; }
   if (drag && !drag.moved && world && state) {
     selected = cellAt(view.x + e.clientX / SX(), view.y + e.clientY / view.s);
     clickCell(selected);
@@ -624,7 +671,16 @@ function moveTo(cell) {
   const a = activeUnit();
   if (!a || !state.my_turn) return;
   route = null;
-  send({ op: "move", unit: a[0], cell }, (r) => { if (r.result !== "moved") toast(r.text); });
+  const from = a[3], glyph = a[1], owner = a[2];
+  const enemy = unitsAt(cell).find((u) => !mine(u));
+  const city = state.cityAt.get(cell);
+  const fight = !!enemy || (city && city[5] !== state.viewer);
+  send({ op: "move", unit: a[0], cell }, (r) => {
+    if (fight && ["won", "lost", "captured", "blocked"].includes(r.result) && !playing) {
+      battle({ frm: from, cell, glyph, attacker: owner, result: r.result === "blocked" ? "won" : r.result }, 0.8);
+    } else if (r.result === "moved") sfx("move_" + glyph);
+    if (r.result !== "moved") toast(r.text);
+  });
 }
 function clickCell(cell) {
   if (!state) return;
@@ -673,6 +729,7 @@ function orderKey(k) {
   const map = { n: "next", Tab: "next", " ": "skip", s: "sentry", f: "fortify", v: "wake" };
   if (map[k]) { order(map[k]); return true; }
   if (k === "E") { endTurn(); return true; }
+  if (playing && (k === "Escape" || k === " " || k === "Enter")) { skipReel = true; return true; }
   if (k === "Escape") { route = null; select(null); return true; }
   return false;
 }
@@ -704,6 +761,231 @@ function activePanel() {
     b.disabled = o === "next" ? !state.my_turn : !can || (o === "fortify" && state.unit_types[a[1]].domain !== "land");
   });
 }
+
+// ---------------------------------------------------------------- animations
+// The war bulletin, as in the terminal: the camera follows what the others
+// did since your turn; armies glide, every battle gets its fire and its
+// explosion. A tap, Esc or "Skip" ends it.
+let fx = [], phantoms = new Map(), hidden = new Set(), playing = false, skipReel = false, rafOn = false;
+let soundOn = store.get("theempire.map.sound", "1") === "1";
+const sounds = {};
+function sfx(name) {
+  if (!soundOn || !name) return;
+  try {
+    const a = sounds[name] || (sounds[name] = new Audio(ROOT + "sounds/" + name + ".wav"));
+    a.currentTime = 0; a.volume = 0.7; a.play().catch(() => {});
+  } catch (e) {}
+}
+$("sound").onclick = () => { soundOn = !soundOn; store.set("theempire.map.sound", soundOn ? "1" : "0"); $("sound").textContent = soundOn ? "🔊" : "🔇"; };
+$("sound").textContent = soundOn ? "🔊" : "🔇";
+function kick() {
+  if (rafOn) return;
+  rafOn = true;
+  const loop = () => { draw(); if (fx.length || phantoms.size || playing) requestAnimationFrame(loop); else rafOn = false; };
+  requestAnimationFrame(loop);
+}
+const sleep = (ms) => new Promise((ok) => setTimeout(ok, skipReel ? 0 : ms));
+function spot(cell) {                  // a cell on the screen, the copy nearest the middle
+  const [cx, cy] = cellCentre(cell), W = world.width * CW;
+  let x = (cx - view.x) * SX();
+  const span = W * SX();
+  while (x < innerWidth / 2 - span / 2) x += span;
+  while (x > innerWidth / 2 + span / 2) x -= span;
+  return [x, (cy - view.y) * view.s];
+}
+function panTo(cell, ms = 380) {       // glide the camera when the cell is not well in view
+  const [x, y] = spot(cell), m = Math.min(innerWidth, innerHeight) * 0.18;
+  if (x > m && x < innerWidth - m && y > m + 40 && y < innerHeight - m) return Promise.resolve();
+  const [cx, cy] = cellCentre(cell);
+  let tx = cx - innerWidth / 2 / SX(), ty = cy - innerHeight / 2 / view.s;
+  const W = world.width * CW, fx0 = view.x, fy0 = view.y;
+  let dx = tx - fx0; dx -= Math.round(dx / W) * W;
+  if (skipReel || !ms) { view.x = fx0 + dx; view.y = ty; clampView(); return Promise.resolve(); }
+  const t0 = performance.now();
+  return new Promise((ok) => {
+    const step = () => {
+      const k = Math.min(1, (performance.now() - t0) / ms), e = k * k * (3 - 2 * k);
+      view.x = fx0 + dx * e; view.y = fy0 + (ty - fy0) * e; clampView(); draw();
+      if (k < 1 && !skipReel) requestAnimationFrame(step); else ok();
+    };
+    requestAnimationFrame(step);
+  });
+}
+// the camera to a cell at a scale (screen px per base px), gliding
+function camera(cell, scale, ms = 450) {
+  const [cx, cy] = cellCentre(cell), W = world.width * CW;
+  const s0 = view.s, x0 = view.x + innerWidth / 2 / SX(), y0 = view.y + innerHeight / 2 / view.s;
+  let dx = cx - x0; dx -= Math.round(dx / W) * W;
+  const dy = cy - y0;
+  const apply = (e) => {
+    view.s = s0 + (scale - s0) * e;
+    view.x = x0 + dx * e - innerWidth / 2 / SX(); view.y = y0 + dy * e - innerHeight / 2 / view.s;
+    clampView();
+  };
+  if (skipReel || !ms) { apply(1); draw(); return Promise.resolve(); }
+  const t0 = performance.now();
+  return new Promise((ok) => {
+    const step = () => {
+      const k = Math.min(1, (performance.now() - t0) / ms);
+      apply(k * k * (3 - 2 * k)); draw();
+      if (k < 1 && !skipReel) requestAnimationFrame(step); else ok();
+    };
+    requestAnimationFrame(step);
+  });
+}
+// a battle is seen close up: cells at least this wide on the screen
+const closeUp = () => Math.max(view.s, 46 / (CW * view.ax));
+function effect(dur, draw, delay = 0) { fx.push({ start: performance.now(), dur, draw, delay }); kick(); }
+function boom(cell, big = 1, tint = "255,170,60") {     // an explosion: flash, fireball, sparks, smoke ring
+  const sparks = Array.from({ length: 14 }, () => [Math.random() * Math.PI * 2, 0.5 + Math.random()]);
+  effect(650 * big, (k, size) => {
+    const [x, y] = spot(cell), r = size * (0.5 + 1.6 * k) * big;
+    ctx.save();
+    ctx.globalAlpha = 1 - k;
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, "rgba(255,255,230,1)"); g.addColorStop(0.35, `rgba(${tint},.95)`); g.addColorStop(1, `rgba(${tint},0)`);
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = `rgba(255,255,255,${0.7 * (1 - k)})`; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(x, y, r * 1.25, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = "#ffd27a";
+    for (const [a, v] of sparks) {
+      const d = r * v * 1.1;
+      ctx.fillRect(x + Math.cos(a) * d - 1.5, y + Math.sin(a) * d - 1.5, 3, 3);
+    }
+    ctx.restore();
+  });
+}
+function mark(cell, text, col, dur = 900) {             // a sign that pops up on a cell: ✕, ⚑...
+  effect(dur, (k, size) => {
+    const [x, y] = spot(cell), pop = k < 0.2 ? k / 0.2 : 1;
+    ctx.save(); ctx.globalAlpha = k > 0.75 ? (1 - k) / 0.25 : 1;
+    ctx.font = `800 ${Math.round(size * 1.3 * (0.6 + 0.4 * pop))}px system-ui, sans-serif`;
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.lineWidth = 4; ctx.strokeStyle = "rgba(0,0,0,.8)"; ctx.strokeText(text, x, y);
+    ctx.fillStyle = col; ctx.fillText(text, x, y); ctx.restore();
+  });
+}
+function ripple(cell, col, dur = 900, rings = 2) {       // rings spreading from a cell
+  effect(dur, (k, size) => {
+    const [x, y] = spot(cell);
+    ctx.save();
+    for (let i = 0; i < rings; i++) {
+      const q = (k + i / rings) % 1;
+      ctx.globalAlpha = (1 - q) * 0.9; ctx.strokeStyle = col; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(x, y, size * (0.4 + 2.2 * q), 0, Math.PI * 2); ctx.stroke();
+    }
+    ctx.restore();
+  });
+}
+function shot(from, to, glyph, owner) {                 // the weapon's fire travelling to the target
+  const air = state.unit_types[glyph] && state.unit_types[glyph].domain === "air";
+  const dur = glyph === "H" ? 260 : air ? 420 : 320;
+  effect(dur, (k) => {
+    const a = spot(from), b = spot(to);
+    const lift = air ? -Math.hypot(b[0] - a[0], b[1] - a[1]) * 0.35 : 0;
+    const pt = (q) => [a[0] + (b[0] - a[0]) * q, a[1] + (b[1] - a[1]) * q + lift * 4 * q * (1 - q)];
+    ctx.save(); ctx.lineCap = "round";
+    for (let i = 0; i < 6; i++) {                       // a fading trail behind the head
+      const q0 = Math.max(0, k - 0.06 * (i + 1)), q1 = Math.max(0, k - 0.06 * i);
+      const [x0, y0] = pt(q0), [x1, y1] = pt(q1);
+      ctx.strokeStyle = i ? `rgba(255,${200 - i * 25},80,${0.8 - i * 0.12})` : "#fff";
+      ctx.lineWidth = 4 - i * 0.5; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+    }
+    ctx.restore();
+  });
+  return dur;
+}
+function scene(text, us) {
+  const l = $("reelLine"); l.textContent = text || ""; l.classList.toggle("us", !!us);
+}
+async function battle(act, slow) {
+  const frm = act.frm != null ? act.frm : act.cell, target = act.cell, me = state.viewer;
+  const result = act.result, glyph = act.glyph || "", owner = act.attacker != null ? act.attacker : act.owner;
+  // 1. the attacker comes into the light, a red ring on the target
+  phantoms.set("atk", { from: null, to: frm, start: performance.now(), dur: 200, owner, glyph });
+  ripple(target, "#ff4d4d", 700 * slow, 2); kick();
+  await sleep(420 * slow);
+  // 2. fire, 3. the explosion
+  sfx(state.unit_types[glyph] ? "fire_" + glyph : "battle");
+  await sleep(shot(frm, target, glyph, owner));
+  boom(target, glyph === "H" || glyph === "B" ? 1.3 : 1);
+  if (act.defender === me) canvas.classList.add("shake");
+  await sleep(380 * slow);
+  canvas.classList.remove("shake");
+  // 4. the outcome
+  if (result === "lost") { phantoms.delete("atk"); boom(frm, 0.7); mark(frm, "✕", color(owner)); }
+  else if (result === "captured") { mark(target, "⚑", color(owner)); ripple(target, color(owner), 800, 3); sfx("capture"); }
+  else { mark(target, "✕", "#ff4d4d"); if (act.defender === me) sfx("loss"); }
+  await sleep(520 * slow);
+  phantoms.delete("atk");
+}
+async function playReel(acts) {
+  if (!acts || !acts.length || !world) return;
+  // the units that will arrive in the bulletin stay hidden until they do
+  const last = new Map();
+  acts.forEach((a, i) => { if (a.op === "move" && a.unit != null) last.set(a.unit, i); });
+  for (const id of last.keys()) if (state.units.some((u) => u[0] === id && u[2] !== state.viewer)) hidden.add(id);
+  playing = true; skipReel = false;
+  const before = { x: view.x, y: view.y, s: view.s };
+  $("reel").classList.add("on"); kick();
+  const total = acts.filter((a) => a.op !== "move").length;
+  let shown = 0, prevUnit = null, prevCell = null;
+  for (let i = 0; i < acts.length && !skipReel; i++) {
+    const a = acts[i];
+    $("reelTitle").textContent = `${T.reelTitle}${total ? ` · ${Math.min(total, shown + (a.op === "move" ? 0 : 1))}/${total}` : ""}`;
+    if (a.op === "move") {
+      const first = a.unit !== prevUnit;
+      if (first) {
+        sfx("move_" + a.glyph);
+        const tname = state.unit_types[a.glyph] ? state.unit_types[a.glyph].name : "";
+        const f = state.factions[a.owner];
+        scene(`${tname} (${f ? f.name : ""}) ${T.moving}`);
+      }
+      await panTo(a.cell, first ? 320 : 160);
+      phantoms.set("mv", { from: first ? null : prevCell, to: a.cell, start: performance.now(),
+                           dur: first ? 180 : 140, owner: a.owner, glyph: a.glyph });
+      await sleep(first ? 220 : 150);
+      prevUnit = a.unit; prevCell = a.cell;
+      if (last.get(a.unit) === i) { hidden.delete(a.unit); phantoms.delete("mv"); }
+      continue;
+    }
+    phantoms.delete("mv"); prevUnit = null;
+    shown++;
+    const us = a.defender === state.viewer || a.old === state.viewer || a.victim === state.viewer;
+    scene(a.line, us);
+    if (a.op === "nuke" || a.op === "fall") await panTo(a.cell);
+    else await camera(a.cell, closeUp(), 500);
+    if (a.op === "attack") { await battle(a, us ? 1.3 : 1); continue; }
+    if (a.op === "capture") {
+      ripple(a.cell, color(a.new), 900, 3); mark(a.cell, "⚑", color(a.new), 1100);
+      sfx(a.old === state.viewer ? "loss" : "capture"); await sleep(950);
+    } else if (a.op === "fall") {
+      sfx("fall"); ripple(a.cell, "#ff4d4d", 1200, 3); await sleep(1100);
+    } else if (a.op === "nuke") {
+      sfx("nuke");
+      effect(260, (k) => { ctx.save(); ctx.globalAlpha = 1 - k; ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, innerWidth, innerHeight); ctx.restore(); });
+      boom(a.cell, 3.2, "255,120,30"); ripple(a.cell, "#ffe066", 1600, 3);
+      canvas.classList.add("shake"); await sleep(1700); canvas.classList.remove("shake");
+    } else if (a.op === "chem") {
+      sfx("gas");
+      for (let k = 0; k < 5; k++) boom(a.cell, 1.5 + k * 0.2, "120,220,60");
+      await sleep(1100);
+    } else if (a.op === "card") {
+      sfx("card"); mark(a.cell, "♠", "#d946ef", 1000); await sleep(1000);
+    }
+  }
+  phantoms.clear(); hidden.clear();
+  $("reel").classList.remove("on"); scene("");
+  // back to where the player was looking
+  skipReel = false;
+  const cx = before.x + innerWidth / 2 / (before.s * view.ax), cy = before.y + innerHeight / 2 / before.s;
+  const back = cellAt(cx, cy);
+  if (back >= 0) await camera(back, before.s, 450);
+  view.x = before.x; view.y = before.y; view.s = before.s; clampView();
+  playing = false;
+  draw();
+}
+$("reelSkip").onclick = () => { skipReel = true; };
 
 // ---------------------------------------------------------------- data
 function notice(html) { const n = $("notice"); n.innerHTML = html || ""; n.style.display = html ? "block" : "none"; }
@@ -745,7 +1027,9 @@ async function onState(d) {
   tag.classList.toggle("mine", !!d.my_turn);
   $("endTurn").disabled = !d.my_turn;
   panel(); activePanel(); draw();
+  if (d.reel && d.reel.length) reelQueue = reelQueue.then(() => playReel(d.reel));
 }
+let reelQueue = Promise.resolve();
 let queue = Promise.resolve();
 // a link from the terminal (W) brings its seat after the #: kept for this tab
 // only, and never sent in an address

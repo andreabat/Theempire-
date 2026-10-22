@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import curses
 import datetime as dt
 import json
@@ -12,7 +13,7 @@ from collections import Counter, deque
 from functools import lru_cache
 from pathlib import Path
 
-from theempire import cards, events, i18n, missions, regions
+from theempire import cards, chronicle, events, i18n, missions, regions
 from theempire.audio import Audio, music_keys, music_name
 from theempire.commands import describe
 from theempire.game import CHEM_RANGE, DIRECTIVES, Unit
@@ -606,10 +607,19 @@ class UI:
             self.status = tr("La mappa grafica c'è nelle partite online con la pagina web "
                              "(--serve --web).")
             return
-        self.dialog(tr("Mappa grafica"), [
-            tr("Apri questo indirizzo nel browser, anche da un altro dispositivo:"), "", link, "",
-            tr("Mostra la mappa con gli occhi della tua fazione e accetta i tuoi ordini."),
-            tr("Il link vale come il tuo posto: non darlo agli avversari.")])
+        lines = [tr("Apri questo indirizzo nel browser, anche da un altro dispositivo:"), "", link, "",
+                 tr("Mostra la mappa con gli occhi della tua fazione e accetta i tuoi ordini."),
+                 tr("Il link vale come il tuo posto: non darlo agli avversari.")]
+        footer = tr("clic sul link per aprirlo · C lo copia · un altro tasto chiude")
+        while True:
+            key = self.dialog(tr("Mappa grafica"), lines, footer, link=link)
+            if key not in (ord("c"), ord("C")):
+                return
+            # OSC 52: the terminal puts the text in the clipboard (xterm, kitty,
+            # iTerm2, Windows Terminal, tmux with set-clipboard, the web TUI...)
+            self._terminal(b"\x1b]52;c;" + base64.b64encode(link.encode()) + b"\x07")
+            footer = tr("Link copiato negli appunti · un altro tasto chiude")
+            self.status = tr("Link della mappa copiato negli appunti.")
 
     def toggle_symbols(self) -> None:
         self._symbols = not self.symbols
@@ -1017,7 +1027,9 @@ class UI:
             x += len(part)
 
     # ----------------------------------------------------------- dialogs
-    def dialog(self, title: str, lines: list[str], footer: str = "") -> int:
+    def dialog(self, title: str, lines: list[str], footer: str = "", link: str | None = None) -> int:
+        """A box with a message; returns the key that closed it. The line equal
+        to ``link`` becomes a hyperlink (OSC 8) in the terminals that know them."""
         footer = footer or tr("premi un tasto")
         h, w = self.scr.getmaxyx()
         width = min(w - 4, max(len(title) + 4, len(footer) + 4, *(len(l) + 4 for l in lines)))
@@ -1035,6 +1047,11 @@ class UI:
         except curses.error:
             pass
         win.refresh()
+        if link and link in lines and len(link) <= width - 4:
+            # the same characters again, wrapped in a hyperlink, behind curses' back
+            row = y0 + 2 + lines.index(link)
+            self._terminal(b"\x1b7\x1b[%d;%dH\x1b]8;;%s\x1b\\%s\x1b]8;;\x1b\\\x1b8"
+                           % (row + 1, x0 + 3, link.encode(), link.encode()))
         key = self.read_key(win)
         del win
         self.scr.touchwin()
@@ -1792,64 +1809,11 @@ class UI:
 
     # ------------------------------------------------- written bulletin
     def _place(self, cell: int, bare: bool = False) -> str:
-        """'a Vilnius', 'presso Vilnius' or coordinates, for the chronicle
-        (``bare``: only the name of the place)."""
-        g = self.g
-        city = g.city(cell)
-        if city is not None:
-            return city.name if bare else tr("a {place}", place=city.name)
-        near = min(g.cities, key=lambda c: self.w.dist(c.cell, cell))
-        if self.w.dist(near.cell, cell) <= 4:
-            return near.name if bare else tr("presso {place}", place=near.name)
-        lon, lat = self.w.lonlat(cell)
-        where = f"{abs(lat):.0f}°{'N' if lat >= 0 else 'S'} {abs(lon):.0f}°{'E' if lon >= 0 else 'W'}"
-        return where if bare else tr("a {place}", place=where)
+        return chronicle.place(self.g, cell, bare)
 
     def scene_line(self, act: dict) -> str:
         """One line of chronicle for a bulletin scene (moves have none)."""
-        me = self.viewer
-        op = act["op"]
-        if op == "attack":
-            kind = act.get("glyph", "")
-            who = UNIT_TYPES[kind].name if kind in UNIT_TYPES else N("Unità")
-            tgt = act.get("target") or ""
-            result = act.get("result")
-            city = self.g.city(act["cell"])
-            if tgt in UNIT_TYPES:
-                where = tr("su {unit} {place}", unit=UNIT_TYPES[tgt].name, place=self._place(act["cell"]))
-            else:
-                where = tr("sulla città di {city}", city=city.name) if city else self._place(act["cell"])
-            if act.get("defender") == me:
-                outcome = {"lost": N("RESPINTO"), "captured": N("LA CITTÀ CADE")}.get(
-                    result, N("PERDIAMO l'unità") if tgt in UNIT_TYPES else N("difese a terra"))
-                return tr("⚔ CONTRO DI NOI · {unit} ({attacker}) {where} → {outcome}", unit=who,
-                          attacker=self._faction(act.get("attacker")), where=where, outcome=outcome)
-            outcome = {"lost": N("fallisce"), "captured": N("la città cade")}.get(result, N("bersaglio distrutto"))
-            return tr("⚔ {unit} ({attacker}) {where} ({defender}) → {outcome}", unit=who,
-                      attacker=self._faction(act.get("attacker")), where=where,
-                      defender=self._faction(act.get("defender")), outcome=outcome)
-        if op == "capture":
-            params = dict(city=act.get("name", "?"), new=self._faction(act.get("new")),
-                          old=self._faction(act.get("old")))
-            if act.get("old") == me:
-                return tr("⚑ {city} conquistata da {new} (prima: {old}) — PERSA", **params)
-            return tr("⚑ {city} conquistata da {new} (prima: {old})", **params)
-        if op == "fall":
-            return tr("✖ {faction} ha perso l'ultima città: è fuori dalla guerra",
-                      faction=self._faction(act.get("old")))
-        if op == "nuke":
-            return tr("☢ {faction} colpisce {place} con un'arma nucleare",
-                      faction=self._faction(act.get("actor")), place=act.get("name", "?"))
-        if op == "chem":
-            return tr("☣ {faction} usa armi chimiche su {place}",
-                      faction=self._faction(act.get("actor")), place=act.get("name", "?"))
-        if op == "card":
-            params = dict(faction=self._faction(act.get("actor")), card=act.get("name", "?"),
-                          text=act.get("text", ""))
-            if act.get("victim") == me:
-                return tr("♠ {faction} gioca «{card}»: {text} — CONTRO DI NOI", **params)
-            return tr("♠ {faction} gioca «{card}»: {text}", **params)
-        return ""
+        return chronicle.scene_line(self.g, act, self.viewer)
 
     def bulletin_text(self, reel: list[dict]) -> list[str]:
         """The written bulletin: the front, the battles seen, the cities, the

@@ -362,22 +362,25 @@ class GameServer:
                 self.reels[f] = self.reels.get(f, []) + commands.newsreel(self.game, f)
         lobby = self.lobby()
         for slot in self.slots.values():
-            if slot.conn is not None:
-                msg = {"type": "state", "state": commands.view_for(self.game, slot.faction),
-                       "lobby": lobby, "started": self.started, "deadline": self._deadline(),
-                       "web": self.web_port}
-                reel = self.reels.get(slot.faction)
-                if reel and (self.game.current == slot.faction or self.game.realtime):
-                    msg["reel"] = reel
-                if slot.conn.send(msg) and reel and "reel" in msg:
-                    self.reels.pop(slot.faction, None)
-        views: dict[int, dict] = {}
-        for conn in list(self.watchers):
-            f = conn.watching
-            if f not in views:
-                views[f] = self._state_for(f)
-            if not conn.send(views[f]):
-                self.watchers.remove(conn)
+            # the player's terminal and its map pages see the same view and the same bulletin
+            conns = ([slot.conn] if slot.conn is not None else []) + \
+                [c for c in self.watchers if c.watching == slot.faction]
+            if not conns:
+                continue
+            msg = {"type": "state", "state": commands.view_for(self.game, slot.faction),
+                   "lobby": lobby, "started": self.started, "deadline": self._deadline(),
+                   "web": self.web_port}
+            reel = self.reels.get(slot.faction)
+            if reel and (self.game.current == slot.faction or self.game.realtime):
+                msg["reel"] = reel
+            delivered = False
+            for conn in conns:
+                if conn.send(msg):
+                    delivered = True
+                elif conn in self.watchers:
+                    self.watchers.remove(conn)
+            if delivered and "reel" in msg:
+                self.reels.pop(slot.faction, None)
 
     def _pulse(self) -> None:
         """Real time: the next pulse for everybody when its time has come."""

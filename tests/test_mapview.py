@@ -6,6 +6,7 @@ import os
 import socket
 import sys
 import threading
+import time
 import urllib.request
 from pathlib import Path
 
@@ -139,3 +140,38 @@ def test_gateway_serves_the_map(server):
         ws.close()
     finally:
         gw.stop()
+
+
+def test_reel_lines_in_the_reader_language():
+    g = Game("europe", humans=("nato",), seed=1)
+    city = next(c for c in g.cities if c.owner == 0)
+    acts = [{"op": "move", "cell": city.cell, "unit": 5, "glyph": "A", "owner": 1, "actor": 1, "seq": 1},
+            {"op": "attack", "cell": city.cell, "frm": city.cell + 1, "glyph": "A", "owner": 1,
+             "attacker": 1, "defender": 0, "target": "I", "result": "lost", "actor": 1, "seq": 2},
+            {"op": "capture", "cell": city.cell, "old": 0, "new": 1, "name": city.name, "actor": 1, "seq": 3}]
+    out = mapview.reel(g, acts, 0, "en")
+    assert [a["op"] for a in out] == ["move", "attack", "capture"]
+    assert "line" not in out[0] and "seq" not in out[1]
+    assert out[1]["line"].startswith("⚔ AGAINST US") and out[1]["frm"] == city.cell + 1
+    assert city.name in out[2]["line"] and "LOST" in out[2]["line"]
+
+
+def test_a_map_alone_gets_the_bulletin(server):
+    srv, tmp = server
+    player = RemoteSession("127.0.0.1", srv.port, "Anna", password="pw", tokens_file=tmp / "t.json")
+    sock, reply = watch(srv.port, srv.slots[0].token)
+    recv_msg(sock, MAX_SERVER_MESSAGE)
+    player.sock.close()                                       # the terminal goes: only the map is left
+    deadline = time.time() + 5
+    while srv.slots[0].conn is not None and time.time() < deadline:
+        time.sleep(0.05)
+    send_msg(sock, {"type": "cmd", "id": 1, "cmd": {"op": "end_turn"}})   # the map ends the turn
+    got = None
+    for _ in range(6):
+        msg = recv_msg(sock, MAX_SERVER_MESSAGE)
+        if msg.get("type") == "state" and msg.get("reel"):
+            got = msg["reel"]
+            break
+    assert got and any(a["op"] in ("move", "attack", "capture") for a in got)
+    assert not srv.reels.get(0)                               # delivered once
+    sock.close()

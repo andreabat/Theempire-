@@ -142,6 +142,25 @@ def path(game: Game, viewer: int, unit, cell) -> list[int] | None:
     return game.path(u, cell)
 
 
+REEL_KEYS = ("op", "cell", "frm", "glyph", "owner", "attacker", "defender", "result", "target",
+             "unit", "old", "new", "name", "actor", "victim")
+
+
+def reel(game: Game, acts: list[dict], viewer: int, lang: str | None = None) -> list[dict]:
+    """The war bulletin for the page to animate: what the others did, with
+    the chronicle line of each scene in the reader's language."""
+    from theempire import chronicle
+    out = []
+    for act in acts or []:
+        if not isinstance(act, dict) or "op" not in act or "cell" not in act:
+            continue
+        item = {k: act[k] for k in REEL_KEYS if k in act}
+        if act["op"] != "move":
+            item["line"] = chronicle.scene_line(game, act, viewer, lang)
+        out.append(item)
+    return out
+
+
 def view_game(g: Game, viewer: int, lang: str | None = None, with_territory: bool = True) -> dict:
     lang = lang or i18n.language()
     w = g.world

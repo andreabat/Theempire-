@@ -245,6 +245,16 @@ in alto nella web TUI la apre in una nuova scheda (oppure aprite
   `n`/Tab prossima, spazio salta, `s` sentinella, `f` fortifica, `v`
   sveglia, `E` fine turno, Esc deseleziona. Produzione, carte, diplomazia e
   armi di distruzione di massa per ora restano nella TUI.
+- **Battaglie e turno nemico animati**: i vostri attacchi si vedono sulla
+  mappa (il fuoco dell'arma vola sul bersaglio, l'esplosione, poi ✕ su chi
+  ha perso o ⚑ sulla città presa). Quando gli altri hanno mosso parte il
+  **bollettino di guerra**, come nel terminale: la telecamera segue le loro
+  armate, che scivolano di casella in casella, e si avvicina a ogni
+  battaglia, conquista, attacco nucleare o chimico, con la riga della
+  cronaca in un riquadro («⚔ CONTRO DI NOI...» in rosso quando colpiscono
+  le vostre forze; lo schermo trema). Le unità nemiche compaiono solo
+  quando il bollettino le porta. Un tocco, Esc o «Salta ▶▶» lo chiudono;
+  poi la vista torna dov'era. 🔊 accende o spegne i suoni della mappa.
 - **La stessa nebbia del gioco**: la mappa segue il posto che quel browser
   occupa (si collega al server come *osservatore* con il gettone di quel
   posto), quindi mostra solo ciò che vede la vostra fazione. Senza un posto
@@ -252,7 +262,9 @@ in alto nella web TUI la apre in una nuova scheda (oppure aprite
   insieme: ogni mossa compare subito anche sull'altra.
 - **Anche da un terminale vero**: nelle partite online il cui server ha la
   pagina web (`--serve --web`), `W` mostra il link alla mappa del vostro
-  posto, da aprire nel browser di qualunque dispositivo. Il gettone del
+  posto, da aprire nel browser di qualunque dispositivo: cliccatelo (nei
+  terminali che gestiscono i link, e nella web TUI) o premete `C` per
+  copiarlo negli appunti. Il gettone del
   posto sta dopo il `#` (quella parte i browser non la mandano al server):
   il link vale quanto il vostro posto, non datelo agli avversari.
 - Non le serve nulla da internet: niente tile, niente servizi esterni.
@@ -851,6 +863,7 @@ theempire/
   audio.py      sintetizzatore chiptune, effetti, voci delle unità e musiche, riproduzione in background
   web.py        web TUI: gateway HTTP/WebSocket che porta il client nel browser
   mapview.py    la mappa grafica web: maschera della terra, territori e vista di un posto, in JSON
+  chronicle.py  le righe del bollettino di guerra, comuni al terminale e alla mappa
   assets/web/   pagina della web TUI e xterm.js (MIT)
   cli.py        riga di comando
   serversetup.py  la schermata di configurazione del server

@@ -477,6 +477,8 @@ class WebGateway:
                             del data["territory"]     # the page has it already
                         sent_territory = data["territory_key"]
                         data["started"] = bool(msg.get("started"))
+                        if msg.get("reel"):
+                            data["reel"] = mapview.reel(game, msg["reel"], viewer, lang)
                         reply({"t": "state", "d": data})
                 except (ConnectionError, OSError, ValueError, KeyError):
                     if not gone.is_set():

@@ -394,12 +394,24 @@ function start(name, faction, password) {
   term = new Terminal({
     fontSize, fontFamily: '"DejaVu Sans Mono", Menlo, Consolas, "Liberation Mono", monospace',
     theme: { background: "#07090d" }, cursorBlink: false, scrollback: 0, allowProposedApi: true,
+    // links from the game (OSC 8, e.g. the map link of W) open in a new tab
+    linkHandler: { activate: (e, uri) => { if (/^https?:\/\//.test(uri)) window.open(uri, "_blank", "noopener"); } },
   });
   fit = new FitAddon.FitAddon();
   term.loadAddon(fit);
   term.open($("term"));
   fit.fit();
   // The game's sound cues travel as invisible OSC 7777 sequences.
+  // OSC 52: the game asks to copy a text (the map link): into the clipboard
+  term.parser.registerOscHandler(52, (data) => {
+    const b64 = data.slice(data.indexOf(";") + 1);
+    try {
+      const text = new TextDecoder().decode(Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)));
+      if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(text).catch(() => prompt("", text));
+      else prompt("", text);
+    } catch (e) {}
+    return true;
+  });
   term.parser.registerOscHandler(7777, (data) => {
     const [kind, name, flag] = data.split(";");
     if (kind === "sfx") audio.sfx(name, flag === "1");

@@ -243,6 +243,16 @@ at the top of the web TUI opens it in a new tab (or open
   space skip, `s` sentry, `f` fortify, `v` wake, `E` end turn, Esc
   deselect. Production, cards, diplomacy and weapons of mass destruction
   stay in the TUI for now.
+- **Battles and the enemy turn, animated**: your own attacks play on the
+  map (the weapon's fire flies to the target, the explosion, then ✕ on
+  whoever lost or ⚑ on a captured city). When the others have moved, the
+  **war bulletin** plays as in the terminal: the camera follows their
+  armies, which glide from cell to cell, and moves in close on every battle,
+  capture, nuclear or chemical strike, with the chronicle line in a banner
+  ("⚔ AGAINST US..." in red when it is your forces they hit; the screen
+  shakes). Enemy units appear only when the bulletin brings them. A tap, Esc
+  or "Skip ▶▶" ends it; then the view goes back to where you were. 🔊 turns
+  the map's sounds on or off.
 - **The same fog as in the game**: the map follows the seat that browser holds
   (it joins the server as a *watcher* with that seat's token), so it shows
   only what your faction sees. Without a seat it asks you to join first from
@@ -250,7 +260,8 @@ at the top of the web TUI opens it in a new tab (or open
   up on the other at once.
 - **From a real terminal too**: in an online game whose server has the web
   page (`--serve --web`), `W` shows the link to the map of your seat, to
-  open in a browser on any device. The seat's token is after the `#`
+  open in a browser on any device: click it (in the terminals that support
+  links, and in the web TUI) or press `C` to copy it to the clipboard. The seat's token is after the `#`
   (browsers do not send that part to the server): the link is as good as
   your seat, so do not give it to your rivals.
 - It needs nothing from the internet: no map tiles, no external services.
@@ -843,6 +854,7 @@ theempire/
   audio.py      chiptune synthesiser, effects, unit voices and music, background playback
   web.py        web TUI: HTTP/WebSocket gateway that brings the client to the browser
   mapview.py    the graphical web map: land mask, territory and the view of a seat, as JSON
+  chronicle.py  the lines of the war bulletin, shared by the terminal and the map
   assets/web/   web TUI page and xterm.js (MIT)
   cli.py        command line
   serversetup.py  the server setup screen
