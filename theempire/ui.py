@@ -89,6 +89,7 @@ r                 centra la vista sul cursore
 o                 obiettivo segreto, regioni (bonus) ed eventi mondiali
 Z                 spazio: satelliti spia e armi antisatellite
 V                 unità con simboli (♟ ♜ ✈ ▼ ▸ ◒ ▭ ⧫ ▬ ✧ ➶) o con lettere
+W                 mappa grafica nel browser (partite online con --web)
 M                 audio: scegli musica ed effetti
 L                 lingua dell'interfaccia (language)
 N                 ☢ attacco nucleare sulla casella del cursore
@@ -597,6 +598,18 @@ class UI:
 
     def glyph(self, kind: str) -> str:
         return SYMBOLS.get(kind, kind) if self.symbols else kind
+
+    def map_link(self) -> None:
+        """The address of the graphical map of this seat, to open in a browser."""
+        link = getattr(self.session, "map_link", lambda: None)()
+        if link is None:
+            self.status = tr("La mappa grafica c'è nelle partite online con la pagina web "
+                             "(--serve --web).")
+            return
+        self.dialog(tr("Mappa grafica"), [
+            tr("Apri questo indirizzo nel browser, anche da un altro dispositivo:"), "", link, "",
+            tr("Mostra la mappa con gli occhi della tua fazione e accetta i tuoi ordini."),
+            tr("Il link vale come il tuo posto: non darlo agli avversari.")])
 
     def toggle_symbols(self) -> None:
         self._symbols = not self.symbols
@@ -1979,7 +1992,7 @@ class UI:
 
     # ----------------------------------------------------------- input
     VIEW_KEYS = {ord("m"), ord("M"), ord("r"), ord("?"), ord("Q"), ord("T"), ord("n"), ord("B"),
-                 ord("K"), ord("h"), 9, ord("+"), ord("="), ord("-"), ord("o"), ord("L"), ord("Z"), ord("V")}
+                 ord("K"), ord("h"), 9, ord("+"), ord("="), ord("-"), ord("o"), ord("L"), ord("Z"), ord("V"), ord("W")}
 
     def handle(self, key: int) -> None:
         g = self.g
@@ -2079,6 +2092,8 @@ class UI:
             self.space_menu()
         elif key == ord("V"):
             self.toggle_symbols()
+        elif key == ord("W"):
+            self.map_link()
         elif key == ord("o"):
             self.objectives()
         elif key == ord("h") and self.tutorial is not None:

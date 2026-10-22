@@ -42,6 +42,20 @@
   #tools { position: fixed; left: 8px; bottom: 8px; display: flex; gap: 6px; }
   #tools button { padding: 6px 12px; font-size: 16px; }
   #tools button.on { border-color: var(--accent); }
+  #tools button.go { background: var(--accent); border-color: var(--accent); color: #fff; font-size: 14px;
+                     font-weight: 600; letter-spacing: .04em; }
+  #tools button.go:disabled { opacity: .35; cursor: default; }
+  #turnTag { padding: 1px 8px; border-radius: 10px; font-size: 12px; background: #1a2130; color: var(--dim); }
+  #turnTag.mine { background: #1f6f3a; color: #fff; }
+  .orders { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+  .orders button { font: inherit; font-size: 12px; color: var(--text); background: #1a2130; border: 1px solid var(--line);
+                   border-radius: 5px; padding: 3px 8px; cursor: pointer; }
+  .orders button:disabled { opacity: .35; cursor: default; }
+  #active .muted { color: var(--dim); }
+  #toast { position: fixed; left: 50%; bottom: 60px; transform: translateX(-50%); max-width: 90%;
+           background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 6px 14px;
+           opacity: 0; transition: opacity .25s; pointer-events: none; }
+  #toast.on { opacity: 1; }
   #notice { position: fixed; left: 50%; top: 45%; transform: translate(-50%, -50%); max-width: 440px;
             background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px;
             text-align: center; display: none; }
@@ -57,12 +71,22 @@
 <div id="top">
   <span class="title">THE EMPIRE</span>
   <span class="dim" id="info"></span>
+  <span id="turnTag"></span>
   <span class="clock" id="clock"></span>
   <button id="panelBtn">☰</button>
 </div>
 <div id="side">
   <h3 data-t="factions">Fazioni</h3>
   <div id="facs"></div>
+  <h3 data-t="activeH">Unità attiva</h3>
+  <div id="active"></div>
+  <div class="orders" id="orders">
+    <button data-o="next" data-t="next">Prossima</button>
+    <button data-o="skip" data-t="skip">Salta</button>
+    <button data-o="sentry" data-t="sentry">Sentinella</button>
+    <button data-o="fortify" data-t="fortify">Fortifica</button>
+    <button data-o="wake" data-t="wake">Sveglia</button>
+  </div>
   <h3 data-t="selected">Casella</h3>
   <div id="cell" data-t="clickHint">Tocca o clicca una casella.</div>
   <h3 data-t="events">Eventi</h3>
@@ -74,8 +98,10 @@
   <button id="home" title="⌂">⌂</button>
   <button id="labels" title="Aa">Aa</button>
   <button id="aspect" title="⬡">⬡</button>
+  <button id="endTurn" class="go" data-t="endTurn">FINE TURNO</button>
 </div>
 <div id="notice"></div>
+<div id="toast"></div>
 
 <script>
 "use strict";
@@ -87,42 +113,48 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} },
 };
 const TEXTS = {
-  it: { factions: "Fazioni", selected: "Casella", events: "Eventi", clickHint: "Tocca o clicca una casella.",
+  it: { activeH: "Unità attiva", next: "Prossima", skip: "Salta", sentry: "Sentinella", fortify: "Fortifica", wake: "Sveglia", endTurn: "FINE TURNO", yourTurn: "tocca a te", turnOf: "turno di", noActive: "Nessuna unità selezionata: tocca una tua unità.", allDone: "Tutte le unità hanno ricevuto ordini.", routeHint: "Percorso mostrato: tocca di nuovo la casella per partire.", unreachable: "Destinazione irraggiungibile per questa unità.", movesL: "mosse", hpL: "PV", fuelL: "carburante", ord_sentry: "sentinella", ord_fortify: "fortificata", ord_goto: "in marcia", ord_auto: "automatica", woke: "Unità svegliate:", keysHint: "q w e / a d / z x c muovono · n prossima · E fine turno",
+       factions: "Fazioni", selected: "Casella", events: "Eventi", clickHint: "Tocca o clicca una casella.",
         neutral: "Neutrali", cities: "città", turn: "turno", midnight: "min a mezzanotte", sea: "mare", land: "terra",
         city: "città", capital: "capitale", size: "dimensione", owner: "di", nobody: "neutrale", fog: "fuori vista",
         noseat: "La mappa segue il tuo posto in partita. Entra prima dalla <a href=\"./\">pagina di gioco</a> con questo browser: la mappa si aggiorna da sola.",
         offline: "Server non raggiungibile: riprovo…", waiting: "in attesa dei giocatori", realtime: "tempo reale",
         over: "Partita finita", units: "unità", aboard: "a bordo",
         aspect: "Proporzioni: plancia da wargame o geografia vera", labels: "Nomi delle città", home: "Torna alla tua zona" },
-  en: { factions: "Factions", selected: "Cell", events: "Events", clickHint: "Tap or click a cell.",
+  en: { activeH: "Active unit", next: "Next", skip: "Skip", sentry: "Sentry", fortify: "Fortify", wake: "Wake", endTurn: "END TURN", yourTurn: "your turn", turnOf: "turn of", noActive: "No unit selected: tap one of your units.", allDone: "Every unit has its orders.", routeHint: "Route shown: tap the cell again to set off.", unreachable: "This unit cannot reach that place.", movesL: "moves", hpL: "HP", fuelL: "fuel", ord_sentry: "sentry", ord_fortify: "fortified", ord_goto: "marching", ord_auto: "automatic", woke: "Units woken:", keysHint: "q w e / a d / z x c move · n next · E end turn",
+       factions: "Factions", selected: "Cell", events: "Events", clickHint: "Tap or click a cell.",
         neutral: "Neutral", cities: "cities", turn: "turn", midnight: "min to midnight", sea: "sea", land: "land",
         city: "city", capital: "capital", size: "size", owner: "of", nobody: "neutral", fog: "out of sight",
         noseat: "The map follows your seat in the game. First join from the <a href=\"./\">game page</a> with this browser: the map then updates by itself.",
         offline: "Server unreachable: retrying…", waiting: "waiting for players", realtime: "real time",
         over: "Game over", units: "units", aboard: "aboard",
         aspect: "Proportions: wargame board or true geography", labels: "City names", home: "Back to your area" },
-  fr: { factions: "Factions", selected: "Case", events: "Événements", clickHint: "Touchez ou cliquez une case.",
+  fr: { activeH: "Unité active", next: "Suivante", skip: "Passer", sentry: "Sentinelle", fortify: "Fortifier", wake: "Réveiller", endTurn: "FIN DU TOUR", yourTurn: "à vous", turnOf: "tour de", noActive: "Aucune unité choisie : touchez une de vos unités.", allDone: "Toutes les unités ont leurs ordres.", routeHint: "Itinéraire affiché : touchez à nouveau la case pour partir.", unreachable: "Destination inaccessible pour cette unité.", movesL: "mouvements", hpL: "PV", fuelL: "carburant", ord_sentry: "sentinelle", ord_fortify: "fortifiée", ord_goto: "en marche", ord_auto: "automatique", woke: "Unités réveillées :", keysHint: "q w e / a d / z x c déplacent · n suivante · E fin du tour",
+       factions: "Factions", selected: "Case", events: "Événements", clickHint: "Touchez ou cliquez une case.",
         neutral: "Neutres", cities: "villes", turn: "tour", midnight: "min avant minuit", sea: "mer", land: "terre",
         city: "ville", capital: "capitale", size: "taille", owner: "à", nobody: "neutre", fog: "hors de vue",
         noseat: "La carte suit votre place dans la partie. Entrez d'abord depuis la <a href=\"./\">page de jeu</a> avec ce navigateur : la carte se met à jour toute seule.",
         offline: "Serveur injoignable : nouvel essai…", waiting: "en attente des joueurs", realtime: "temps réel",
         over: "Partie terminée", units: "unités", aboard: "à bord",
         aspect: "Proportions : plateau de wargame ou vraie géographie", labels: "Noms des villes", home: "Revenir à votre zone" },
-  es: { factions: "Facciones", selected: "Casilla", events: "Eventos", clickHint: "Toca o haz clic en una casilla.",
+  es: { activeH: "Unidad activa", next: "Siguiente", skip: "Saltar", sentry: "Centinela", fortify: "Fortificar", wake: "Despertar", endTurn: "FIN TURNO", yourTurn: "te toca", turnOf: "turno de", noActive: "Ninguna unidad seleccionada: toca una de tus unidades.", allDone: "Todas las unidades tienen órdenes.", routeHint: "Ruta mostrada: toca otra vez la casilla para partir.", unreachable: "Destino inalcanzable para esta unidad.", movesL: "movimientos", hpL: "PV", fuelL: "combustible", ord_sentry: "centinela", ord_fortify: "fortificada", ord_goto: "en marcha", ord_auto: "automática", woke: "Unidades despertadas:", keysHint: "q w e / a d / z x c mueven · n siguiente · E fin turno",
+       factions: "Facciones", selected: "Casilla", events: "Eventos", clickHint: "Toca o haz clic en una casilla.",
         neutral: "Neutrales", cities: "ciudades", turn: "turno", midnight: "min para medianoche", sea: "mar", land: "tierra",
         city: "ciudad", capital: "capital", size: "tamaño", owner: "de", nobody: "neutral", fog: "fuera de vista",
         noseat: "El mapa sigue tu puesto en la partida. Entra primero desde la <a href=\"./\">página de juego</a> con este navegador: el mapa se actualiza solo.",
         offline: "Servidor inalcanzable: reintentando…", waiting: "esperando jugadores", realtime: "tiempo real",
         over: "Partida terminada", units: "unidades", aboard: "a bordo",
         aspect: "Proporciones: tablero de wargame o geografía real", labels: "Nombres de las ciudades", home: "Volver a tu zona" },
-  de: { factions: "Fraktionen", selected: "Feld", events: "Ereignisse", clickHint: "Tippe oder klicke auf ein Feld.",
+  de: { activeH: "Aktive Einheit", next: "Nächste", skip: "Überspringen", sentry: "Wache", fortify: "Befestigen", wake: "Wecken", endTurn: "ZUG ENDE", yourTurn: "du bist dran", turnOf: "Zug von", noActive: "Keine Einheit gewählt: tippe auf eine deiner Einheiten.", allDone: "Alle Einheiten haben Befehle.", routeHint: "Route angezeigt: tippe das Feld noch einmal, um loszuziehen.", unreachable: "Ziel für diese Einheit unerreichbar.", movesL: "Züge", hpL: "TP", fuelL: "Treibstoff", ord_sentry: "Wache", ord_fortify: "befestigt", ord_goto: "auf dem Marsch", ord_auto: "automatisch", woke: "Geweckte Einheiten:", keysHint: "q w e / a d / z x c bewegen · n nächste · E Zug Ende",
+       factions: "Fraktionen", selected: "Feld", events: "Ereignisse", clickHint: "Tippe oder klicke auf ein Feld.",
         neutral: "Neutrale", cities: "Städte", turn: "Zug", midnight: "Min. bis Mitternacht", sea: "Meer", land: "Land",
         city: "Stadt", capital: "Hauptstadt", size: "Größe", owner: "von", nobody: "neutral", fog: "außer Sicht",
         noseat: "Die Karte folgt deinem Platz in der Partie. Tritt zuerst über die <a href=\"./\">Spielseite</a> mit diesem Browser bei: die Karte aktualisiert sich dann selbst.",
         offline: "Server nicht erreichbar: neuer Versuch…", waiting: "wartet auf Spieler", realtime: "Echtzeit",
         over: "Partie beendet", units: "Einheiten", aboard: "an Bord",
         aspect: "Proportionen: Wargame-Brett oder echte Geografie", labels: "Städtenamen", home: "Zurück zu deinem Gebiet" },
-  pt: { factions: "Facções", selected: "Casa", events: "Eventos", clickHint: "Toque ou clique numa casa.",
+  pt: { activeH: "Unidade ativa", next: "Próxima", skip: "Pular", sentry: "Sentinela", fortify: "Fortificar", wake: "Acordar", endTurn: "FIM TURNO", yourTurn: "sua vez", turnOf: "turno de", noActive: "Nenhuma unidade selecionada: toque numa das suas unidades.", allDone: "Todas as unidades têm ordens.", routeHint: "Rota mostrada: toque de novo na casa para partir.", unreachable: "Destino inalcançável para esta unidade.", movesL: "movimentos", hpL: "PV", fuelL: "combustível", ord_sentry: "sentinela", ord_fortify: "fortificada", ord_goto: "em marcha", ord_auto: "automática", woke: "Unidades acordadas:", keysHint: "q w e / a d / z x c movem · n próxima · E fim turno",
+       factions: "Facções", selected: "Casa", events: "Eventos", clickHint: "Toque ou clique numa casa.",
         neutral: "Neutras", cities: "cidades", turn: "turno", midnight: "min para a meia-noite", sea: "mar", land: "terra",
         city: "cidade", capital: "capital", size: "tamanho", owner: "de", nobody: "neutra", fog: "fora de vista",
         noseat: "O mapa segue o seu lugar na partida. Entre primeiro pela <a href=\"./\">página do jogo</a> com este navegador: o mapa atualiza-se sozinho.",
@@ -334,7 +366,7 @@ function draw() {
   const size = Math.max(7, Math.min(cw * 0.78, CH * s * 0.6, 34));
   for (const [cell, us] of stacks) {
     for (const [x, y] of screenPos(cell)) {
-      const top = us.find((u) => u[2] !== state.viewer) || us[0];
+      const top = us.find((u) => u[2] !== state.viewer) || us.find((u) => u[0] === active) || us[0];
       const city = state.cityAt.has(cell);
       const cx = x + (city ? size * 0.45 : 0), cy = y - (city ? size * 0.45 : 0);
       if (cw < 5) { ctx.fillStyle = color(top[2]); ctx.fillRect(cx - 1.5, cy - 1.5, 3, 3); continue; }
@@ -351,6 +383,31 @@ function draw() {
         ctx.fillStyle = "#fff"; ctx.font = "700 " + Math.round(b * 0.8) + "px system-ui, sans-serif";
         ctx.fillText(String(us.length), cx + size / 2, cy - size / 2 + 0.5);
       }
+    }
+  }
+  if (route && route.cells && route.cells.length) {
+    ctx.strokeStyle = "rgba(255,255,255,.85)"; ctx.lineWidth = 2.5; ctx.setLineDash([6, 5]);
+    ctx.beginPath();
+    const pts = [activeUnit() ? activeUnit()[3] : route.cells[0], ...route.cells];
+    let prev = null;
+    for (const c of pts) {
+      const p = nearest(screenPos(c), prev);
+      if (!p) { prev = null; continue; }
+      prev ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]);
+      prev = p;
+    }
+    ctx.stroke(); ctx.setLineDash([]);
+    const end = nearest(screenPos(route.cell), prev);
+    if (end) { ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(end[0], end[1], 4, 0, Math.PI * 2); ctx.fill(); }
+  }
+  const au = activeUnit();
+  if (au && blinkOn) {
+    const size = Math.max(9, Math.min(CW * SX() * 0.78, CH * view.s * 0.6, 34)) + 6;
+    const city = state.cityAt.has(au[3]);
+    for (const [x, y] of screenPos(au[3])) {
+      const cx = x + (city ? (size - 6) * 0.45 : 0), cy = y - (city ? (size - 6) * 0.45 : 0);
+      ctx.strokeStyle = "#ffe066"; ctx.lineWidth = 2.5;
+      roundRect(cx - size / 2, cy - size / 2, size, size, size * 0.2); ctx.stroke();
     }
   }
   if (selected >= 0) {
@@ -434,7 +491,7 @@ function cellInfo() {
   const here = state.units.filter((u) => u[3] === i);
   if (here.length) {
     parts.push("<div>" + here.map((u) => `<span class="u"><span class="tok" style="background:${color(u[2])}">${u[1]}</span>` +
-      `${esc(state.unit_names[u[1]] || u[1])}${u[5] ? " +" + u[5] + " " + T.aboard : ""}</span>`).join("") + "</div>");
+      `${esc(state.unit_types[u[1]] ? state.unit_types[u[1]].name : u[1])}${u[5] ? " +" + u[5] + " " + T.aboard : ""}</span>`).join("") + "</div>");
   }
   $("cell").innerHTML = parts.join("");
 }
@@ -470,7 +527,7 @@ function release(e) {
   canvas.classList.remove("drag");
   if (drag && !drag.moved && world && state) {
     selected = cellAt(view.x + e.clientX / SX(), view.y + e.clientY / view.s);
-    $("side").classList.remove("closed");
+    clickCell(selected);
     cellInfo(); draw();
   }
   if (pointers.size < 2) pinch = null;
@@ -495,11 +552,158 @@ $("panelBtn").onclick = () => $("side").classList.toggle("closed");
 if (innerWidth < 640) $("side").classList.add("closed");
 addEventListener("resize", resize);
 addEventListener("keydown", (e) => {
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (orderKey(e.key)) { e.preventDefault(); return; }
   const keys = { ArrowLeft: [-60 / SX(), 0], ArrowRight: [60 / SX(), 0], ArrowUp: [0, -60 / view.s], ArrowDown: [0, 60 / view.s] };
   if (keys[e.key]) { view.x += keys[e.key][0]; view.y += keys[e.key][1]; clampView(); draw(); }
   else if (e.key === "+" || e.key === "=") $("zin").onclick();
   else if (e.key === "-") $("zout").onclick();
 });
+
+// ---------------------------------------------------------------- orders
+let socket = null, nextId = 1, active = null, route = null, blinkOn = true;
+const skipped = new Set();           // units passed over this turn (space)
+let skippedTurn = -1;
+const pending = new Map();           // command id -> what to do with its result
+function toast(text) {
+  if (!text) return;
+  const t = $("toast"); t.textContent = text; t.classList.add("on");
+  clearTimeout(toast.timer); toast.timer = setTimeout(() => t.classList.remove("on"), 2600);
+}
+function send(cmd, then) {
+  if (!socket || socket.readyState !== 1) return;
+  const id = nextId++;
+  if (then) pending.set(id, then);
+  socket.send(JSON.stringify({ t: "cmd", id, cmd }));
+}
+const mine = (u) => u[2] === state.viewer;
+function activeUnit() { return state && active != null ? state.units.find((u) => u[0] === active && mine(u)) || null : null; }
+function unitsAt(cell) { return state.units.filter((u) => u[3] === cell); }
+function waiting(u) { return mine(u) && u[6] > 0 && !u[7] && !skipped.has(u[0]); }
+function neighbours(i) {
+  const w = world.width, x = i % w, y = Math.floor(i / w), out = [];
+  const steps = !world.hex ? [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]]
+    : (y & 1) ? [[1, 0], [-1, 0], [0, -1], [1, -1], [0, 1], [1, 1]] : [[1, 0], [-1, 0], [-1, -1], [0, -1], [-1, 1], [0, 1]];
+  for (const [dx, dy] of steps) {
+    const ny = y + dy;
+    if (ny >= 0 && ny < world.height) out.push(ny * w + ((x + dx) % w + w) % w);
+  }
+  return out;
+}
+function stepDir(i, dx, dy) {          // as World.step_dir: on hexagons no straight north or south
+  const w = world.width, x = i % w, y = Math.floor(i / w);
+  if (y + dy < 0 || y + dy >= world.height) return -1;
+  let nx = x + dx;
+  if (world.hex && dy) { if (!dx) return -1; nx = x + (y & 1) + Math.floor((dx - 1) / 2); }
+  return (y + dy) * w + ((nx % w) + w) % w;
+}
+function nearest(points, ref) {        // of the copies of a cell, the one by the previous point
+  if (!points.length) return null;
+  if (!ref) return points[0];
+  return points.reduce((a, b) => (Math.abs(a[0] - ref[0]) <= Math.abs(b[0] - ref[0]) ? a : b));
+}
+function select(u) { active = u ? u[0] : null; route = null; activePanel(); draw(); }
+function selectNext() {
+  const a = activeUnit(), list = state.units.filter(waiting);
+  if (!list.length) { select(null); toast(T.allDone); return; }
+  const from = a ? a[3] : list[0][3], [fx, fy] = cellCentre(from), W = world.width * CW;
+  const d = (u) => { const [x, y] = cellCentre(u[3]); let dx = Math.abs(x - fx); dx = Math.min(dx, W - dx); return dx * dx + (y - fy) * (y - fy); };
+  list.sort((p, q) => d(p) - d(q) || p[0] - q[0]);
+  const u = list.find((v) => v[0] !== active) || list[0];
+  select(u);
+  focus(u[3]);
+}
+function focus(cell) {                 // keep a cell in view
+  const [sx, sy] = screenPos(cell)[0] || [-1, -1];
+  if (sx < 60 || sx > innerWidth - 60 || sy < 80 || sy > innerHeight - 80) {
+    const [cx, cy] = cellCentre(cell);
+    view.x = cx - innerWidth / 2 / SX(); view.y = cy - innerHeight / 2 / view.s; clampView(); draw();
+  }
+}
+function moveTo(cell) {
+  const a = activeUnit();
+  if (!a || !state.my_turn) return;
+  route = null;
+  send({ op: "move", unit: a[0], cell }, (r) => { if (r.result !== "moved") toast(r.text); });
+}
+function clickCell(cell) {
+  if (!state) return;
+  const a = activeUnit(), here = unitsAt(cell), own = here.filter(mine);
+  if (a && route && route.cell === cell && route.cells) {      // second tap: march
+    send({ op: "order", unit: a[0], order: "goto", target: cell }, (r) => toast(r.result === "ok" ? "" : r.text));
+    route = null; return;
+  }
+  if (a && cell === a[3]) {                                     // the next unit of the stack
+    const stack = own.filter((u) => u[0] !== a[0]);
+    if (stack.length) select(stack.find(waiting) || stack[0]);
+    return;
+  }
+  if (a && neighbours(a[3]).includes(cell)) {
+    const t = state.unit_types[a[1]];
+    const transport = own.some((u) => u[1] === "T" || u[1] === "C");
+    const enter = !own.length || state.cityAt.has(cell) || t.domain === "air" || (t.domain === "land" && transport)
+      || here.some((u) => !mine(u));
+    if (enter) { moveTo(cell); return; }
+  }
+  if (own.length) { select(own.find(waiting) || own[0]); return; }
+  if (a && state.my_turn) {                                     // far away: show the route first
+    route = { cell, cells: null };
+    socket.send(JSON.stringify({ t: "path", unit: a[0], cell }));
+  }
+}
+function order(o) {
+  const a = activeUnit();
+  if (o === "next") { selectNext(); return; }
+  if (!a) { toast(T.noActive); return; }
+  if (o === "skip") { skipped.add(a[0]); selectNext(); return; }
+  if (o === "wake") { send({ op: "wake", cell: a[3] }, (r) => toast(T.woke + " " + r.result)); return; }
+  send({ op: "order", unit: a[0], order: o }, (r) => { if (r.result === "ok") selectNext(); else toast(r.text); });
+}
+const MOVES = { q: [-1, -1], w: [0, -1], e: [1, -1], a: [-1, 0], d: [1, 0], z: [-1, 1], x: [0, 1], c: [1, 1],
+                7: [-1, -1], 8: [0, -1], 9: [1, -1], 4: [-1, 0], 6: [1, 0], 1: [-1, 1], 2: [0, 1], 3: [1, 1] };
+function orderKey(k) {
+  if (!state || !world) return false;
+  if (MOVES[k]) {
+    const a = activeUnit();
+    if (!a) { toast(T.noActive); return true; }
+    const to = stepDir(a[3], ...MOVES[k]);
+    if (to >= 0) moveTo(to);
+    return true;
+  }
+  const map = { n: "next", Tab: "next", " ": "skip", s: "sentry", f: "fortify", v: "wake" };
+  if (map[k]) { order(map[k]); return true; }
+  if (k === "E") { endTurn(); return true; }
+  if (k === "Escape") { route = null; select(null); return true; }
+  return false;
+}
+function endTurn() {
+  if (!state || !state.my_turn) return;
+  $("endTurn").disabled = true;
+  send({ op: "end_turn" }, (r) => { $("endTurn").disabled = false; if (r.result !== "ok") toast(r.text); });
+}
+document.querySelectorAll("#orders button").forEach((b) => { b.onclick = () => order(b.dataset.o); });
+$("endTurn").onclick = endTurn;
+setInterval(() => { blinkOn = !blinkOn; if (activeUnit()) draw(); }, 450);
+
+function activePanel() {
+  const a = activeUnit();
+  const box = $("active");
+  if (!a) { box.innerHTML = `<span class="muted">${T.noActive}</span>`; }
+  else {
+    const t = state.unit_types[a[1]];
+    const bits = [`${T.movesL} ${a[6]}/${t.move}`, `${T.hpL} ${a[4]}/${t.hp}`];
+    if (t.fuel) bits.push(`${T.fuelL} ${a[8]}/${t.fuel}`);
+    if (a[7]) bits.push(T["ord_" + a[7]] || a[7]);
+    box.innerHTML = `<span class="tok" style="background:${color(a[2])};display:inline-block;min-width:18px;` +
+      `padding:0 3px;border-radius:3px;color:#fff;font:600 12px/18px ui-monospace,monospace;text-align:center">${a[1]}</span> ` +
+      `<b>${esc(t.name)}</b>${a[5] ? " +" + a[5] + " " + T.aboard : ""}<br><span class="muted">${bits.join(" · ")}</span>`;
+  }
+  const can = !!a && state.my_turn;
+  document.querySelectorAll("#orders button").forEach((b) => {
+    const o = b.dataset.o;
+    b.disabled = o === "next" ? !state.my_turn : !can || (o === "fortify" && state.unit_types[a[1]].domain !== "land");
+  });
+}
 
 // ---------------------------------------------------------------- data
 function notice(html) { const n = $("notice"); n.innerHTML = html || ""; n.style.display = html ? "block" : "none"; }
@@ -526,16 +730,49 @@ async function onState(d) {
   if (!territory) return;
   buildBase();
   if (!fitted) { fit(); fitted = true; }
-  panel(); draw();
+  if (d.turn !== skippedTurn) { skipped.clear(); skippedTurn = d.turn; }
+  // the active unit: still ours and with moves, or the next one waiting for orders
+  const a = activeUnit();
+  if (d.my_turn && (!a || a[6] <= 0 || a[7])) {
+    const had = active != null;
+    active = a ? a[0] : null;
+    if (state.units.some(waiting)) selectNext(); else if (had) select(null);
+  }
+  if (!d.my_turn) route = null;
+  const tag = $("turnTag");
+  const cur = d.factions[d.current];
+  tag.textContent = d.realtime ? "⚡" : d.my_turn ? T.yourTurn : `${T.turnOf} ${cur ? cur.name : ""}`;
+  tag.classList.toggle("mine", !!d.my_turn);
+  $("endTurn").disabled = !d.my_turn;
+  panel(); activePanel(); draw();
 }
 let queue = Promise.resolve();
+// a link from the terminal (W) brings its seat after the #: kept for this tab
+// only, and never sent in an address
+let seat = "";
+const fromLink = /(?:^|[#&])seat=([0-9a-f]{32})/.exec(location.hash);
+if (fromLink) {
+  seat = fromLink[1];
+  try { sessionStorage.setItem("theempire.seat", seat); } catch (e) {}
+  history.replaceState(null, "", location.pathname);
+} else {
+  try { seat = sessionStorage.getItem("theempire.seat") || ""; } catch (e) {}
+}
 function connect() {
-  if (!/^[0-9a-f]{32}$/.test(browserId)) { notice(T.noseat); return; }
+  if (!seat && !/^[0-9a-f]{32}$/.test(browserId)) { notice(T.noseat); return; }
   const proto = location.protocol === "https:" ? "wss:" : "ws:";
-  const ws = new WebSocket(`${proto}//${location.host}${ROOT}map/ws?id=${browserId}&lang=${lang}`);
+  const ws = socket = new WebSocket(`${proto}//${location.host}${ROOT}map/ws?id=${browserId}&lang=${lang}`);
+  ws.onopen = () => ws.send(JSON.stringify({ t: "hello", seat }));
   ws.onmessage = (ev) => {
     const m = JSON.parse(ev.data);
     if (m.t === "state") { notice(""); queue = queue.then(() => onState(m.d)).catch(console.error); }
+    else if (m.t === "result") { const then = pending.get(m.id); pending.delete(m.id); if (then) then(m); }
+    else if (m.t === "path") {
+      if (route && route.cell === m.cell && m.unit === active) {
+        if (m.route) { route.cells = m.route; toast(T.routeHint); } else { route = null; toast(T.unreachable); }
+        draw();
+      }
+    }
     else if (m.t === "noseat") notice(T.noseat);
     else if (m.t === "offline") notice(T.offline);
   };

@@ -362,25 +362,63 @@ class WebGateway:
 
     # -- one map page
     def _map_session(self, ws: WebSocket, query: dict) -> None:
-        """The graphical map of a browser: it watches the game with the eyes
-        of the seat that browser holds (its terminal client keeps the token),
-        so the fog of war is the same as in the TUI."""
+        """The graphical map of a browser: it follows the game with the eyes
+        of a seat, and gives its orders. The seat is the one this browser
+        holds (its terminal client keeps the token), or the one whose token
+        the page brings (the link a terminal player gets with W)."""
         from theempire import mapview
         from theempire.net import MAX_SERVER_MESSAGE, PROTOCOL, recv_msg, send_msg
 
         browser = (query.get("id") or [""])[0]
         lang = (query.get("lang") or [""])[0]
         lang = lang if lang in i18n.LANGS else i18n.language()
-        if not re.fullmatch(r"[0-9a-f]{32}", browser):
+        seat = ""
+        try:  # the page's first message: the token of the link, if it came with one
+            first = json.loads(ws.recv() or "{}")
+            if isinstance(first, dict) and re.fullmatch(r"[0-9a-f]{32}", str(first.get("seat", ""))):
+                seat = first["seat"]
+        except (ConnectionError, OSError, ValueError):
+            return
+        if not seat and not re.fullmatch(r"[0-9a-f]{32}", browser):
             ws.close()
             return
         gone = threading.Event()
         server: list[socket.socket] = []
+        shared: dict = {}                       # the last game and viewer, for the routes
 
-        def listen() -> None:           # the page only talks to say goodbye
+        def reply(obj: dict) -> None:
             try:
-                while ws.recv() is not None:
-                    pass
+                ws.send_text(json.dumps(obj, separators=(",", ":")))
+            except OSError:
+                gone.set()
+
+        def listen() -> None:           # what the page asks: orders and routes
+            try:
+                while True:
+                    msg = ws.recv()
+                    if msg is None:
+                        break
+                    try:
+                        data = json.loads(msg)
+                    except ValueError:
+                        continue
+                    if not isinstance(data, dict):
+                        continue
+                    if data.get("t") == "cmd" and server:
+                        cmd = mapview.command(data.get("cmd"))
+                        if cmd is None:
+                            reply({"t": "result", "id": data.get("id"), "result": "illegal",
+                                   "text": mapview.result_text("illegal", lang)})
+                            continue
+                        try:
+                            send_msg(server[0], {"type": "cmd", "id": data.get("id"), "cmd": cmd})
+                        except OSError:
+                            pass
+                    elif data.get("t") == "path" and "game" in shared:
+                        route = mapview.path(shared["game"], shared["viewer"], data.get("unit"),
+                                             data.get("cell"))
+                        reply({"t": "path", "unit": data.get("unit"), "cell": data.get("cell"),
+                               "route": route})
             except (ConnectionError, OSError):
                 pass
             gone.set()
@@ -395,49 +433,58 @@ class WebGateway:
         sent_territory = ""
         try:
             while not gone.is_set():
-                try:
-                    seats = json.loads(tokens.read_text(encoding="utf-8")).get(address) or {}
-                except (OSError, ValueError, AttributeError):
-                    seats = {}
-                token = next(iter(seats.values()), "") if isinstance(seats, dict) else ""
+                token = seat
                 if not token:
-                    ws.send_text(json.dumps({"t": "noseat"}))
+                    try:
+                        seats = json.loads(tokens.read_text(encoding="utf-8")).get(address) or {}
+                    except (OSError, ValueError, AttributeError):
+                        seats = {}
+                    token = next(iter(seats.values()), "") if isinstance(seats, dict) else ""
+                if not token:
+                    reply({"t": "noseat"})
                     gone.wait(3)
                     continue
                 try:
                     sock = socket.create_connection(self.target, timeout=10)
                 except OSError:
-                    ws.send_text(json.dumps({"t": "offline"}))
+                    reply({"t": "offline"})
                     gone.wait(3)
                     continue
-                server[:] = [sock]
                 try:
                     send_msg(sock, {"type": "hello", "version": PROTOCOL, "watch": True, "token": token})
-                    reply = recv_msg(sock, MAX_SERVER_MESSAGE)
-                    if reply.get("type") != "welcome":
-                        ws.send_text(json.dumps({"t": "noseat"}))
+                    welcome = recv_msg(sock, MAX_SERVER_MESSAGE)
+                    if welcome.get("type") != "welcome":
+                        reply({"t": "noseat"})
                         gone.wait(3)
                         continue
-                    viewer = reply["faction"]
+                    viewer = welcome["faction"]
                     sock.settimeout(None)
+                    server[:] = [sock]
                     while not gone.is_set():
                         msg = recv_msg(sock, MAX_SERVER_MESSAGE)
+                        if msg.get("type") == "result":
+                            result = str(msg.get("result", ""))
+                            reply({"t": "result", "id": msg.get("id"), "result": result,
+                                   "text": mapview.result_text(result, lang)})
+                            continue
                         if msg.get("type") != "state":
                             continue
-                        data = mapview.view(msg["state"], viewer, lang)
+                        from theempire.game import Game
+                        game = Game.from_dict(msg["state"])
+                        shared.update(game=game, viewer=viewer)
+                        data = mapview.view_game(game, viewer, lang)
                         if data["territory_key"] == sent_territory:
                             del data["territory"]     # the page has it already
                         sent_territory = data["territory_key"]
                         data["started"] = bool(msg.get("started"))
-                        ws.send_text(json.dumps({"t": "state", "d": data}, separators=(",", ":")))
+                        reply({"t": "state", "d": data})
                 except (ConnectionError, OSError, ValueError, KeyError):
                     if not gone.is_set():
-                        ws.send_text(json.dumps({"t": "offline"}))
+                        reply({"t": "offline"})
                         gone.wait(3)
                 finally:
+                    server.clear()
                     sock.close()
-        except (ConnectionError, OSError):
-            pass
         finally:
             ws.close()
 

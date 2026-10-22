@@ -202,6 +202,7 @@ def serve(args: argparse.Namespace) -> int:
         if gateway is None:
             return 1
         threading.Thread(target=gateway.serve_forever, daemon=True).start()
+        server.web_port = gateway.port
     if not args.play:
         _welcome(args, server.port)
         try:

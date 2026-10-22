@@ -235,13 +235,26 @@ in alto nella web TUI la apre in una nuova scheda (oppure aprite
   unità). Il mondo si richiude da est a ovest, come nel gioco. Il pannello
   laterale elenca fazioni, casella ed eventi recenti; ☰ lo nasconde, `Aa`
   i nomi delle città, ⌂ riporta alla vostra zona.
+- **Ordini sulla mappa**: toccate una vostra unità per selezionarla
+  (lampeggia in giallo; un altro tocco passa alla successiva della pila);
+  toccate una casella accanto per muovere o attaccare; toccate una casella
+  lontana per vedere il percorso (tratteggiato) e toccatela di nuovo per
+  partire. Il pannello ha Prossima, Salta, Sentinella, Fortifica e Sveglia,
+  e in basso c'è FINE TURNO; in alto un'etichetta dice di chi è il turno.
+  Con la tastiera: `q w e` `a d` `z x c` (o il tastierino) muovono,
+  `n`/Tab prossima, spazio salta, `s` sentinella, `f` fortifica, `v`
+  sveglia, `E` fine turno, Esc deseleziona. Produzione, carte, diplomazia e
+  armi di distruzione di massa per ora restano nella TUI.
 - **La stessa nebbia del gioco**: la mappa segue il posto che quel browser
   occupa (si collega al server come *osservatore* con il gettone di quel
   posto), quindi mostra solo ciò che vede la vostra fazione. Senza un posto
-  chiede di entrare prima dalla pagina di gioco.
-- Per ora mostra soltanto: gli ordini si danno dalla TUI accanto, e la mappa
-  si aggiorna da sola dopo ogni mossa. Ordini, menu e bollettini sulla mappa
-  sono i prossimi passi.
+  chiede di entrare prima dalla pagina di gioco. TUI e mappa si usano
+  insieme: ogni mossa compare subito anche sull'altra.
+- **Anche da un terminale vero**: nelle partite online il cui server ha la
+  pagina web (`--serve --web`), `W` mostra il link alla mappa del vostro
+  posto, da aprire nel browser di qualunque dispositivo. Il gettone del
+  posto sta dopo il `#` (quella parte i browser non la mandano al server):
+  il link vale quanto il vostro posto, non datelo agli avversari.
 - Non le serve nulla da internet: niente tile, niente servizi esterni.
 
 ## Multiplayer online
@@ -706,6 +719,7 @@ numero a fianco di ogni voce la sceglie subito, ed Esc annulla.
 | `o` | obiettivo segreto, regioni con i loro bonus, eventi mondiali |
 | `Z` | spazio: satelliti spia e armi antisatellite |
 | `V` | unità con simboli o con lettere |
+| `W` | link alla mappa grafica del tuo posto (partite online con `--web`) |
 | `+` / `-` | zoom della mappa |
 | `B` | archivio dei bollettini di guerra: leggi, sfoglia i turni, `R` per rivedere l'animazione |
 | `T` | chat (partite online) |

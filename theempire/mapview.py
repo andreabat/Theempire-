@@ -114,15 +114,45 @@ def _date(game: Game, lang: str) -> str:
 
 def view(state: dict, viewer: int, lang: str | None = None, with_territory: bool = True) -> dict:
     """One moment of the game, as the viewer's faction sees it."""
+    return view_game(Game.from_dict(state), viewer, lang, with_territory)
+
+
+# what a map page may ask the server to do (the rest stays in the TUI for now)
+COMMANDS = {"move", "order", "wake", "end_turn", "load", "unload", "disband"}
+
+
+def command(cmd) -> dict | None:
+    """A command from a map page, if it is one it may give."""
+    if not isinstance(cmd, dict) or cmd.get("op") not in COMMANDS:
+        return None
+    return {k: v for k, v in cmd.items() if k in ("op", "unit", "cell", "order", "target")}
+
+
+def result_text(result: str, lang: str | None = None) -> str:
+    from theempire.commands import RESULTS
+    text = RESULTS.get(result, "")
+    return i18n.tr(text, lang) if text else ""
+
+
+def path(game: Game, viewer: int, unit, cell) -> list[int] | None:
+    """The route a unit of the viewer would take (None: no way there)."""
+    u = game.units.get(unit) if isinstance(unit, int) else None
+    if u is None or u.owner != viewer or not isinstance(cell, int) or not 0 <= cell < game.world.size:
+        return None
+    return game.path(u, cell)
+
+
+def view_game(g: Game, viewer: int, lang: str | None = None, with_territory: bool = True) -> dict:
     lang = lang or i18n.language()
-    g = Game.from_dict(state)
     w = g.world
     vis = g.visible(viewer)
     units = []
     for u in g.units.values():
         if u.carrier is not None:
             continue                     # aboard: the ship shows how many it carries
-        units.append([u.id, u.kind, u.owner, u.cell, u.hp, len(u.cargo)])
+        mine = u.owner == viewer
+        units.append([u.id, u.kind, u.owner, u.cell, u.hp, len(u.cargo),
+                      u.moves if mine else None, u.order if mine else None, u.fuel if mine else None])
     out = {
         "viewer": viewer,
         "hex": w.hexgrid,
@@ -143,7 +173,9 @@ def view(state: dict, viewer: int, lang: str | None = None, with_territory: bool
         "fallout": [c for c, _ in g.fallout.items()],
         "events": [{"turn": e.turn, "text": e.shown(lang), "level": e.level}
                    for e in g.events if e.audience is None or viewer in e.audience][-14:],
-        "unit_names": {k: i18n.word(t.name, lang) for k, t in UNIT_TYPES.items()},
+        "my_turn": bool(g.realtime or g.current == viewer) and not g.over,
+        "unit_types": {k: {"name": i18n.word(t.name, lang), "move": t.move, "hp": t.hp,
+                           "domain": t.domain, "fuel": t.fuel} for k, t in UNIT_TYPES.items()},
         "symbols": SYMBOLS,
         "territory_key": territory_key(g),
     }

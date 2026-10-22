@@ -134,6 +134,7 @@ class GameServer:
         self.sock: socket.socket | None = None
         self.last_pulse = time.time()   # real time: when the last pulse came
         self.watchers: list[Connection] = []   # map pages, each on a player's seat
+        self.web_port: int | None = None       # the web page (web.py), if there is one
         if resume:              # a saved game: its players get their seats back
             self._load_slots()
         else:                   # a new game: every seat is free again
@@ -275,14 +276,15 @@ class GameServer:
 
     def _watch(self, conn: Connection, token: str) -> bool:
         """A map page (web.py) following the game with the eyes of a seat
-        it holds the token of. It only reads: its commands are ignored."""
+        it holds the token of. It does not take the seat: the player keeps it."""
         with self.lock:
             slot = next((s for s in self.slots.values()
                          if token and s.token and hmac.compare_digest(s.token, token)), None)
             if slot is None:
                 conn.send({"type": "error", "message": tr("nessun posto con questo gettone")})
                 return False
-            conn.watching = slot.faction
+            # it may also give orders, as the seat it holds (its token proves it)
+            conn.watching, conn.slot = slot.faction, slot
             self.watchers.append(conn)
             conn.send({"type": "welcome", "faction": slot.faction, "watch": True,
                        "faction_key": self.game.factions[slot.faction].key})
@@ -291,7 +293,7 @@ class GameServer:
 
     def _state_for(self, f: int) -> dict:
         return {"type": "state", "state": commands.view_for(self.game, f), "lobby": self.lobby(),
-                "started": self.started, "deadline": self._deadline()}
+                "started": self.started, "deadline": self._deadline(), "web": self.web_port}
 
     def _leave(self, conn: Connection) -> None:
         with self.lock:
@@ -362,7 +364,8 @@ class GameServer:
         for slot in self.slots.values():
             if slot.conn is not None:
                 msg = {"type": "state", "state": commands.view_for(self.game, slot.faction),
-                       "lobby": lobby, "started": self.started, "deadline": self._deadline()}
+                       "lobby": lobby, "started": self.started, "deadline": self._deadline(),
+                       "web": self.web_port}
                 reel = self.reels.get(slot.faction)
                 if reel and (self.game.current == slot.faction or self.game.realtime):
                     msg["reel"] = reel
@@ -429,6 +432,8 @@ class RemoteSession:
         if reply.get("type") != "welcome":
             raise ProtocolError(tr("risposta inattesa dal server"))
         self.faction: int = reply["faction"]
+        self.host = host
+        self.token: str = reply["token"]
         self._store_token(reply.get("faction_key", ""), reply["token"])
         first = recv_msg(self.sock, MAX_SERVER_MESSAGE)
         if first.get("type") != "state":
@@ -439,6 +444,7 @@ class RemoteSession:
         self.started: bool = bool(first.get("started"))
         self.deadline: float | None = first.get("deadline")
         self.deadline_at = time.time()
+        self.web_port: int | None = first.get("web")   # the server's web page, for the map
         self.closed = False
         self.error = ""
         self.reel: list[dict] = []
@@ -510,7 +516,20 @@ class RemoteSession:
         self.started = bool(msg.get("started"))
         self.deadline = msg.get("deadline")
         self.deadline_at = time.time()
+        self.web_port = msg.get("web")
         return True
+
+    def map_link(self) -> str | None:
+        """The graphical map of this seat in a browser, if the server has a
+        web page. The seat token travels after the #, which browsers never
+        send to the server in the address."""
+        if not self.web_port:
+            return None
+        host = self.host
+        if host in ("127.0.0.1", "localhost", "0.0.0.0", "::1"):
+            from theempire.serversetup import lan_address
+            host = lan_address()
+        return f"http://{host}:{self.web_port}/map#seat={self.token}"
 
     def take_reel(self, f: int) -> list[dict]:
         """The bulletin the server sent with this turn (once)."""

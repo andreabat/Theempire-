@@ -234,13 +234,25 @@ at the top of the web TUI opens it in a new tab (or open
   shows what is there (place, city, owner, your units). The world wraps
   east-west, as in the game. The side panel lists the factions, the cell
   and the latest events; ☰ hides it, `Aa` the city names, ⌂ brings you back.
+- **Orders on the map**: tap one of your units to select it (it blinks in
+  yellow; tap again for the next one in the stack); tap a cell next to it to
+  move or attack; tap a distant cell to see the route (dashed) and tap it
+  again to march. The panel has Next, Skip, Sentry, Fortify and Wake, and
+  at the bottom there is END TURN; a badge at the top says whose turn it is.
+  With a keyboard: `q w e` `a d` `z x c` (or the keypad) move, `n`/Tab next,
+  space skip, `s` sentry, `f` fortify, `v` wake, `E` end turn, Esc
+  deselect. Production, cards, diplomacy and weapons of mass destruction
+  stay in the TUI for now.
 - **The same fog as in the game**: the map follows the seat that browser holds
   (it joins the server as a *watcher* with that seat's token), so it shows
   only what your faction sees. Without a seat it asks you to join first from
-  the game page.
-- For now it only shows: you give orders from the TUI next to it, and the
-  map updates by itself after every move. Orders, menus and bulletins on the
-  map are the next steps.
+  the game page. The TUI and the map can be used together: each move shows
+  up on the other at once.
+- **From a real terminal too**: in an online game whose server has the web
+  page (`--serve --web`), `W` shows the link to the map of your seat, to
+  open in a browser on any device. The seat's token is after the `#`
+  (browsers do not send that part to the server): the link is as good as
+  your seat, so do not give it to your rivals.
 - It needs nothing from the internet: no map tiles, no external services.
 
 ## Online multiplayer
@@ -699,6 +711,7 @@ number next to each entry chooses it at once, and Esc cancels.
 | `o` | secret objective, regions with their bonuses, world events |
 | `Z` | space: spy satellites and anti-satellite weapons |
 | `V` | units as symbols or letters |
+| `W` | link to the graphical map of your seat (online games with `--web`) |
 | `+` / `-` | map zoom |
 | `B` | war bulletin archive: read, browse the turns, `R` to replay the animation |
 | `T` | chat (online games) |

@@ -106,12 +106,36 @@ def test_gateway_serves_the_map(server):
         assert json.loads(get("/map/world.json?hex=1").read())["hex"]
         browser = os.urandom(16).hex()
         ws = WSClient(gw.port, f"/map/ws?id={browser}&lang=it")
+        ws.send({"t": "hello", "seat": ""})
         assert b"noseat" in ws.read_until(rb"noseat")
         # the browser's terminal client takes a seat: the map follows it
         home = tmp / "homes" / browser / ".theempire"
         RemoteSession("127.0.0.1", srv.port, "Anna", password="pw", tokens_file=home / "online.json")
         out = ws.read_until(rb'"t":"state"', timeout=20)
         assert b'"territory"' in out and b'"viewer":0' in out
+        # the map gives orders: a route, then the end of the turn
+        unit = next(u for u in srv.game.units.values() if u.owner == 0 and u.type.domain == "land")
+        far = next(c for c in srv.game.world.ring(unit.cell, 3) if srv.game.path(unit, c))
+        ws.send({"t": "path", "unit": unit.id, "cell": far})
+        assert b'"route":[' in ws.read_until(rb'"t":"path"')
+        ws.send({"t": "cmd", "id": 7, "cmd": {"op": "nuke", "cell": far}})      # not from the map
+        assert b'"result":"illegal"' in ws.read_until(rb'"id":7')
+        turn = srv.game.turn
+        ws.send({"t": "cmd", "id": 8, "cmd": {"op": "end_turn"}})
+        assert b'"result":"ok"' in ws.read_until(rb'"id":8,"result"')
+        assert srv.game.turn == turn + 1
+        ws.close()
+        # a terminal player opens the map with the link of W: the token after the #
+        player = RemoteSession("127.0.0.1", srv.port, "Anna", password="pw", tokens_file=home / "online.json")
+        srv.web_port = gw.port
+        player._pending = None
+        assert player.do(0, {"op": "save"}) in ("saved", "nosave")
+        player.poll()
+        link = player.map_link()
+        assert link and link.endswith("/map#seat=" + srv.slots[0].token) and f":{gw.port}/" in link
+        ws = WSClient(gw.port, "/map/ws?lang=en")                               # no browser id
+        ws.send({"t": "hello", "seat": srv.slots[0].token})
+        assert b'"viewer":0' in ws.read_until(rb'"t":"state"', timeout=20)
         ws.close()
     finally:
         gw.stop()
