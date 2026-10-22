@@ -22,6 +22,7 @@ from datetime import date, timedelta
 from functools import lru_cache
 
 from theempire import i18n
+from theempire.i18n import N
 from theempire.game import Game
 from theempire.units import SYMBOLS, UNIT_TYPES
 from theempire.world import load_hd, load_world
@@ -118,14 +119,14 @@ def view(state: dict, viewer: int, lang: str | None = None, with_territory: bool
 
 
 # what a map page may ask the server to do (the rest stays in the TUI for now)
-COMMANDS = {"move", "order", "wake", "end_turn", "load", "unload", "disband", "produce", "release", "directive"}
+COMMANDS = {"move", "order", "wake", "end_turn", "load", "unload", "disband", "produce", "release", "directive", "nuke", "chem", "asat", "card"}
 
 
 def command(cmd) -> dict | None:
     """A command from a map page, if it is one it may give."""
     if not isinstance(cmd, dict) or cmd.get("op") not in COMMANDS:
         return None
-    return {k: v for k, v in cmd.items() if k in ("op", "unit", "cell", "order", "target", "city", "key", "name", "all")}
+    return {k: v for k, v in cmd.items() if k in ("op", "unit", "cell", "order", "target", "city", "key", "name", "all", "card")}
 
 
 def result_text(result: str, lang: str | None = None) -> str:
@@ -196,6 +197,88 @@ def production(g: Game, viewer: int, lang: str | None = None) -> dict:
             "manual": sum(1 for c in g.cities_of(viewer) if c.manual)}
 
 
+def _longitude(lon: float) -> str:
+    return f"{abs(lon):.0f}°{'E' if lon >= 0 else 'W'}"
+
+
+def weapons(g: Game, viewer: int, lang: str | None = None) -> dict:
+    """The viewer's weapons of mass destruction and its war in space."""
+    from theempire.game import CHEM_RANGE
+    fac = g.factions[viewer]
+    w = g.world
+    sats = []
+    for k, x in enumerate(fac.satellites):
+        band = g.satellite_band(x)
+        west = w.lonlat(band.start % w.width)[0]
+        east = w.lonlat((band.stop - 1) % w.width)[0]
+        sats.append({"col": x, "from": band.start, "to": band.stop,
+                     "text": i18n.tr("Satellite {n}: sorvola da {west} a {east}", lang, n=k + 1,
+                                     west=_longitude(west), east=_longitude(east))})
+    targets = [{"idx": o.idx, "label": i18n.tr("Lancia un'arma antisatellite contro {faction} ({n} satelliti)",
+                                               lang, faction=o.name, n=len(o.satellites))}
+               for o in g.factions if o.idx != viewer and o.alive]
+    return {
+        "warheads": fac.warheads, "nuclear": fac.nuclear, "chemicals": fac.chemicals,
+        "chem_range": CHEM_RANGE, "modern": g.scenario.modern, "asats": fac.asats, "satellites": sats,
+        "space_info": i18n.tr("Un satellite spia vede tutte le unità nemiche (tranne i sottomarini) in una "
+                              "fascia larga 25° e mostra le loro mosse nel bollettino. Ogni turno sorvola "
+                              "un'altra fascia. Si costruisce nelle città grandi o nelle capitali.", lang),
+        "no_satellites": i18n.tr("Nessun satellite in orbita.", lang),
+        "asats_text": i18n.tr("Armi antisatellite pronte: {n}", lang, n=fac.asats),
+        "asat_targets": targets,
+        "asat_hit": i18n.tr("Satellite nemico abbattuto!", lang),
+    }
+
+
+CARD_HINTS = {
+    "own_city": N("♠ {card}: porta il cursore su una tua città e premi Invio."),
+    "enemy_unit": N("♠ {card}: porta il cursore su un'unità nemica fuori dalle città e premi Invio."),
+    "enemy_city": N("♠ {card}: porta il cursore su una città nemica e premi Invio."),
+    "neutral_city": N("♠ {card}: porta il cursore su una città neutrale e premi Invio."),
+}
+
+
+def hand(g: Game, viewer: int, lang: str | None = None) -> dict:
+    """The viewer's cards, as the terminal's K menu shows them, and the last
+    report of its spies."""
+    from theempire import cards
+    out = []
+    for key in g.factions[viewer].cards:
+        c = cards.CARDS.get(key)
+        if c is None:
+            continue
+        out.append({"key": key, "name": i18n.word(c.name, lang), "text": i18n.word(c.text, lang),
+                    "target": c.target,
+                    "odds": i18n.tr("riesce nel {pct}% dei casi", lang, pct=int(c.chance * 100))
+                    if c.chance < 1 else "",
+                    "hint": i18n.tr(CARD_HINTS[c.target], lang, card=c.name) if c.target in CARD_HINTS else ""})
+    empty = [i18n.tr("Non hai carte.", lang), "",
+             i18n.tr("Ne peschi una a fine turno con una probabilità che cresce con le", lang),
+             i18n.tr("città conquistate nel turno: 20% per una piccola, 60% per una grande", lang),
+             i18n.tr("o una capitale, al massimo 80%;", lang),
+             i18n.tr("e una ogni {every} turni dai servizi segreti (massimo {limit} in mano).", lang,
+                     every=cards.BRIEFING_EVERY, limit=cards.HAND_LIMIT)]
+    intel = [e.shown(lang).lstrip("◈ ") for e in g.events
+             if (e.audience is None or viewer in e.audience) and (e.msg[0] if e.msg else e.text).startswith("◈")][-6:]
+    return {"cards": out, "limit": cards.HAND_LIMIT, "empty": empty, "intel": intel,
+            "title": i18n.tr("Le tue carte ({n}/{limit})", lang, n=len(out), limit=cards.HAND_LIMIT),
+            "intel_title": i18n.tr("◈ RAPPORTO DEI SERVIZI SEGRETI", lang),
+            "not_your_turn": i18n.tr("Le carte si giocano nel tuo turno.", lang)}
+
+
+def card_result(key: str, result: str, lang: str | None = None) -> str:
+    """What the terminal says after playing a card."""
+    from theempire import cards
+    c = cards.CARDS.get(key)
+    name = c.name if c else key
+    if result == "ok":
+        return i18n.tr("♠ {card}: fatto!", lang, card=name)
+    if result == "failed":
+        return i18n.tr("♠ {card}: il tentativo è fallito, la carta è persa.", lang, card=name)
+    return i18n.tr("♠ {card}: {reason} La carta resta in mano.", lang, card=name,
+                   reason=result_text(result, lang) or i18n.tr("non si può giocare così.", lang))
+
+
 def view_game(g: Game, viewer: int, lang: str | None = None, with_territory: bool = True) -> dict:
     lang = lang or i18n.language()
     w = g.world
@@ -233,6 +316,8 @@ def view_game(g: Game, viewer: int, lang: str | None = None, with_territory: boo
         "symbols": SYMBOLS,
         "territory_key": territory_key(g),
         "production": production(g, viewer, lang),
+        "weapons": weapons(g, viewer, lang),
+        "hand": hand(g, viewer, lang),
     }
     if with_territory:
         out["territory"] = territory(g)

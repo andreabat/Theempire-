@@ -254,8 +254,25 @@ in alto nella web TUI la apre in una nuova scheda (oppure aprite
   solo ordine a tutta l'economia di guerra, come nel terminale: manuale,
   bilanciata, offensiva terrestre, potenza aerea, dominio dei mari, sbarchi,
   difesa, deterrenza. Le città impostate a mano restano come sono, a meno
-  di spuntare la casella per includerle. Carte, diplomazia e armi di
-  distruzione di massa per ora restano nella TUI.
+  di spuntare la casella per includerle.
+- **Armi di distruzione di massa**: ☢ (o `N`) e ☣ (o `C`) in basso armano
+  l'attacco; la casella sotto il puntatore e quelle accanto si accendono in
+  rosso o in verde (ciò che l'esplosione colpirebbe), un tocco sceglie il
+  bersaglio. Un lancio nucleare chiede, come nel terminale, di digitare il
+  codice di autorizzazione mostrato nel riquadro; il gas deve cadere entro
+  4 caselle dalle vostre forze. Poi il lampo, la palla di fuoco e lo
+  schermo che trema. Il pannello mostra le scorte (☢ testate, ☣ armi
+  chimiche, 🛰 satelliti, ✦ armi antisatellite).
+- **Spazio** (scenari con le armi di oggi): 🛰 (o `Z`) elenca i vostri
+  satelliti spia e la fascia che ognuno sorveglia, e lancia le armi
+  antisatellite contro i satelliti di un rivale. Le fasce sorvegliate sono
+  strisce azzurre tenui sulla mappa.
+- **Carte**: «♠ Carte (K)» sotto le fazioni mostra la mano, con le
+  probabilità di ogni carta; Gioca la gioca. Le carte contro una fazione
+  chiedono quale; quelle su una città o un'unità accendono in magenta la
+  casella sotto il puntatore, e un tocco le gioca lì. Lo spionaggio apre il
+  rapporto dei servizi segreti. La diplomazia (tregue) per ora resta nella
+  TUI.
 - **Battaglie e turno nemico animati**: i vostri attacchi si vedono sulla
   mappa (il fuoco dell'arma vola sul bersaglio, l'esplosione, poi ✕ su chi
   ha perso o ⚑ sulla città presa). Quando gli altri hanno mosso parte il

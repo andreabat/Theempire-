@@ -252,8 +252,23 @@ at the top of the web TUI opens it in a new tab (or open
   order to the whole war economy, as in the terminal: manual, balanced, land
   offensive, air power, naval supremacy, landings, defence, deterrence.
   The cities set by hand stay as they are, unless you tick the box to
-  include them. Cards, diplomacy and weapons of mass destruction stay in
-  the TUI for now.
+  include them.
+- **Weapons of mass destruction**: ☢ (or `N`) and ☣ (or `C`) at the bottom
+  arm the strike; the cell under the pointer and its neighbours light up in
+  red or green (what the blast would hit), a tap chooses the target. A
+  nuclear launch asks, as in the terminal, to type the authorization code
+  shown in the dialog; the gas must fall within 4 cells of your forces.
+  Then the flash, the fireball and the shaking screen. The panel shows your
+  stocks (☢ warheads, ☣ chemical weapons, 🛰 satellites, ✦ ASATs).
+- **Space** (scenarios with today's weapons): 🛰 (or `Z`) lists your spy
+  satellites and the band each one watches, and fires your anti-satellite
+  weapons at a rival's satellites. The bands your satellites watch are faint
+  blue stripes on the map.
+- **Cards**: "♠ Cards (K)" under the factions shows your hand, with the odds
+  of each card; Play plays it. Cards aimed at a faction ask which one; those
+  aimed at a city or a unit light up the cell under the pointer in magenta,
+  and a tap plays them there. Espionage opens the spies' report.
+  Diplomacy (truces) stays in the TUI for now.
 - **Battles and the enemy turn, animated**: your own attacks play on the
   map (the weapon's fire flies to the target, the explosion, then ✕ on
   whoever lost or ⚑ on a captured city). When the others have moved, the

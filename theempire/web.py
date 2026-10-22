@@ -385,6 +385,7 @@ class WebGateway:
         gone = threading.Event()
         server: list[socket.socket] = []
         shared: dict = {}                       # the last game and viewer, for the routes
+        cards_sent: dict = {}                   # command id -> card played, for its message
 
         def reply(obj: dict) -> None:
             try:
@@ -406,6 +407,8 @@ class WebGateway:
                         continue
                     if data.get("t") == "cmd" and server:
                         cmd = mapview.command(data.get("cmd"))
+                        if cmd is not None and cmd["op"] == "card":
+                            cards_sent[data.get("id")] = str(cmd.get("card", ""))
                         if cmd is None:
                             reply({"t": "result", "id": data.get("id"), "result": "illegal",
                                    "text": mapview.result_text("illegal", lang)})
@@ -464,8 +467,10 @@ class WebGateway:
                         msg = recv_msg(sock, MAX_SERVER_MESSAGE)
                         if msg.get("type") == "result":
                             result = str(msg.get("result", ""))
+                            card = cards_sent.pop(msg.get("id"), None)
                             reply({"t": "result", "id": msg.get("id"), "result": result,
-                                   "text": mapview.result_text(result, lang)})
+                                   "text": mapview.card_result(card, result, lang) if card is not None
+                                   else mapview.result_text(result, lang)})
                             continue
                         if msg.get("type") != "state":
                             continue

@@ -119,7 +119,7 @@ def test_gateway_serves_the_map(server):
         far = next(c for c in srv.game.world.ring(unit.cell, 3) if srv.game.path(unit, c))
         ws.send({"t": "path", "unit": unit.id, "cell": far})
         assert b'"route":[' in ws.read_until(rb'"t":"path"')
-        ws.send({"t": "cmd", "id": 7, "cmd": {"op": "nuke", "cell": far}})      # not from the map
+        ws.send({"t": "cmd", "id": 7, "cmd": {"op": "truce", "target": 1}})     # not from the map
         assert b'"result":"illegal"' in ws.read_until(rb'"id":7')
         turn = srv.game.turn
         ws.send({"t": "cmd", "id": 8, "cmd": {"op": "end_turn"}})
@@ -205,3 +205,23 @@ def test_directive_from_the_map():
     assert int(commands.apply(g, 0, cmd)) > 0 and not city.manual
     d = mapview.view(commands.view_for(g, 0), 0, "en")["production"]
     assert d["directive"] == "air" and d["directive_name"] == "air power"
+
+
+def test_weapons_and_cards_for_the_map():
+    g = Game("ww3", humans=("west",), seed=1)
+    f = g.factions[0]
+    f.chemicals, f.asats, f.satellites, f.cards = 2, 1, [10], ["plan", "spy", "reinforce"]
+    d = mapview.view(commands.view_for(g, 0), 0, "en")
+    wp = d["weapons"]
+    assert wp["warheads"] == f.warheads and wp["chemicals"] == 2 and wp["asats"] == 1
+    assert wp["satellites"][0]["from"] == 10 - 12 and "Satellite 1" in wp["satellites"][0]["text"]
+    assert {t["idx"] for t in wp["asat_targets"]} == {1, 2}
+    h = d["hand"]
+    assert [c["key"] for c in h["cards"]] == ["plan", "spy", "reinforce"]
+    assert h["cards"][2]["target"] == "own_city" and h["title"] == "Your cards (3/4)"
+    for op in ("nuke", "chem", "asat", "card"):
+        assert mapview.command({"op": op})["op"] == op
+    cmd = mapview.command({"op": "card", "card": "plan", "cell": None, "target": None})
+    assert commands.apply(g, 0, cmd) == "ok" and "plan" not in f.cards
+    assert mapview.card_result("plan", "ok", "en") == "♠ Five-Year Plan: done!"
+    assert "stays in your hand" in mapview.card_result("revolt", "notarget", "en")
