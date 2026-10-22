@@ -300,7 +300,9 @@ web TUI goes back): the two share the browser's seat.
   armies, which glide from cell to cell, and moves in close on every battle,
   capture, nuclear or chemical strike, with the chronicle line in a banner
   ("⚔ AGAINST US..." in red when it is your forces they hit; the screen
-  shakes). Enemy units appear only when the bulletin brings them. A tap, Esc
+  shakes). The map is rewound to the start of the bulletin: enemy units appear
+  only when the bulletin brings them, the units it destroys stay in place until
+  the explosion takes them, and a city keeps its old colour until it falls. A tap, Esc
   or "Skip ▶▶" ends it; then the view goes back to where you were. 🔊 turns
   the map's sounds on or off.
 - **The same fog as in the game**: the map follows the seat that browser holds

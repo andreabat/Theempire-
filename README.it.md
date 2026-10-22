@@ -305,8 +305,10 @@ nella web TUI torna indietro): i due condividono il posto del browser.
   armate, che scivolano di casella in casella, e si avvicina a ogni
   battaglia, conquista, attacco nucleare o chimico, con la riga della
   cronaca in un riquadro («⚔ CONTRO DI NOI...» in rosso quando colpiscono
-  le vostre forze; lo schermo trema). Le unità nemiche compaiono solo
-  quando il bollettino le porta. Un tocco, Esc o «Salta ▶▶» lo chiudono;
+  le vostre forze; lo schermo trema). La mappa è riavvolta all'inizio del
+  bollettino: le unità nemiche compaiono solo quando il bollettino le porta,
+  quelle che distrugge restano al loro posto finché l'esplosione non le
+  prende, e una città tiene il vecchio colore finché non cade. Un tocco, Esc o «Salta ▶▶» lo chiudono;
   poi la vista torna dov'era. 🔊 accende o spegne i suoni della mappa.
 - **La stessa nebbia del gioco**: la mappa segue il posto che quel browser
   occupa (si collega al server come *osservatore* con il gettone di quel
