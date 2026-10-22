@@ -56,6 +56,30 @@
            background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 6px 14px;
            opacity: 0; transition: opacity .25s; pointer-events: none; }
   #toast.on { opacity: 1; }
+  #prod { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: none; align-items: center;
+          justify-content: center; padding: 16px; }
+  #prod.on { display: flex; }
+  #prod .dlg { width: min(560px, 100%); max-height: 100%; overflow: auto; background: #11151c;
+               border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+  #prod .hd { display: flex; align-items: center; gap: 8px; }
+  #prod .hd b { flex: 1; }
+  #prod .x { font: inherit; background: none; border: 0; color: var(--dim); cursor: pointer; font-size: 18px; }
+  #prod .now { color: var(--dim); margin: 2px 0 8px; font-size: 13px; }
+  #prod .opt { display: grid; grid-template-columns: 26px 1fr auto; grid-template-rows: auto auto; gap: 0 8px;
+               width: 100%; text-align: left; font: inherit; color: var(--text); background: #161b24;
+               border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; margin-top: 4px; cursor: pointer; }
+  #prod .opt:hover, #prod .opt:focus { border-color: #4a5a72; outline: none; }
+  #prod .opt.cur { border-color: var(--accent); }
+  #prod .opt .tok { grid-row: span 2; align-self: center; display: inline-block; min-width: 22px; padding: 0 3px;
+                    border-radius: 4px; color: #fff; font: 700 13px/22px ui-monospace, monospace; text-align: center; }
+  #prod .opt .tok.sp { background: #3a3f4a; }
+  #prod .opt .nm { font-weight: 600; }
+  #prod .opt .cs { color: var(--dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  #prod .opt .st { grid-column: 2 / span 2; color: var(--dim); font-size: 12px; }
+  @media (min-width: 700px) { #prod .list { display: grid; grid-template-columns: 1fr 1fr; gap: 0 6px; } }
+  #prod .dlg { width: min(720px, 100%); }
+  #prod .opt.back { display: block; text-align: center; margin-top: 10px; }
+  #prod .note { color: var(--dim); font-size: 12px; margin-top: 10px; }
   #reel { position: fixed; top: 46px; left: 50%; transform: translateX(-50%); width: min(620px, calc(100% - 16px));
           background: rgba(10, 12, 16, .9); border: 1px solid #5a2a2a; border-radius: 8px; padding: 6px 12px 8px;
           display: none; }
@@ -117,6 +141,7 @@
 </div>
 <div id="notice"></div>
 <div id="toast"></div>
+<div id="prod"></div>
 <div id="reel"><div class="head"><span id="reelTitle"></span><button id="reelSkip"></button></div>
   <div id="reelLine"></div></div>
 
@@ -130,7 +155,8 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} },
 };
 const TEXTS = {
-  it: { reelTitle: "▶ BOLLETTINO DI GUERRA", reelSkip: "Salta ▶▶", sound: "Suoni sulla mappa", moving: "in movimento",
+  it: { prodBtn: "Produzione… (p)", prodTitle: "Produzione di {city} ({rate} punti/turno)", turns: "turni", readyIn: "pronta in", manual: "a mano", backDirective: "Torna alla direttiva: {d}", leaveNote: "Scegliendo a mano, questa città non seguirà più la direttiva.", nowBuilds: "{city} ora produce {item}.", released: "{city} torna a seguire la direttiva.",
+       reelTitle: "▶ BOLLETTINO DI GUERRA", reelSkip: "Salta ▶▶", sound: "Suoni sulla mappa", moving: "in movimento",
        activeH: "Unità attiva", next: "Prossima", skip: "Salta", sentry: "Sentinella", fortify: "Fortifica", wake: "Sveglia", endTurn: "FINE TURNO", yourTurn: "tocca a te", turnOf: "turno di", noActive: "Nessuna unità selezionata: tocca una tua unità.", allDone: "Tutte le unità hanno ricevuto ordini.", routeHint: "Percorso mostrato: tocca di nuovo la casella per partire.", unreachable: "Destinazione irraggiungibile per questa unità.", movesL: "mosse", hpL: "PV", fuelL: "carburante", ord_sentry: "sentinella", ord_fortify: "fortificata", ord_goto: "in marcia", ord_auto: "automatica", woke: "Unità svegliate:", keysHint: "q w e / a d / z x c muovono · n prossima · E fine turno",
        factions: "Fazioni", selected: "Casella", events: "Eventi", clickHint: "Tocca o clicca una casella.",
         neutral: "Neutrali", cities: "città", turn: "turno", midnight: "min a mezzanotte", sea: "mare", land: "terra",
@@ -139,7 +165,8 @@ const TEXTS = {
         offline: "Server non raggiungibile: riprovo…", waiting: "in attesa dei giocatori", realtime: "tempo reale",
         over: "Partita finita", units: "unità", aboard: "a bordo",
         aspect: "Proporzioni: plancia da wargame o geografia vera", labels: "Nomi delle città", home: "Torna alla tua zona" },
-  en: { reelTitle: "▶ WAR BULLETIN", reelSkip: "Skip ▶▶", sound: "Sounds on the map", moving: "on the move",
+  en: { prodBtn: "Production… (p)", prodTitle: "Production of {city} ({rate} points/turn)", turns: "turns", readyIn: "ready in", manual: "by hand", backDirective: "Back to the directive: {d}", leaveNote: "Choosing by hand, this city will no longer follow the directive.", nowBuilds: "{city} now builds {item}.", released: "{city} follows the directive again.",
+       reelTitle: "▶ WAR BULLETIN", reelSkip: "Skip ▶▶", sound: "Sounds on the map", moving: "on the move",
        activeH: "Active unit", next: "Next", skip: "Skip", sentry: "Sentry", fortify: "Fortify", wake: "Wake", endTurn: "END TURN", yourTurn: "your turn", turnOf: "turn of", noActive: "No unit selected: tap one of your units.", allDone: "Every unit has its orders.", routeHint: "Route shown: tap the cell again to set off.", unreachable: "This unit cannot reach that place.", movesL: "moves", hpL: "HP", fuelL: "fuel", ord_sentry: "sentry", ord_fortify: "fortified", ord_goto: "marching", ord_auto: "automatic", woke: "Units woken:", keysHint: "q w e / a d / z x c move · n next · E end turn",
        factions: "Factions", selected: "Cell", events: "Events", clickHint: "Tap or click a cell.",
         neutral: "Neutral", cities: "cities", turn: "turn", midnight: "min to midnight", sea: "sea", land: "land",
@@ -148,7 +175,8 @@ const TEXTS = {
         offline: "Server unreachable: retrying…", waiting: "waiting for players", realtime: "real time",
         over: "Game over", units: "units", aboard: "aboard",
         aspect: "Proportions: wargame board or true geography", labels: "City names", home: "Back to your area" },
-  fr: { reelTitle: "▶ BULLETIN DE GUERRE", reelSkip: "Passer ▶▶", sound: "Sons sur la carte", moving: "en mouvement",
+  fr: { prodBtn: "Production… (p)", prodTitle: "Production de {city} ({rate} points/tour)", turns: "tours", readyIn: "prête dans", manual: "à la main", backDirective: "Revenir à la directive : {d}", leaveNote: "En choisissant à la main, cette ville ne suivra plus la directive.", nowBuilds: "{city} produit maintenant {item}.", released: "{city} suit de nouveau la directive.",
+       reelTitle: "▶ BULLETIN DE GUERRE", reelSkip: "Passer ▶▶", sound: "Sons sur la carte", moving: "en mouvement",
        activeH: "Unité active", next: "Suivante", skip: "Passer", sentry: "Sentinelle", fortify: "Fortifier", wake: "Réveiller", endTurn: "FIN DU TOUR", yourTurn: "à vous", turnOf: "tour de", noActive: "Aucune unité choisie : touchez une de vos unités.", allDone: "Toutes les unités ont leurs ordres.", routeHint: "Itinéraire affiché : touchez à nouveau la case pour partir.", unreachable: "Destination inaccessible pour cette unité.", movesL: "mouvements", hpL: "PV", fuelL: "carburant", ord_sentry: "sentinelle", ord_fortify: "fortifiée", ord_goto: "en marche", ord_auto: "automatique", woke: "Unités réveillées :", keysHint: "q w e / a d / z x c déplacent · n suivante · E fin du tour",
        factions: "Factions", selected: "Case", events: "Événements", clickHint: "Touchez ou cliquez une case.",
         neutral: "Neutres", cities: "villes", turn: "tour", midnight: "min avant minuit", sea: "mer", land: "terre",
@@ -157,7 +185,8 @@ const TEXTS = {
         offline: "Serveur injoignable : nouvel essai…", waiting: "en attente des joueurs", realtime: "temps réel",
         over: "Partie terminée", units: "unités", aboard: "à bord",
         aspect: "Proportions : plateau de wargame ou vraie géographie", labels: "Noms des villes", home: "Revenir à votre zone" },
-  es: { reelTitle: "▶ PARTE DE GUERRA", reelSkip: "Saltar ▶▶", sound: "Sonidos en el mapa", moving: "en movimiento",
+  es: { prodBtn: "Producción… (p)", prodTitle: "Producción de {city} ({rate} puntos/turno)", turns: "turnos", readyIn: "lista en", manual: "a mano", backDirective: "Volver a la directiva: {d}", leaveNote: "Al elegir a mano, esta ciudad dejará de seguir la directiva.", nowBuilds: "{city} ahora produce {item}.", released: "{city} vuelve a seguir la directiva.",
+       reelTitle: "▶ PARTE DE GUERRA", reelSkip: "Saltar ▶▶", sound: "Sonidos en el mapa", moving: "en movimiento",
        activeH: "Unidad activa", next: "Siguiente", skip: "Saltar", sentry: "Centinela", fortify: "Fortificar", wake: "Despertar", endTurn: "FIN TURNO", yourTurn: "te toca", turnOf: "turno de", noActive: "Ninguna unidad seleccionada: toca una de tus unidades.", allDone: "Todas las unidades tienen órdenes.", routeHint: "Ruta mostrada: toca otra vez la casilla para partir.", unreachable: "Destino inalcanzable para esta unidad.", movesL: "movimientos", hpL: "PV", fuelL: "combustible", ord_sentry: "centinela", ord_fortify: "fortificada", ord_goto: "en marcha", ord_auto: "automática", woke: "Unidades despertadas:", keysHint: "q w e / a d / z x c mueven · n siguiente · E fin turno",
        factions: "Facciones", selected: "Casilla", events: "Eventos", clickHint: "Toca o haz clic en una casilla.",
         neutral: "Neutrales", cities: "ciudades", turn: "turno", midnight: "min para medianoche", sea: "mar", land: "tierra",
@@ -166,7 +195,8 @@ const TEXTS = {
         offline: "Servidor inalcanzable: reintentando…", waiting: "esperando jugadores", realtime: "tiempo real",
         over: "Partida terminada", units: "unidades", aboard: "a bordo",
         aspect: "Proporciones: tablero de wargame o geografía real", labels: "Nombres de las ciudades", home: "Volver a tu zona" },
-  de: { reelTitle: "▶ KRIEGSBERICHT", reelSkip: "Überspringen ▶▶", sound: "Töne auf der Karte", moving: "in Bewegung",
+  de: { prodBtn: "Produktion… (p)", prodTitle: "Produktion von {city} ({rate} Punkte/Zug)", turns: "Züge", readyIn: "fertig in", manual: "von Hand", backDirective: "Zurück zur Direktive: {d}", leaveNote: "Wählst du von Hand, folgt diese Stadt nicht mehr der Direktive.", nowBuilds: "{city} produziert jetzt {item}.", released: "{city} folgt wieder der Direktive.",
+       reelTitle: "▶ KRIEGSBERICHT", reelSkip: "Überspringen ▶▶", sound: "Töne auf der Karte", moving: "in Bewegung",
        activeH: "Aktive Einheit", next: "Nächste", skip: "Überspringen", sentry: "Wache", fortify: "Befestigen", wake: "Wecken", endTurn: "ZUG ENDE", yourTurn: "du bist dran", turnOf: "Zug von", noActive: "Keine Einheit gewählt: tippe auf eine deiner Einheiten.", allDone: "Alle Einheiten haben Befehle.", routeHint: "Route angezeigt: tippe das Feld noch einmal, um loszuziehen.", unreachable: "Ziel für diese Einheit unerreichbar.", movesL: "Züge", hpL: "TP", fuelL: "Treibstoff", ord_sentry: "Wache", ord_fortify: "befestigt", ord_goto: "auf dem Marsch", ord_auto: "automatisch", woke: "Geweckte Einheiten:", keysHint: "q w e / a d / z x c bewegen · n nächste · E Zug Ende",
        factions: "Fraktionen", selected: "Feld", events: "Ereignisse", clickHint: "Tippe oder klicke auf ein Feld.",
         neutral: "Neutrale", cities: "Städte", turn: "Zug", midnight: "Min. bis Mitternacht", sea: "Meer", land: "Land",
@@ -175,7 +205,8 @@ const TEXTS = {
         offline: "Server nicht erreichbar: neuer Versuch…", waiting: "wartet auf Spieler", realtime: "Echtzeit",
         over: "Partie beendet", units: "Einheiten", aboard: "an Bord",
         aspect: "Proportionen: Wargame-Brett oder echte Geografie", labels: "Städtenamen", home: "Zurück zu deinem Gebiet" },
-  pt: { reelTitle: "▶ BOLETIM DE GUERRA", reelSkip: "Pular ▶▶", sound: "Sons no mapa", moving: "em movimento",
+  pt: { prodBtn: "Produção… (p)", prodTitle: "Produção de {city} ({rate} pontos/turno)", turns: "turnos", readyIn: "pronta em", manual: "à mão", backDirective: "Voltar à diretiva: {d}", leaveNote: "Escolhendo à mão, esta cidade deixará de seguir a diretiva.", nowBuilds: "{city} agora produz {item}.", released: "{city} volta a seguir a diretiva.",
+       reelTitle: "▶ BOLETIM DE GUERRA", reelSkip: "Pular ▶▶", sound: "Sons no mapa", moving: "em movimento",
        activeH: "Unidade ativa", next: "Próxima", skip: "Pular", sentry: "Sentinela", fortify: "Fortificar", wake: "Acordar", endTurn: "FIM TURNO", yourTurn: "sua vez", turnOf: "turno de", noActive: "Nenhuma unidade selecionada: toque numa das suas unidades.", allDone: "Todas as unidades têm ordens.", routeHint: "Rota mostrada: toque de novo na casa para partir.", unreachable: "Destino inalcançável para esta unidade.", movesL: "movimentos", hpL: "PV", fuelL: "combustível", ord_sentry: "sentinela", ord_fortify: "fortificada", ord_goto: "em marcha", ord_auto: "automática", woke: "Unidades acordadas:", keysHint: "q w e / a d / z x c movem · n próxima · E fim turno",
        factions: "Facções", selected: "Casa", events: "Eventos", clickHint: "Toque ou clique numa casa.",
         neutral: "Neutras", cities: "cidades", turn: "turno", midnight: "min para a meia-noite", sea: "mar", land: "terra",
@@ -376,6 +407,15 @@ function draw() {
       ctx.beginPath();
       if (capital) star(x, y, r * 1.35); else ctx.arc(x, y, r, 0, Math.PI * 2);
       ctx.fill(); ctx.stroke();
+      const pr = owner === state.viewer && cw >= 14 ? cityProduction(c) : null;
+      if (pr && pr.cost) {               // how far the production has come: a ring around the city
+        const k = Math.min(1, pr.progress / pr.cost), rr = r * (capital ? 1.35 : 1) + 3.5;
+        ctx.lineWidth = 2.5;
+        ctx.strokeStyle = "rgba(0,0,0,.55)"; ctx.beginPath(); ctx.arc(x, y, rr, 0, Math.PI * 2); ctx.stroke();
+        ctx.strokeStyle = "#ffe066"; ctx.beginPath();
+        ctx.arc(x, y, rr, -Math.PI / 2, -Math.PI / 2 + k * Math.PI * 2); ctx.stroke();
+        ctx.lineWidth = 1.2; ctx.strokeStyle = "#05070a";
+      }
       if (showLabels && (cw >= 26 || (cw >= 9 && (capital || size >= 3)))) {
         ctx.font = (capital ? "600 " : "") + Math.round(Math.max(11, Math.min(15, cw * 0.36))) + "px system-ui, sans-serif";
         ctx.textAlign = "center"; ctx.textBaseline = "top";
@@ -530,6 +570,13 @@ function cellInfo() {
   if (city) {
     const owner = city[5] >= 0 ? state.factions[city[5]].name : T.nobody;
     parts.push(`<div><b>${esc(city[1])}</b> · ${city[4] ? T.capital + " · " : ""}${T.size} ${city[3]} · ${esc(owner)}</div>`);
+    const pr = cityProduction(city);
+    if (pr) {
+      const left = pr.rate > 0 ? Math.max(0, Math.ceil((pr.cost - pr.progress) / pr.rate)) : "∞";
+      parts.push(`<div>⚙ ${esc(pr.name)} · ${Math.floor(pr.progress)}/${pr.cost} · ${T.readyIn} ${left} ${left === 1 ? T.turn : T.turns}` +
+        `${pr.manual && state.production.directive ? " · " + T.manual : ""}</div>` +
+        `<div class="orders"><button id="prodBtn">${T.prodBtn}</button></div>`);
+    }
   } else if (src >= 0) {
     const c = state.cityById.get(src);
     if (c) parts.push(`<div>${T.owner} ${esc(c[1])} · ${esc(c[5] >= 0 ? state.factions[c[5]].name : T.nobody)}</div>`);
@@ -540,6 +587,56 @@ function cellInfo() {
       `${esc(state.unit_types[u[1]] ? state.unit_types[u[1]].name : u[1])}${u[5] ? " +" + u[5] + " " + T.aboard : ""}</span>`).join("") + "</div>");
   }
   $("cell").innerHTML = parts.join("");
+  const btn = $("prodBtn");
+  if (btn) btn.onclick = () => openProduction(city);
+}
+function cityProduction(city) {
+  return city && city[5] === state.viewer && state.production ? state.production.cities[String(city[0])] : null;
+}
+
+// ---------------------------------------------------------------- production
+function openProduction(city) {
+  const pr = cityProduction(city);
+  if (!pr) return;
+  const dir = state.production.directive;
+  const title = T.prodTitle.replace("{city}", city[1]).replace("{rate}", pr.rate.toFixed(1));
+  const rows = pr.options.map(([k, name, cost, eta, stats]) => {
+    const sym = state.unit_types[k] ? `<span class="tok" style="background:${color(state.viewer)}">${k}</span>` : `<span class="tok sp">${k}</span>`;
+    return `<button class="opt${k === pr.key ? " cur" : ""}" data-k="${k}">${sym}<span class="nm">${esc(name)}</span>` +
+      `<span class="cs">${cost} · ${eta == null ? "∞" : eta} ${eta === 1 ? T.turn : T.turns}</span><span class="st">${esc(stats)}</span></button>`;
+  });
+  let foot = "";
+  if (dir && pr.manual) foot = `<button class="opt back" data-k="X">↺ ${esc(T.backDirective.replace("{d}", state.production.directive_name))}</button>`;
+  else if (dir) foot = `<div class="note">${esc(T.leaveNote)}</div>`;
+  const box = $("prod");
+  box.innerHTML = `<div class="dlg"><div class="hd"><b>${esc(title)}</b><button class="x">✕</button></div>` +
+    `<div class="now">⚙ ${esc(pr.name)} · ${Math.floor(pr.progress)}/${pr.cost}</div>` +
+    `<div class="list">${rows.join("")}</div>${foot}</div>`;
+  box.classList.add("on");
+  box.querySelector(".x").onclick = closeProduction;
+  box.onclick = (e) => { if (e.target === box) closeProduction(); };
+  box.querySelectorAll(".opt").forEach((b) => {
+    b.onclick = () => {
+      const k = b.dataset.k;
+      const cmd = k === "X" ? { op: "release", city: city[0] } : { op: "produce", city: city[0], key: k };
+      send(cmd, (r) => {
+        if (r.result !== "ok") { toast(r.text); return; }
+        const opt = pr.options.find((o) => o[0] === k);
+        toast(k === "X" ? T.released.replace("{city}", city[1])
+                        : T.nowBuilds.replace("{city}", city[1]).replace("{item}", opt ? opt[1] : k));
+      });
+      closeProduction();
+    };
+  });
+  const cur = box.querySelector(".opt.cur");
+  if (cur) cur.focus();
+}
+function closeProduction() { $("prod").classList.remove("on"); }
+function productionHere() {          // p: the city under the selection or the active unit
+  const a = activeUnit();
+  const cell = selected >= 0 && state.cityAt.has(selected) ? selected : a ? a[3] : -1;
+  const city = state.cityAt.get(cell);
+  if (cityProduction(city)) openProduction(city);
 }
 
 // ---------------------------------------------------------------- input
@@ -702,6 +799,10 @@ function clickCell(cell) {
     if (enter) { moveTo(cell); return; }
   }
   if (own.length) { select(own.find(waiting) || own[0]); return; }
+  // one of our cities, with no unit to send there: its production (else the
+  // panel's "Production" button, or p, opens it)
+  const city = state.cityAt.get(cell);
+  if (cityProduction(city) && !(a && state.my_turn)) { openProduction(city); return; }
   if (a && state.my_turn) {                                     // far away: show the route first
     route = { cell, cells: null };
     socket.send(JSON.stringify({ t: "path", unit: a[0], cell }));
@@ -726,6 +827,8 @@ function orderKey(k) {
     if (to >= 0) moveTo(to);
     return true;
   }
+  if ($("prod").classList.contains("on")) { if (k === "Escape") closeProduction(); return k === "Escape"; }
+  if (k === "p") { productionHere(); return true; }
   const map = { n: "next", Tab: "next", " ": "skip", s: "sentry", f: "fortify", v: "wake" };
   if (map[k]) { order(map[k]); return true; }
   if (k === "E") { endTurn(); return true; }

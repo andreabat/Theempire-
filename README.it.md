@@ -243,8 +243,15 @@ in alto nella web TUI la apre in una nuova scheda (oppure aprite
   e in basso c'è FINE TURNO; in alto un'etichetta dice di chi è il turno.
   Con la tastiera: `q w e` `a d` `z x c` (o il tastierino) muovono,
   `n`/Tab prossima, spazio salta, `s` sentinella, `f` fortifica, `v`
-  sveglia, `E` fine turno, Esc deseleziona. Produzione, carte, diplomazia e
-  armi di distruzione di massa per ora restano nella TUI.
+  sveglia, `E` fine turno, Esc deseleziona.
+- **Produzione**: toccate una vostra città (oppure selezionatela e premete
+  `p`, o il pulsante «Produzione…» nel pannello) per scegliere cosa
+  costruisce: tutte le unità e gli oggetti speciali che può fare, con costo,
+  turni e forza, quello attuale evidenziato. Scegliere a mano toglie la
+  città dalla direttiva; «Torna alla direttiva» ce la rimette. Un anello
+  giallo attorno a ogni vostra città mostra a che punto è la produzione.
+  Carte, diplomazia, direttive e armi di distruzione di massa per ora
+  restano nella TUI.
 - **Battaglie e turno nemico animati**: i vostri attacchi si vedono sulla
   mappa (il fuoco dell'arma vola sul bersaglio, l'esplosione, poi ✕ su chi
   ha perso o ⚑ sulla città presa). Quando gli altri hanno mosso parte il

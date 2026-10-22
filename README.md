@@ -241,8 +241,14 @@ at the top of the web TUI opens it in a new tab (or open
   at the bottom there is END TURN; a badge at the top says whose turn it is.
   With a keyboard: `q w e` `a d` `z x c` (or the keypad) move, `n`/Tab next,
   space skip, `s` sentry, `f` fortify, `v` wake, `E` end turn, Esc
-  deselect. Production, cards, diplomacy and weapons of mass destruction
-  stay in the TUI for now.
+  deselect.
+- **Production**: tap one of your cities (or select it and press `p`, or the
+  "Production…" button in the panel) to choose what it builds: every unit
+  and special item it can make, with cost, turns and strength, the current
+  one highlighted. Choosing by hand takes the city out of the directive; "Back
+  to the directive" puts it back. A yellow ring around each of your cities
+  shows how far its production has come. Cards, diplomacy, directives and
+  weapons of mass destruction stay in the TUI for now.
 - **Battles and the enemy turn, animated**: your own attacks play on the
   map (the weapon's fire flies to the target, the explosion, then ✕ on
   whoever lost or ⚑ on a captured city). When the others have moved, the

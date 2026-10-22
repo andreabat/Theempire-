@@ -175,3 +175,20 @@ def test_a_map_alone_gets_the_bulletin(server):
     assert got and any(a["op"] in ("move", "attack", "capture") for a in got)
     assert not srv.reels.get(0)                               # delivered once
     sock.close()
+
+
+def test_production_menu_data_and_orders():
+    g = Game("ww3", humans=("west",), seed=1)
+    d = mapview.view(commands.view_for(g, 0), 0, "en")
+    prod = d["production"]["cities"]
+    assert set(prod) == {c.id for c in g.cities_of(0)}
+    big = next(c for c in g.cities_of(0) if c.size >= 3)
+    keys = [o[0] for o in prod[big.id]["options"]]
+    assert "A" in keys and "Z" in keys and prod[big.id]["key"] == big.production
+    assert all(o[3] is None or isinstance(o[3], int) for o in prod[big.id]["options"])
+    assert mapview.command({"op": "produce", "city": big.id, "key": "F", "x": 1}) == \
+        {"op": "produce", "city": big.id, "key": "F"}
+    assert commands.apply(g, 0, mapview.command({"op": "produce", "city": big.id, "key": "F"})) == "ok"
+    assert big.production == "F" and big.manual
+    enemy = next(c for c in g.cities_of(1))
+    assert commands.apply(g, 0, {"op": "produce", "city": enemy.id, "key": "F"}) == "illegal"

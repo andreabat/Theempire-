@@ -118,14 +118,14 @@ def view(state: dict, viewer: int, lang: str | None = None, with_territory: bool
 
 
 # what a map page may ask the server to do (the rest stays in the TUI for now)
-COMMANDS = {"move", "order", "wake", "end_turn", "load", "unload", "disband"}
+COMMANDS = {"move", "order", "wake", "end_turn", "load", "unload", "disband", "produce", "release"}
 
 
 def command(cmd) -> dict | None:
     """A command from a map page, if it is one it may give."""
     if not isinstance(cmd, dict) or cmd.get("op") not in COMMANDS:
         return None
-    return {k: v for k, v in cmd.items() if k in ("op", "unit", "cell", "order", "target")}
+    return {k: v for k, v in cmd.items() if k in ("op", "unit", "cell", "order", "target", "city", "key")}
 
 
 def result_text(result: str, lang: str | None = None) -> str:
@@ -159,6 +159,38 @@ def reel(game: Game, acts: list[dict], viewer: int, lang: str | None = None) -> 
             item["line"] = chronicle.scene_line(game, act, viewer, lang)
         out.append(item)
     return out
+
+
+def production(g: Game, viewer: int, lang: str | None = None) -> dict:
+    """What each city of the viewer builds, and what it could build instead
+    (the same menu as the terminal's p)."""
+    from theempire.game import DIRECTIVES
+    from theempire.units import ASAT, CHEMICAL, PRODUCTION_NAMES, SATELLITE, WARHEAD, production_cost
+    out = {}
+    for c in g.cities_of(viewer):
+        rate = g.production_rate(c)
+        options = []
+        for k in list(UNIT_TYPES) + [WARHEAD, CHEMICAL, SATELLITE, ASAT]:
+            if not g.can_build(c, k):
+                continue
+            cost = production_cost(k)
+            if k in UNIT_TYPES:
+                t = UNIT_TYPES[k]
+                stats = i18n.tr("att {attack} dif {defense} PV {hp} mosse {moves}", lang, attack=t.attack,
+                                defense=t.defense, hp=t.hp, moves=t.move)
+            elif k == SATELLITE:
+                stats = i18n.tr("in orbita: vede una fascia del mondo", lang)
+            else:
+                stats = i18n.tr("scorta strategica", lang)
+            options.append([k, i18n.word(PRODUCTION_NAMES[k], lang), cost,
+                            None if rate <= 0 else int(-(-cost // rate)), stats])
+        key = c.production
+        out[c.id] = {"key": key, "name": i18n.word(PRODUCTION_NAMES.get(key, key), lang),
+                     "progress": round(c.progress, 1), "cost": production_cost(key) if key in PRODUCTION_NAMES else 0,
+                     "rate": round(rate, 1), "manual": c.manual, "options": options}
+    directive = g.factions[viewer].directive
+    return {"cities": out, "directive": directive,
+            "directive_name": i18n.word(DIRECTIVES.get(directive, ""), lang).split(" (")[0] if directive else ""}
 
 
 def view_game(g: Game, viewer: int, lang: str | None = None, with_territory: bool = True) -> dict:
@@ -197,6 +229,7 @@ def view_game(g: Game, viewer: int, lang: str | None = None, with_territory: boo
                            "domain": t.domain, "fuel": t.fuel} for k, t in UNIT_TYPES.items()},
         "symbols": SYMBOLS,
         "territory_key": territory_key(g),
+        "production": production(g, viewer, lang),
     }
     if with_territory:
         out["territory"] = territory(g)
